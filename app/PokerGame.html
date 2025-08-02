@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>21 Card Game</title>
+<style>
+  body { font-family: sans-serif; padding: 20px; background:#f4f4f4; }
+  h1 { margin-top: 0; }
+  #bank { font-size: 20px; margin-bottom: 10px; }
+  #table { margin-top: 20px; }
+  .hand { margin-bottom: 20px; }
+  .card {
+    display: inline-block;
+    width: 60px;
+    height: 90px;
+    line-height: 90px;
+    border: 2px solid #333;
+    border-radius: 10px;
+    text-align: center;
+    font-size: 28px;
+    font-weight: bold;
+    background:#fff;
+    margin-right: 8px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .card.selected { border-color: #d00; background:#fee; }
+  #actions button { margin-right: 8px; padding: 8px 14px; font-size: 16px; }
+  #log { margin-top: 15px; white-space: pre-line; }
+</style>
+</head>
+<body>
+  <h1>21 Card Game</h1>
+  <div id="bank">Balance: $<span id="balance">100</span></div>
+  <label>Bet: $ <input id="bet" type="number" min="1" step="1" value="10"></label>
+  <button id="startBtn">게임 시작</button>
+
+  <div id="table" style="display:none;">
+    <div class="hand" id="playerHandWrapper">
+      <strong>YOU:</strong> <span id="playerHand"></span> <span id="playerTotal"></span>
+    </div>
+    <div class="hand" id="aiHandWrapper">
+      <strong>AI:</strong> <span id="aiHand"></span> <span id="aiTotal"></span>
+    </div>
+
+    <div id="actions">
+      <button id="changeBtn" disabled>체인지</button>
+      <button id="standBtn" disabled>스탠드</button>
+      <button id="periodBtn" disabled>피어리어드</button>
+    </div>
+  </div>
+
+  <div id="log"></div>
+
+<script>
+const ranks = ["A","2","3","4","5","6","7","8","9","10","J","Q","K"];
+function drawCard(){
+  const rank=ranks[Math.floor(Math.random()*ranks.length)];
+  let value;
+  if(rank==="A") value=1; // default 1 unless Period later
+  else if(["J","Q","K"].includes(rank)) value=10;
+  else value=parseInt(rank);
+  return {rank,value};
+}
+
+let balance=100;
+const balanceEl=document.getElementById("balance");
+const betEl=document.getElementById("bet");
+const startBtn=document.getElementById("startBtn");
+const tableEl=document.getElementById("table");
+const playerHandEl=document.getElementById("playerHand");
+const aiHandEl=document.getElementById("aiHand");
+const playerTotalEl=document.getElementById("playerTotal");
+aiTotalEl=document.getElementById("aiTotal");
+const logEl=document.getElementById("log");
+const changeBtn=document.getElementById("changeBtn");
+const standBtn=document.getElementById("standBtn");
+const periodBtn=document.getElementById("periodBtn");
+
+let playerHand=[], aiHand=[];
+let playerPeriod=false, aiPeriod=false;
+let selectedIndex=null;
+
+function renderHand(hand, container){
+  container.innerHTML="";
+  hand.forEach((card, idx)=>{
+    const div=document.createElement("div");
+    div.className="card";
+    div.textContent=card.rank;
+    if(container===playerHandEl){
+      div.onclick=()=>{
+        if(!changeBtn.disabled){
+          if(selectedIndex===idx){
+            div.classList.remove("selected");
+            selectedIndex=null;
+          }else{
+            [...container.children].forEach(c=>c.classList.remove("selected"));
+            div.classList.add("selected");
+            selectedIndex=idx;
+          }
+        }
+      };
+    }
+    container.appendChild(div);
+  });
+}
+
+function total(hand, isPeriod){
+  let sum=hand.reduce((acc,c)=>acc+c.value,0);
+  if(isPeriod){
+    hand.forEach(card=>{
+      if(card.rank==="A") sum+=10; // convert 1 -> 11 (add extra 10)
+    });
+  }
+  return sum;
+}
+
+function diffTo21(val){return Math.abs(21-val);}
+
+function setButtons(state){
+  changeBtn.disabled=!state;
+  standBtn.disabled=!state;
+  periodBtn.disabled=!state;
+}
+
+function startGame(){
+  const bet=parseInt(betEl.value);
+  if(isNaN(bet)||bet<=0){alert("Bet must be positive integer");return;}
+  if(bet>balance){alert("Not enough balance");return;}
+  playerHand=[drawCard(),drawCard()];
+  aiHand=[drawCard(),drawCard()];
+  playerPeriod=false; aiPeriod=false; selectedIndex=null;
+  renderHand(playerHand,playerHandEl);
+  renderHand(aiHand,aiHandEl);
+  playerTotalEl.textContent="";
+  aiTotalEl.textContent="";
+  logEl.textContent="Choose your action.";
+  tableEl.style.display="block";
+  setButtons(true);
+}
+
+function finishRound(){
+  const bet=parseInt(betEl.value);
+  const playerSum=total(playerHand,playerPeriod);
+  const aiSum=total(aiHand,aiPeriod);
+  renderHand(playerHand,playerHandEl);
+  renderHand(aiHand,aiHandEl);
+  playerTotalEl.textContent=` (합 ${playerSum})`;
+  aiTotalEl.textContent=` (합 ${aiSum})`;
+  const pDiff=diffTo21(playerSum);
+  const aDiff=diffTo21(aiSum);
+  let result;
+  if(pDiff<aDiff){balance+=bet; result="YOU WIN";}
+  else if(pDiff>aDiff){balance-=bet; result="YOU LOSE";}
+  else {balance+=bet; result="TIE → YOU WIN";} // tie goes to player
+  balanceEl.textContent=balance;
+  logEl.textContent+=`\n결과: ${result}!`;
+  setButtons(false);
+}
+
+function aiChoose(){
+  // simple heuristic algorithm
+  const currentSum=total(aiHand,false);
+  let action;
+  if(currentSum<=14) action="CHANGE";
+  else if(currentSum<=17) action="STAND";
+  else action="PERIOD";
+
+  if(action==="CHANGE"){
+    // discard lowest value card
+    let lowIdx=0; for(let i=1;i<aiHand.length;i++){ if(aiHand[i].value<aiHand[lowIdx].value) lowIdx=i; }
+    aiHand.splice(lowIdx,1);
+    aiHand.push(drawCard(),drawCard());
+    aiPeriod=false;
+  }else if(action==="STAND"){
+    aiHand.push(drawCard());
+    aiPeriod=false;
+  }else{ // PERIOD
+    aiPeriod=true;
+  }
+  logEl.textContent+=`\nAI chooses ${action}.`;
+  finishRound();
+}
+
+changeBtn.onclick=()=>{
+  if(selectedIndex===null){alert("버릴 카드를 선택해줘");return;}
+  const discarded=playerHand.splice(selectedIndex,1)[0];
+  playerHand.push(drawCard(),drawCard());
+  playerPeriod=false;
+  setButtons(false);
+  logEl.textContent=`YOU chose CHANGE (discarded ${discarded.rank}).`;
+  renderHand(playerHand,playerHandEl);
+  aiChoose();
+};
+
+standBtn.onclick=()=>{
+  playerHand.push(drawCard());
+  playerPeriod=false;
+  setButtons(false);
+  logEl.textContent="YOU chose STAND.";
+  renderHand(playerHand,playerHandEl);
+  aiChoose();
+};
+
+periodBtn.onclick=()=>{
+  playerPeriod=true;
+  setButtons(false);
+  logEl.textContent="YOU chose PERIOD.";
+  aiChoose();
+};
+
+startBtn.onclick=startGame;
+</script>
+</body>
+</html>
