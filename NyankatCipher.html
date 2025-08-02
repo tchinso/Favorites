@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <title>냥캣식 암호기</title>
+  <style>
+    body{font-family:sans-serif;max-width:600px;margin:40px auto;padding:0 1rem;line-height:1.5;}
+    textarea{width:100%;min-height:120px;margin:0.5rem 0;font-family:monospace;}
+    button{padding:0.6rem 1.2rem;margin-right:0.5rem;cursor:pointer;}
+    #status{margin-top:0.5rem;color:green;}
+  </style>
+</head>
+<body>
+<h2>냥캣식 암호기</h2>
+
+<label for="input">입력</label>
+<textarea id="input" placeholder="여기에 텍스트를 넣어줘"></textarea>
+
+<div>
+  <button id="process">암호화 / 복호화</button>
+  <button id="copy">결과 복사</button>
+</div>
+
+<label for="output">결과</label>
+<textarea id="output" readonly></textarea>
+
+<div id="status"></div>
+
+<script>
+const seed = 186; // 열쇠값 — 필요하면 바꿔줘
+
+/* ---------- 유틸 ---------- */
+const strToUint8 = str => new TextEncoder().encode(str);
+const uint8ToStr = bytes => new TextDecoder().decode(bytes);
+const xorShift = (bytes, seed) => bytes.map((b,i)=> b ^ ((i+seed)%256));
+
+const toBase64 = bytes => btoa(String.fromCharCode(...bytes));
+function fromBase64(b64){
+  const cleaned = b64.replace(/\s+/g,''); // 공백 제거
+  if(!/^[A-Za-z0-9+/]*={0,2}$/.test(cleaned)) return null; // base64 문자가 아니면 탈락
+  const padLen = cleaned.length % 4;
+  const padded = padLen ? cleaned + '='.repeat(4-padLen) : cleaned;
+  let bin;
+  try{ bin = atob(padded); }catch{ return null; }
+  return Uint8Array.from(bin, c=>c.charCodeAt(0));
+}
+
+/* ---------- 메인 버튼 ---------- */
+document.getElementById('process').addEventListener('click',()=>{
+  const input = document.getElementById('input').value.trim();
+  const outputField = document.getElementById('output');
+  let status='', result='';
+
+  // 1) 복호화 시도: base64 → 바이트 → XOR → 문자열
+  const bytes = fromBase64(input);
+  if(bytes){
+    const plainBytes = xorShift(bytes, seed);
+    try{
+      result = uint8ToStr(plainBytes);
+      status = '복호화 완료';
+    }catch{
+      // 디코딩 실패하면 그냥 암호화 쪽으로
+      result='';
+    }
+  }
+
+  // 2) 복호화 실패 시 암호화 수행
+  if(!result){
+    const rawBytes = strToUint8(input);
+    const encBytes = xorShift(rawBytes, seed);
+    result = toBase64(encBytes);
+    status = '암호화 완료';
+  }
+
+  outputField.value = result;
+  document.getElementById('status').textContent = status;
+});
+
+/* ---------- 복사 버튼 ---------- */
+document.getElementById('copy').addEventListener('click',()=>{
+  const out = document.getElementById('output').value;
+  if(!out){
+    document.getElementById('status').textContent = '복사할 결과가 없어…';
+    return;
+  }
+  navigator.clipboard.writeText(out).then(()=>{
+    document.getElementById('status').textContent = '클립보드에 복사됐어';
+  });
+});
+</script>
+</body>
+</html>
