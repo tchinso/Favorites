@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>주식 게임</title>
+  <style>
+    body { font-family: Arial, sans-serif; text-align: center; background-color: #f4f4f9; margin: 0; padding: 20px; }
+    h1 { color: #333; }
+    #portfolio { margin: 20px; padding: 15px; background: #fff; border: 1px solid #ccc; border-radius: 8px; }
+    #stocks { display: flex; flex-wrap: wrap; justify-content: center; gap: 15px; margin-top: 20px; }
+    .stock { border: 1px solid #ddd; padding: 15px; background: #e8f0fe; width: 220px; border-radius: 8px; }
+    .stock p { margin: 5px 0; }
+    .price-up { color: #2e7d32; }
+    .price-down { color: #d32f2f; }
+    button { padding: 8px 15px; margin: 5px; cursor: pointer; background: #6200ea; color: white; border: none; border-radius: 5px; }
+    button:hover { background: #7f39fb; }
+    #message { color: #d32f2f; font-weight: bold; margin-top: 10px; }
+    #portfolio-details { margin: 20px; padding: 15px; background: #fff; border: 1px solid #ccc; border-radius: 8px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { padding: 10px; border: 1px solid #ddd; }
+    th { background: #6200ea; color: white; }
+  </style>
+</head>
+<body>
+  <h1>주식 게임</h1>
+  <div id="portfolio">
+    현금: $<span id="cash">1000</span> | 총 자산: $<span id="total">1000</span>
+  </div>
+  <div id="portfolio-details">
+    <h3>포트폴리오 상세</h3>
+    <table id="portfolio-table">
+      <thead>
+        <tr><th>주식</th><th>보유 수량</th><th>현재 가격</th><th>총 가치</th></tr>
+      </thead>
+      <tbody id="portfolio-body"></tbody>
+    </table>
+  </div>
+  <div id="stocks"></div>
+  <div id="message"></div>
+
+  <script>
+    let cash = 1000;
+    let portfolio = {};
+    const stocks = [
+      { name: "테크노", price: 100, volatility: 0.05, prevPrice: 100 },
+      { name: "바이오젠", price: 200, volatility: 0.07, prevPrice: 200 },
+      { name: "에너지코", price: 150, volatility: 0.06, prevPrice: 150 },
+      { name: "푸드마켓", price: 80, volatility: 0.03, prevPrice: 80 },
+      { name: "패션트렌드", price: 120, volatility: 0.04, prevPrice: 120 },
+      { name: "건설왕", price: 300, volatility: 0.08, prevPrice: 300 },
+      { name: "소프트랩", price: 250, volatility: 0.06, prevPrice: 250 },
+      { name: "헬스케어", price: 180, volatility: 0.05, prevPrice: 180 },
+      { name: "게임스", price: 90, volatility: 0.07, prevPrice: 90 },
+      { name: "미디어킹", price: 110, volatility: 0.04, prevPrice: 110 },
+      { name: "로보틱스", price: 400, volatility: 0.09, prevPrice: 400 },
+      { name: "그린에너지", price: 220, volatility: 0.06, prevPrice: 220 },
+      { name: "트랜스포", price: 130, volatility: 0.05, prevPrice: 130 },
+      { name: "스마트카", price: 270, volatility: 0.08, prevPrice: 270 },
+      { name: "클라우드", price: 190, volatility: 0.06, prevPrice: 190 },
+      { name: "핀테크", price: 160, volatility: 0.05, prevPrice: 160 },
+      { name: "리테일", price: 140, volatility: 0.04, prevPrice: 140 },
+      { name: "드론텍", price: 350, volatility: 0.09, prevPrice: 350 },
+      { name: "VR월드", price: 210, volatility: 0.07, prevPrice: 210 },
+      { name: "스페이스", price: 500, volatility: 0.1, prevPrice: 500 }
+    ];
+
+    function updateStockPrices() {
+      stocks.forEach(stock => {
+        stock.prevPrice = stock.price;
+        const changePercent = (Math.random() * (0.316 - (-0.284)) + (-0.284));
+        const change = stock.price * changePercent;
+        stock.price = Math.max(10, Math.round(stock.price + change));
+      });
+      renderStocks();
+    }
+
+    function renderStocks() {
+      const stockDiv = document.getElementById('stocks');
+      stockDiv.innerHTML = '';
+      stocks.forEach(stock => {
+        const div = document.createElement('div');
+        div.className = 'stock';
+        const priceClass = stock.price > stock.prevPrice ? 'price-up' : stock.price < stock.prevPrice ? 'price-down' : '';
+        div.innerHTML = `
+          <h3>${stock.name}</h3>
+          <p class="${priceClass}">가격: $${stock.price}</p>
+          <p>보유: ${portfolio[stock.name] || 0}주</p>
+          <button onclick="buyStock('${stock.name}', ${stock.price})">매수</button>
+          <button onclick="sellStock('${stock.name}', ${stock.price})">매도</button>
+        `;
+        stockDiv.appendChild(div);
+      });
+      updatePortfolio();
+    }
+
+    function buyStock(name, price) {
+      if (cash >= price) {
+        cash -= price;
+        portfolio[name] = (portfolio[name] || 0) + 1;
+        document.getElementById('message').textContent = `${name} 1주 매수했어!`;
+        updatePortfolio();
+      } else {
+        document.getElementById('message').textContent = '현금이 부족해…';
+      }
+    }
+
+    function sellStock(name, price) {
+      if (portfolio[name] > 0) {
+        cash += parseFloat(price);
+        portfolio[name]--;
+        if (portfolio[name] === 0) delete portfolio[name];
+        document.getElementById('message').textContent = `${name} 1주 매도했어!`;
+        updatePortfolio();
+      } else {
+        document.getElementById('message').textContent = '보유한 주식이 없어…';
+      }
+    }
+
+    function updatePortfolio() {
+      let total = cash;
+      const portfolioBody = document.getElementById('portfolio-body');
+      portfolioBody.innerHTML = '';
+      for (let stockName in portfolio) {
+        const stock = stocks.find(s => s.name === stockName);
+        const value = (stock.price * portfolio[stockName]);
+        total += parseFloat(value);
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${stockName}</td>
+          <td>${portfolio[stockName]}</td>
+          <td>$${stock.price}</td>
+          <td>$${value}</td>
+        `;
+        portfolioBody.appendChild(row);
+      }
+      document.getElementById('cash').textContent = cash.toFixed(0);
+      document.getElementById('total').textContent = total.toFixed(0);
+    }
+
+    setInterval(updateStockPrices, 5000);
+    renderStocks();
+  </script>
+
+</body>
+</html>
