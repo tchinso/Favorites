@@ -1,0 +1,112 @@
+<!-- Hangul → Hiragana / Katakana converter (client‑side only) -->
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>한글 → 히라가나/가타카나 변환기</title>
+  <style>
+    :root { --accent:#296eff; --accent-dark:#1c4eb1; --success:#4caf50; }
+    *{box-sizing:border-box}
+    body{font-family:"Pretendard","Noto Sans KR",sans-serif;margin:0 auto;max-width:860px;padding:2rem 1rem;line-height:1.5}
+    h1{font-size:1.5rem;margin-bottom:1rem}
+    label{font-weight:600}
+    textarea{width:100%;min-height:11rem;font-size:1rem;padding:.75rem;border:1px solid #ccc;border-radius:.5rem;resize:vertical}
+    .btn-group{display:flex;flex-wrap:wrap;gap:.5rem;margin:1rem 0}
+    button{flex:1 1 10rem;cursor:pointer;border:none;border-radius:.5rem;padding:.75rem 1rem;font-size:1rem;font-weight:600;color:#fff;background:var(--accent);transition:background .15s}
+    button:hover{background:var(--accent-dark)}
+    #copy{width:100%;margin-top:.5rem;background:var(--success)}
+    #copy:hover{background:#3c8e42}
+  </style>
+  <!-- ✅ WanaKana UMD build (guaranteed window.wanakana) -->
+  <script src="https://cdn.jsdelivr.net/npm/wanakana@4.0.2/umd/wanakana.min.js"></script>
+</head>
+<body>
+  <h1>한글 → 히라가나 / 전각·반각 가타카나 변환기</h1>
+
+  <label for="input">입력 (한글)</label>
+  <textarea id="input" placeholder="여기에 한글을 입력하세요…&#10;예) 아리가토우고자이마스"></textarea>
+
+  <div class="btn-group">
+    <button data-mode="tohiragana">히라가나 변환</button>
+    <button data-mode="tofullkatakana">전각 가타카나 변환</button>
+    <button data-mode="tohalfkatakana">반각 가타카나 변환</button>
+  </div>
+
+  <label for="output">출력</label>
+  <textarea id="output" readonly placeholder="변환 결과가 여기에 표시됩니다"></textarea>
+  <button id="copy">출력 결과 복사</button>
+
+  <script>
+  /* ----------------- Utility ----------------- */
+  const L = ["g","kk","n","d","tt","r","m","b","pp","s","ss","","j","jj","ch","k","t","p","h"];
+  const V = ["a","ae","ya","yae","eo","e","yeo","ye","o","wa","wae","oe","yo","u","wo","we","wi","yu","eu","ui","i"];
+  const T = ["","k","k","ks","n","nj","nh","t","l","lk","lm","lp","ls","lt","lp","lh","m","p","ps","t","t","ng","t","t","k","t","p","h"];
+
+  function syllableToRoma(code){
+    const SBase=0xAC00,LCount=19,VCount=21,TCount=28,NCount=588;
+    const SIndex=code-SBase;
+    if(SIndex<0||SIndex>=11172) return String.fromCharCode(code);
+    const l=L[Math.floor(SIndex/NCount)];
+    const v=V[Math.floor((SIndex%NCount)/TCount)];
+    const t=T[SIndex%TCount];
+    return l+v+t;
+  }
+  function romaizeHangul(txt){
+    let out="";
+    for(const ch of txt){
+      const c=ch.charCodeAt(0);
+      out+=syllableToRoma(c);
+    }
+    return out;
+  }
+
+  /* -------------- Katakana helpers --------------- */
+  function toHalfwidthKatakana(fullstr){
+    const full="アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲンァィゥェォッャュョー「」、。・ヴガギグゲゴザジズゼゾダヂヅデドバビブベボパピプペポ";
+    const half="ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜｦﾝｧｨｩｪｫｯｬｭｮｰ｢｣､｡･ｳﾞｶﾞｷﾞｸﾞｹﾞｺﾞｻﾞｼﾞｽﾞｾﾞｿﾞﾀﾞﾁﾞﾂﾞﾃﾞﾄﾞﾊﾞﾋﾞﾌﾞﾍﾞﾎﾞﾊﾟﾋﾟﾌﾟﾍﾟﾎﾟ";
+    return fullstr.replace(/./g,ch=>{
+      const i=full.indexOf(ch);
+      return i>-1?half[i]:ch;
+    });
+  }
+
+  /* -------------- Converter core ---------------- */
+  function convertHangul(txt,mode){
+    if(!window.wanakana){
+      alert('WanaKana 로딩 실패… 인터넷 연결을 확인해줘');
+      return '';
+    }
+    const romaji=romaizeHangul(txt.toLowerCase());
+    const katakana=wanakana.toKatakana(romaji);
+    switch(mode){
+      case 'tohiragana':
+        return wanakana.toHiragana(romaji);
+      case 'tohalfkatakana':
+        return toHalfwidthKatakana(katakana);
+      default:
+        return katakana;
+    }
+  }
+
+  /* -------------- UI wiring --------------------- */
+  function init(){
+    document.querySelectorAll('button[data-mode]').forEach(btn=>{
+      btn.addEventListener('click',()=>{
+        const mode=btn.dataset.mode;
+        const input=document.getElementById('input').value;
+        document.getElementById('output').value=convertHangul(input,mode);
+      });
+    });
+    document.getElementById('copy').addEventListener('click',()=>{
+      const out=document.getElementById('output');
+      if(!out.value) return;
+      out.select();
+      document.execCommand('copy');
+      alert('복사했어…!');
+    });
+  }
+  window.addEventListener('DOMContentLoaded',init);
+  </script>
+</body>
+</html>
