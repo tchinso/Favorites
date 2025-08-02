@@ -2,27 +2,35 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <title>Seal‑Escape 9×9 (Dual AI)</title>
+  <title>Seal‑Escape 9×9 (Responsive)</title>
   <style>
-    :root { --cell: 36px; }
+    /* ------------- Responsive layout ------------- */
     body{margin:0;padding:1rem;font-family:system-ui,sans-serif;display:flex;flex-direction:column;align-items:center;gap:1rem;background:#fafafa}
-    #board{display:grid;grid-template-columns:repeat(9,var(--cell));grid-template-rows:repeat(9,var(--cell));outline:2px solid #333}
-    .cell{width:var(--cell);height:var(--cell);border:1px solid #999;box-sizing:border-box;display:flex;align-items:center;justify-content:center;user-select:none;cursor:pointer}
+
+    /* 보드는 뷰포트 기준 90vmin, 최대 540px */
+    #board{width:min(90vmin,540px);height:min(90vmin,540px);display:grid;grid-template-columns:repeat(9,1fr);grid-template-rows:repeat(9,1fr);outline:2px solid #333}
+
+    .cell{width:100%;height:100%;border:1px solid #999;box-sizing:border-box;display:flex;align-items:center;justify-content:center;user-select:none;cursor:pointer;font-size:clamp(.6rem,1.8vmin,.95rem)}
+
     .player{background:#2e7d32;color:#fff}
     .ai{background:#c62828;color:#fff}
-    .tomb{background:#555;color:#fff;position:relative}
-    .tomb::after{content:"†";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:1rem;font-weight:bold;color:#fafafa;pointer-events:none}
+
+    .tomb{background:#555;position:relative;color:#fff}
+    .tomb::after{content:"†";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#fafafa;font-size:clamp(.8rem,2.2vmin,1.2rem);font-weight:bold;pointer-events:none}
+
     .sealed{background:#e0e0e0;position:relative}
-    .sealed::after{content:"✕";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#f00;font-weight:bold;pointer-events:none}
+    .sealed::after{content:"✕";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#f00;font-weight:bold;font-size:clamp(.9rem,2.2vmin,1.3rem);pointer-events:none}
+
     .highlight{background:#cfe8ff}
-    #info{display:flex;gap:1.5rem}
-    #message{min-height:1.2rem}
+
+    #info{display:flex;gap:1.5rem;font-size:clamp(.9rem,2.2vmin,1.1rem)}
+    #message{min-height:1.2rem;font-size:clamp(.9rem,2.3vmin,1.1rem)}
     #controls{display:flex;gap:.5rem}
-    button{padding:.5rem 1rem;font-size:1rem;cursor:pointer}
+    button{padding:.45rem 1rem;font-size:clamp(.9rem,2.3vmin,1rem);cursor:pointer}
   </style>
 </head>
 <body>
-  <h1>9×9 Seal‑Escape Game</h1>
+  <h1 style="margin:0 0 .5rem 0;font-size:clamp(1.2rem,3vmin,1.6rem)">9×9 Seal‑Escape Game</h1>
   <div id="info">
     <div>턴: <span id="turnNum">0</span></div>
     <div>봉인 해제까지: <span id="turnsLeft">5</span></div>
@@ -38,11 +46,11 @@
 const SIZE = 9;
 const UNSEAL_INTERVAL = 5;
 const UNSEAL_COUNT = 2;
-const dirs = [[1,0],[-1,0],[0,1],[0,-1]];
-const inBounds = (r,c)=>r>=0&&r<SIZE&&c>=0&&c<SIZE;
+const dirs=[[1,0],[-1,0],[0,1],[0,-1]];
+const inBounds=(r,c)=>r>=0&&r<SIZE&&c>=0&&c<SIZE;
 
 /* ===== state ===== */
-let board, player, aiPieces, turnCnt, countdown, phase; // phase: 'playerMove'|'playerSeal'
+let board,player,aiPieces,turnCnt,countdown,phase; // phase:'playerMove'|'playerSeal'
 
 /* ===== dom ===== */
 const boardEl=document.getElementById('board');
@@ -52,16 +60,16 @@ const leftEl=document.getElementById('turnsLeft');
 const startBtn=document.getElementById('startBtn');
 const restartBtn=document.getElementById('restartBtn');
 
-/* ===== helper ===== */
+/* ===== helpers ===== */
 const cellEl=(r,c)=>boardEl.children[r*SIZE+c];
-function randInner(){return Math.floor(Math.random()*(SIZE-2))+1;}
+const randInner=()=>Math.floor(Math.random()*(SIZE-2))+1;
 function legalMoves(ent){return dirs.map(([dr,dc])=>({r:ent.r+dr,c:ent.c+dc})).filter(p=>inBounds(p.r,p.c)&&board[p.r][p.c]==='empty');}
-function floodScore(sr,sc){const seen=Array.from({length:SIZE},()=>Array(SIZE).fill(false));let q=[[sr,sc]],cnt=0;seen[sr][sc]=true;while(q.length){const [r,c]=q.pop();cnt++;for(const[dr,dc]of dirs){const nr=r+dr,nc=c+dc;if(inBounds(nr,nc)&&!seen[nr][nc]&&board[nr][nc]==='empty'){seen[nr][nc]=true;q.push([nr,nc]);}}}return cnt;}
-function randomEmpty(){const arr=[];board.forEach((row,r)=>row.forEach((v,c)=>v==='empty'&&arr.push({r,c})));return arr[Math.floor(Math.random()*arr.length)];}
-function updateHUD(){turnEl.textContent=turnCnt;leftEl.textContent=countdown;}
-function clearHL(){boardEl.querySelectorAll('.highlight').forEach(e=>e.classList.remove('highlight'));}
-function highlightMoves(ent){clearHL();legalMoves(ent).forEach(p=>cellEl(p.r,p.c).classList.add('highlight'));}
-function highlightSeals(){clearHL();board.forEach((row,r)=>row.forEach((v,c)=>v==='empty'&&cellEl(r,c).classList.add('highlight')));} 
+function flood(sr,sc){const seen=Array.from({length:SIZE},()=>Array(SIZE).fill(false));let q=[[sr,sc]],n=0;seen[sr][sc]=true;while(q.length){const [r,c]=q.pop();n++;for(const[dr,dc]of dirs){const nr=r+dr,nc=c+dc;if(inBounds(nr,nc)&&!seen[nr][nc]&&board[nr][nc]==='empty'){seen[nr][nc]=true;q.push([nr,nc]);}}}return n;}
+const randomEmpty=()=>{const a=[];board.forEach((row,r)=>row.forEach((v,c)=>v==='empty'&&a.push({r,c})));return a[Math.floor(Math.random()*a.length)];};
+const updateHUD=()=>{turnEl.textContent=turnCnt;leftEl.textContent=countdown;};
+const clearHL=()=>boardEl.querySelectorAll('.highlight').forEach(e=>e.classList.remove('highlight'));
+function hlMoves(ent){clearHL();legalMoves(ent).forEach(p=>cellEl(p.r,p.c).classList.add('highlight'));}
+function hlSeals(){clearHL();board.forEach((row,r)=>row.forEach((v,c)=>v==='empty'&&cellEl(r,c).classList.add('highlight')));} 
 
 /* ===== board build ===== */
 function buildBoard(){board=Array.from({length:SIZE},()=>Array(SIZE).fill('empty'));boardEl.innerHTML='';for(let r=0;r<SIZE;r++)for(let c=0;c<SIZE;c++){const d=document.createElement('div');d.className='cell';d.dataset.row=r;d.dataset.col=c;d.addEventListener('click',onCell);boardEl.appendChild(d);}}
@@ -69,34 +77,19 @@ function placePieces(){let pr,pc,ar1,ac1,ar2,ac2;do{pr=randInner();pc=randInner(
 
 /* ===== rendering ===== */
 function draw(){for(let r=0;r<SIZE;r++)for(let c=0;c<SIZE;c++){const el=cellEl(r,c);el.className='cell';if(board[r][c]==='player')el.classList.add('player');else if(board[r][c]==='ai')el.classList.add('ai');else if(board[r][c]==='sealed')el.classList.add('sealed');else if(board[r][c]==='tomb')el.classList.add('tomb');}}
-
-/* ===== gameplay ===== */
 function move(ent,r,c,tag){board[ent.r][ent.c]='empty';ent.r=r;ent.c=c;board[r][c]=tag;}
 function seal(r,c){board[r][c]='sealed';}
-function unsealRandom(k){const sealed=[];board.forEach((row,r)=>row.forEach((v,c)=>v==='sealed'&&sealed.push({r,c})));for(let i=0;i<k&&sealed.length;i++){const idx=Math.floor(Math.random()*sealed.length);const {r,c}=sealed.splice(idx,1)[0];board[r][c]='empty';}draw();}
+function unseal(k){const s=[];board.forEach((row,r)=>row.forEach((v,c)=>v==='sealed'&&s.push({r,c})));for(let i=0;i<k&&s.length;i++){const idx=Math.floor(Math.random()*s.length);const {r,c}=s.splice(idx,1)[0];board[r][c]='empty';}draw();}
 function declare(w){clearHL();msgEl.textContent=w+' 승리!';restartBtn.style.display='inline-block';}
 function checkWin(){if(!legalMoves(player).length){declare('AI');return true;}if(aiPieces.every(p=>!p.alive)){declare('플레이어');return true;}return false;}
-function advance(){turnCnt++;countdown--;updateHUD();if(countdown===0){unsealRandom(UNSEAL_COUNT);countdown=UNSEAL_INTERVAL;msgEl.textContent='5턴 경과! 봉인 2칸 해제.';}}
-
-function aiTurn(){// Process each AI piece
-  for(const piece of aiPieces){if(!piece.alive)continue;const moves=legalMoves(piece);if(!moves.length){board[piece.r][piece.c]='tomb';piece.alive=false;continue;}let best=moves[0],bestS=-1;moves.forEach(m=>{const s=floodScore(m.r,m.c);if(s>bestS){bestS=s;best=m;}});move(piece,best.r,best.c,'ai');}
-  draw();
-  if(checkWin())return;
-  // Seal
-  const pMoves=legalMoves(player);
-  const target=pMoves.length?pMoves.sort((a,b)=>floodScore(b.r,b.c)-floodScore(a.r,a.c))[0]:randomEmpty();
-  seal(target.r,target.c);draw();
-  advance();if(checkWin())return;
-  phase='playerMove';highlightMoves(player);msgEl.textContent='플레이어 차례: 이동할 칸을 선택해.';
-}
-
+function advance(){turnCnt++;countdown--;updateHUD();if(countdown===0){unseal(UNSEAL_COUNT);countdown=UNSEAL_INTERVAL;msgEl.textContent='5턴 경과! 봉인 2칸 해제.';}}
+function aiTurn(){for(const p of aiPieces){if(!p.alive)continue;const moves=legalMoves(p);if(!moves.length){board[p.r][p.c]='tomb';p.alive=false;continue;}let best=moves[0],bestS=-1;moves.forEach(m=>{const s=flood(m.r,m.c);if(s>bestS){bestS=s;best=m;}});move(p,best.r,best.c,'ai');}
+draw();if(checkWin())return;const pMoves=legalMoves(player);const tgt=pMoves.length?pMoves.sort((a,b)=>flood(b.r,b.c)-flood(a.r,a.c))[0]:randomEmpty();seal(tgt.r,tgt.c);draw();advance();if(checkWin())return;phase='playerMove';hlMoves(player);msgEl.textContent='플레이어 차례: 이동할 칸을 선택해.';}
 function endPlayer(){clearHL();advance();if(checkWin())return;aiTurn();}
+function onCell(e){const r=+e.currentTarget.dataset.row,c=+e.currentTarget.dataset.col;if(!e.currentTarget.classList.contains('highlight'))return;if(phase==='playerMove'){move(player,r,c,'player');draw();phase='playerSeal';hlSeals();msgEl.textContent='이제 봉인할 칸을 골라.';}else if(phase==='playerSeal'){seal(r,c);draw();endPlayer();}}
 
-/* ===== event ===== */
-function onCell(e){const r=+e.currentTarget.dataset.row,c=+e.currentTarget.dataset.col;if(!e.currentTarget.classList.contains('highlight'))return;if(phase==='playerMove'){move(player,r,c,'player');draw();phase='playerSeal';highlightSeals();msgEl.textContent='이제 봉인할 칸을 골라.';}else if(phase==='playerSeal'){seal(r,c);draw();endPlayer();}}
-
-/* ===== init ===== */
-function start(){buildBoard();placePieces();turnCnt=0;countdown=UNSEAL_INTERVAL;phase='playerMove';updateHUD();draw();highlightMoves(player);msgEl.textContent='플레이어 차례: 이동할 칸을 선택해.';startBtn.style.display='none';restartBtn.style.display='none';}
+/* ===== start ===== */
+function start(){buildBoard();placePieces();turnCnt=0;countdown=UNSEAL_INTERVAL;phase='playerMove';updateHUD();draw();hlMoves(player);msgEl.textContent='플레이어 차례: 이동할 칸을 선택해.';startBtn.style.display='none';restartBtn.style.display='none';}
 startBtn.onclick=start;restartBtn.onclick=start;
 </script>
 </body>
