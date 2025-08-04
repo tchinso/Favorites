@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>숨은 AI 찾기</title>
+<style>
+  body{font-family:sans-serif;display:flex;flex-direction:column;align-items:center;margin:0;padding:20px;background:#f5f5f5;}
+  #board{display:grid;grid-template-columns:repeat(9,50px);grid-template-rows:repeat(9,50px);gap:2px;margin-bottom:20px;}
+  .cell{width:50px;height:50px;background:#fff;border:1px solid #ccc;display:flex;justify-content:center;align-items:center;cursor:pointer;user-select:none;}
+  .cell.sealed{background:#333;}
+  .cell.hint-light{background:#ffc0cb;}
+  .cell.hint-dark{background:#ff69b4;}
+  .cell.ai{background:#4caf50;}
+  #info{margin-bottom:10px;font-size:18px;}
+  button{padding:8px 16px;font-size:16px;cursor:pointer;border:none;border-radius:4px;background:#2196f3;color:#fff;}
+  button:hover{background:#1976d2;}
+</style>
+</head>
+<body>
+<h2>숨은 AI 찾기</h2>
+<div id="info">턴: 0</div>
+<div id="board"></div>
+<button id="restart">다시 시작</button>
+
+<script>
+const SIZE = 9;
+const boardEl = document.getElementById('board');
+const infoEl = document.getElementById('info');
+const restartBtn = document.getElementById('restart');
+
+let sealed = [];
+let hintMap = [];//0 none,1 light,2 dark
+let possible = [];
+let ai = {x:0,y:0};
+let turn=0;
+let gameOver=false;
+
+function initGame(){
+  boardEl.innerHTML='';
+  sealed = Array.from({length:SIZE},()=>Array(SIZE).fill(false));
+  hintMap = Array.from({length:SIZE},()=>Array(SIZE).fill(0));
+  possible = Array.from({length:SIZE},()=>Array(SIZE).fill(true));
+  turn = 0;
+  gameOver=false;
+  placeAI();
+  drawBoard();
+  updateInfo();
+}
+
+function placeAI(){
+  ai.x = Math.floor(Math.random()*SIZE);
+  ai.y = Math.floor(Math.random()*SIZE);
+}
+
+function drawBoard(){
+  boardEl.innerHTML='';
+  boardEl.style.setProperty('grid-template-columns',`repeat(${SIZE},50px)`);
+  for(let y=0;y<SIZE;y++){
+    for(let x=0;x<SIZE;x++){
+      const cell=document.createElement('div');
+      cell.classList.add('cell');
+      cell.dataset.x=x;
+      cell.dataset.y=y;
+      if(sealed[y][x]) cell.classList.add('sealed');
+      else if(hintMap[y][x]===2) cell.classList.add('hint-dark');
+      else if(hintMap[y][x]===1) cell.classList.add('hint-light');
+      if(gameOver && ai.x===x && ai.y===y) cell.classList.add('ai');
+      cell.addEventListener('click',onCellClick);
+      boardEl.appendChild(cell);
+    }
+  }
+}
+
+function onCellClick(e){
+  if(gameOver) return;
+  const x=parseInt(e.currentTarget.dataset.x);
+  const y=parseInt(e.currentTarget.dataset.y);
+  if(sealed[y][x]) return;
+
+  // reset previous hints
+  hintMap = Array.from({length:SIZE},()=>Array(SIZE).fill(0));
+
+  // seal selected cell
+  sealed[y][x]=true;
+
+  // win check
+  if(ai.x===x && ai.y===y){
+    gameOver=true;
+    drawBoard();
+    alert('잡았다!');
+    return;
+  }
+
+  const dx=Math.abs(ai.x - x);
+  const dy=Math.abs(ai.y - y);
+  const inThree = dx<=1 && dy<=1;
+  const inFive = dx<=2 && dy<=2;
+
+  // paint hints
+  if(inThree){
+    for(let dy2=-1;dy2<=1;dy2++){
+      for(let dx2=-1;dx2<=1;dx2++){
+        const nx=x+dx2,ny=y+dy2;
+        if(inBounds(nx,ny)) hintMap[ny][nx]=2;
+      }
+    }
+  }else if(inFive){
+    for(let dy2=-2;dy2<=2;dy2++){
+      for(let dx2=-2;dx2<=2;dx2++){
+        const nx=x+dx2,ny=y+dy2;
+        if(inBounds(nx,ny)) hintMap[ny][nx]=1;
+      }
+    }
+  }
+
+  updatePossible(x,y,inThree,inFive);
+  moveAI();
+  turn++;
+  updateInfo();
+  drawBoard();
+}
+
+function inBounds(x,y){return x>=0&&x<SIZE&&y>=0&&y<SIZE;}
+
+function withinRadius(cx,cy,x,y,r){return Math.abs(x-cx)<=r && Math.abs(y-cy)<=r;}
+
+function updatePossible(cx,cy,inThree,inFive){
+  for(let y=0;y<SIZE;y++){
+    for(let x=0;x<SIZE;x++){
+      if(sealed[y][x]) possible[y][x]=false;
+      const in3 = withinRadius(cx,cy,x,y,1);
+      const in5 = withinRadius(cx,cy,x,y,2);
+      if(inThree){
+        if(!in3) possible[y][x]=false;
+      }else if(inFive){
+        if(!in5) possible[y][x]=false;
+        if(in3) possible[y][x]=false; // cannot be inside 3x3 if only light hint shown
+      }else{
+        if(in5) possible[y][x]=false;
+      }
+    }
+  }
+}
+
+function moveAI(){
+  let moves=[];
+  for(let dy=-1;dy<=1;dy++){
+    for(let dx=-1;dx<=1;dx++){
+      const nx=ai.x+dx, ny=ai.y+dy;
+      if(!inBounds(nx,ny)) continue;
+      if(sealed[ny][nx]) continue;
+      moves.push({x:nx,y:ny});
+    }
+  }
+  moves.push({x:ai.x,y:ai.y});
+
+  const scored = moves.map(p=>({...p,score:evaluateMoveScore(p.x,p.y)})).sort((a,b)=>b.score-a.score);
+  let choice=scored[0];
+  if(scored.length>1 && Math.random()<0.1){choice=scored[1];}
+  ai.x=choice.x;ai.y=choice.y;
+}
+
+function evaluateMoveScore(x,y){
+  const stillPoss=possible[y][x]?1:0;
+  let minDist=Infinity;
+  for(let sy=0;sy<SIZE;sy++){
+    for(let sx=0;sx<SIZE;sx++){
+      if(sealed[sy][sx]){
+        const d=Math.max(Math.abs(sx-x),Math.abs(sy-y));
+        if(d<minDist) minDist=d;
+      }
+    }
+  }
+  if(minDist===Infinity) minDist=SIZE;
+  let mobility=0;
+  for(let dy=-1;dy<=1;dy++){
+    for(let dx=-1;dx<=1;dx++){
+      const nx=x+dx, ny=y+dy;
+      if(inBounds(nx,ny)&&!sealed[ny][nx]) mobility++;
+    }
+  }
+  return stillPoss*1000 + minDist*10 + mobility;
+}
+
+function updateInfo(){infoEl.textContent=`턴: ${turn}`;}
+
+restartBtn.addEventListener('click',initGame);
+
+initGame();
+</script>
+</body>
+</html>
