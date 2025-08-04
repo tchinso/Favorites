@@ -10,41 +10,45 @@
     --over-bg:rgba(255,0,0,.25); --border:#222733;
     --mono:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
   }
-  html,body{height:100%;}
-  body{
-    margin:0; background:var(--bg); color:var(--fg);
-    font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,"Noto Sans KR",sans-serif;
-  }
-  .wrap{max-width:980px; margin:40px auto; padding:0 16px;}
+  html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);
+            font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,"Noto Sans KR",sans-serif;}
+
+  .wrap{max-width:980px;margin:40px auto;padding:0 16px;}
   h1{font-size:22px;font-weight:700;margin:0 0 16px;}
   .panel{border:1px solid var(--border);border-radius:12px;padding:16px;background:#0c0e13;}
+
   .controls{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:12px;}
   .controls label{font-size:14px;color:var(--muted);display:flex;align-items:center;gap:8px;}
-  .controls input[type="number"],
-  .controls select{
+  .controls input[type="number"],.controls select{
     padding:8px 10px;border:1px solid var(--border);border-radius:10px;
-    background:#0a0c10;color:var(--fg);
-  }
+    background:#0a0c10;color:var(--fg);}
   .controls input[type="number"]{width:140px;}
+
   .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:8px 0 14px;}
   .stat{border:1px solid var(--border);border-radius:10px;padding:10px 12px;background:#0b0e12;}
   .stat .label{font-size:12px;color:var(--muted);margin-bottom:6px;}
   .stat .value{font-family:var(--mono);font-size:18px;}
 
   .editor-wrap{position:relative;}
-  textarea,
-  .mirror{
+
+  /* textarea + mirror ─────────────────────────── */
+  textarea,.mirror{
     font:14px/1.6 var(--mono);
-    padding:14px; border:1px solid var(--border); border-radius:12px;
-    background:#0a0c10; height:360px; overflow:auto; white-space:pre;
+    padding:14px;border:1px solid var(--border);border-radius:12px;
+    background:#0a0c10;height:360px;overflow:auto;
+
+    white-space:pre-wrap;           /* 자동 줄바꿈 */
+    word-break:break-word;          /* 길게 이어진 문자열도 끊기 */
   }
   textarea{
-    position:relative; z-index:2; width:100%; resize:vertical;
-    color:var(--fg); background:transparent; caret-color:var(--fg);
+    position:relative;z-index:2;width:100%;resize:vertical;
+    color:transparent;              /* 본문 글씨 숨김 → 겹침 해결 */
+    caret-color:var(--fg);          /* 커서는 그대로 보이도록 */
+    background:transparent;
   }
   .mirror{
-    position:absolute; inset:0; z-index:1; pointer-events:none; color:var(--fg);
-    overflow:hidden; scrollbar-width:none; -ms-overflow-style:none;
+    position:absolute;inset:0;z-index:1;pointer-events:none;color:var(--fg);
+    scrollbar-width:none;-ms-overflow-style:none;
   }
   .mirror::-webkit-scrollbar{display:none;}
   .mirror .over{background:var(--over-bg);border-radius:2px;}
@@ -55,118 +59,113 @@
 </style>
 </head>
 <body>
-  <div class="wrap">
-    <h1>글자수 계산기</h1>
-    <div class="panel">
-      <div class="controls">
-        <label>글자수 제한
-          <input id="limit" type="number" min="0" step="1" placeholder="예: 1500">
-        </label>
-        <label>제한 기준
-          <select id="basis">
-            <option value="online" selected>온라인 서비스용</option>
-            <option value="include">공백 포함</option>
-            <option value="exclude">공백 제외</option>
-          </select>
-        </label>
-      </div>
+<div class="wrap">
+  <h1>글자수 계산기</h1>
 
-      <div class="stats">
-        <div class="stat"><div class="label">공백 제외</div><div class="value" id="v-exclude">0</div></div>
-        <div class="stat"><div class="label">공백 포함</div><div class="value" id="v-include">0</div></div>
-        <div class="stat"><div class="label">온라인 서비스용</div><div class="value" id="v-online">0</div></div>
-      </div>
-
-      <div class="editor-wrap">
-        <div id="mirror" class="mirror" aria-hidden="true"></div>
-        <textarea id="input" wrap="off" spellcheck="false" placeholder="여기에 입력하면 실시간으로 계산해줄게…"></textarea>
-      </div>
-
-      <div class="help">
-        • 온라인 서비스용: ASCII 가시(U+0020–007E) + 확장 ASCII 가시(U+00A0–00FF)=1, 그 외=2…  
-        • 공백 제외는 스페이스·탭·줄바꿈 같은 공백류 빼고 세었어…
-      </div>
+  <div class="panel">
+    <div class="controls">
+      <label>글자수 제한
+        <input id="limit" type="number" min="0" step="1" placeholder="예: 1500">
+      </label>
+      <label>제한 기준
+        <select id="basis">
+          <option value="online" selected>온라인 서비스용</option>
+          <option value="include">공백 포함</option>
+          <option value="exclude">공백 제외</option>
+        </select>
+      </label>
     </div>
 
-    <div class="footer">ChatGPT o3</div>
+    <div class="stats">
+      <div class="stat"><div class="label">공백 제외</div><div class="value" id="v-exclude">0</div></div>
+      <div class="stat"><div class="label">공백 포함</div><div class="value" id="v-include">0</div></div>
+      <div class="stat"><div class="label">온라인 서비스용</div><div class="value" id="v-online">0</div></div>
+    </div>
+
+    <div class="editor-wrap">
+      <div id="mirror" class="mirror" aria-hidden="true"></div>
+      <textarea id="input" spellcheck="false"
+        placeholder="여기에 입력하면 실시간으로 계산해줄게…"></textarea>
+    </div>
+
+    <div class="help">
+      • 온라인 서비스용 계산: ASCII 가시(U+0020–007E) + 확장 ASCII 가시(U+00A0–00FF)=1, 그 외=2<br>
+      • 공백 제외는 스페이스·탭·줄바꿈 등을 빼고 셈
+    </div>
   </div>
 
+  <div class="footer">글자수 계산기 v5</div>
+</div>
+
 <script>
-(function(){
-  const $ta = document.getElementById('input');
-  const $mirror = document.getElementById('mirror');
-  const $limit = document.getElementById('limit');
-  const $basis = document.getElementById('basis');
-  const $vExclude = document.getElementById('v-exclude');
-  const $vInclude = document.getElementById('v-include');
-  const $vOnline  = document.getElementById('v-online');
+(() => {
+  const ta      = document.getElementById('input');
+  const mirror  = document.getElementById('mirror');
+  const limitEl = document.getElementById('limit');
+  const basisEl = document.getElementById('basis');
+  const vExc    = document.getElementById('v-exclude');
+  const vInc    = document.getElementById('v-include');
+  const vOnl    = document.getElementById('v-online');
 
-  const isPrintableASCII = cp => (cp>=0x20 && cp<=0x7E);
-  const isPrintableExtended = cp => (cp>=0xA0 && cp<=0xFF);
-  const isWhitespaceChar = ch => /\s/u.test(ch);
+  const isPASCII = cp => cp>=0x20 && cp<=0x7E;
+  const isPExASCII = cp => cp>=0xA0 && cp<=0xFF;
+  const isWS = ch => /\s/u.test(ch);
+  const esc  = s => s.replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 
-  function countAll(text){
+  function count(str){
     let inc=0, exc=0, onl=0;
-    for(const ch of text){
-      const cp = ch.codePointAt(0);
-      inc += 1;
-      if(!isWhitespaceChar(ch)) exc += 1;
-      onl += (isPrintableASCII(cp)||isPrintableExtended(cp)) ? 1 : 2;
+    for(const ch of str){
+      const cp=ch.codePointAt(0);
+      inc++;
+      if(!isWS(ch)) exc++;
+      onl += (isPASCII(cp)||isPExASCII(cp)) ? 1 : 2;
     }
-    return {inc, exc, onl};
+    return {inc,exc,onl};
   }
 
-  function overflowStartIndex(text, limit, basis){
+  function overflowStart(str, limit, basis){
     if(!(limit>0)) return -1;
     let acc=0, idx=0;
-    for(const ch of text){
-      const cp = ch.codePointAt(0);
+    for(const ch of str){
+      const cp=ch.codePointAt(0);
       let add=1;
-      if(basis==='exclude'){
-        add = isWhitespaceChar(ch)?0:1;
-      }else if(basis==='online'){
-        add = (isPrintableASCII(cp)||isPrintableExtended(cp))?1:2;
-      }
-      acc += add;
+      if(basis==='exclude') add=isWS(ch)?0:1;
+      else if(basis==='online') add=(isPASCII(cp)||isPExASCII(cp))?1:2;
+      acc+=add;
       if(acc>limit) return idx;
-      idx += 1;
+      idx++;
     }
     return -1;
   }
 
-  const escapeHTML = s => s.replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-
-  function renderMirror(text, overStart){
-    const arr = Array.from(text);
-    if(overStart<0||overStart>=arr.length){
-      $mirror.innerHTML = escapeHTML(arr.join(''));
+  function drawMirror(text, cut){
+    const arr=[...text];
+    if(cut<0||cut>=arr.length){
+      mirror.innerHTML=esc(text);
       return;
     }
-    const head = escapeHTML(arr.slice(0,overStart).join(''));
-    const tail = escapeHTML(arr.slice(overStart).join(''));
-    $mirror.innerHTML = head + '<span class="over">' + tail + '</span>';
+    mirror.innerHTML = esc(arr.slice(0,cut).join('')) +
+                       '<span class="over">' +
+                       esc(arr.slice(cut).join('')) +
+                       '</span>';
   }
 
-  function syncScroll(){
-    $mirror.scrollTop  = $ta.scrollTop;
-    $mirror.scrollLeft = $ta.scrollLeft;
-  }
+  const syncScroll = () => { mirror.scrollTop = ta.scrollTop; };
 
   function update(){
-    const txt = $ta.value;
-    const {inc,exc,onl} = countAll(txt);
-    $vInclude.textContent = inc;
-    $vExclude.textContent = exc;
-    $vOnline.textContent  = onl;
+    const txt = ta.value;
+    const {inc,exc,onl} = count(txt);
+    vInc.textContent = inc;
+    vExc.textContent = exc;
+    vOnl.textContent = onl;
 
-    const overStart = overflowStartIndex(txt, parseInt($limit.value,10), $basis.value);
-    renderMirror(txt, overStart);
+    drawMirror(txt, overflowStart(txt, parseInt(limitEl.value,10), basisEl.value));
   }
 
-  $ta.addEventListener('input', update);
-  $ta.addEventListener('scroll', syncScroll);
-  $limit.addEventListener('input', update);
-  $basis.addEventListener('change', update);
+  ta.addEventListener('input', () => { update(); syncScroll(); });
+  ta.addEventListener('scroll', syncScroll);
+  limitEl.addEventListener('input', update);
+  basisEl.addEventListener('change', update);
 
   update();
 })();
