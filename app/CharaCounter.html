@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>글자수 계산기</title>
+<style>
+  :root {
+    --bg: #0f1115; --fg: #e6e6e6; --muted:#9aa3b2; --accent:#6aa9ff;
+    --over-bg: rgba(255,0,0,.25); --border:#222733;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  }
+  html, body { height:100%; }
+  body { margin:0; background:var(--bg); color:var(--fg); font-family: system-ui, -apple-system, Segoe UI, Roboto, Inter, "Noto Sans KR", sans-serif; }
+  .wrap { max-width: 980px; margin: 40px auto; padding: 0 16px; }
+  h1 { font-size: 22px; font-weight: 700; margin: 0 0 16px 0; letter-spacing: .2px; }
+  .panel { border:1px solid var(--border); border-radius:12px; padding:16px; background: #0c0e13; }
+  .controls { display:flex; flex-wrap: wrap; gap:12px; align-items: center; margin-bottom: 12px; }
+  .controls label { font-size: 14px; color: var(--muted); display:flex; align-items:center; gap:8px; }
+  .controls input[type="number"] { width: 140px; padding:8px 10px; border:1px solid var(--border); border-radius:10px; background:#0a0c10; color:var(--fg); }
+  .controls select { padding:8px 10px; border:1px solid var(--border); border-radius:10px; background:#0a0c10; color:var(--fg); }
+  .stats { display:grid; grid-template-columns: repeat(3,1fr); gap:12px; margin: 8px 0 14px; }
+  .stat { border:1px solid var(--border); border-radius:10px; padding:10px 12px; background:#0b0e12; }
+  .stat .label { font-size:12px; color:var(--muted); margin-bottom:6px; }
+  .stat .value { font-family: var(--mono); font-size:18px; }
+  .editor-wrap { position: relative; }
+  .mirror, textarea {
+    font: 14px/1.6 var(--mono);
+    padding: 14px; border:1px solid var(--border); border-radius:12px;
+    background: #0a0c10; color: transparent; caret-color: var(--fg);
+    white-space: pre-wrap; word-wrap: break-word; overflow: auto; height: 360px;
+  }
+  textarea { position: relative; z-index: 2; width: 100%; resize: vertical; color: var(--fg); background: transparent; }
+  .mirror {
+    position: absolute; inset: 0; z-index: 1; pointer-events: none; color: var(--fg);
+  }
+  .mirror .over { background: var(--over-bg); border-radius: 2px; }
+  .help { font-size: 12px; color: var(--muted); margin-top: 10px; }
+  .footer { margin-top: 18px; font-size:12px; color: var(--muted); }
+  a { color: var(--accent); text-decoration: none; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>글자수 계산기</h1>
+    <div class="panel">
+      <div class="controls">
+        <label>글자수 제한
+          <input id="limit" type="number" min="0" step="1" placeholder="예: 1500">
+        </label>
+        <label>제한 기준
+          <select id="basis">
+            <option value="online" selected>온라인 서비스용</option>
+            <option value="include">공백 포함</option>
+            <option value="exclude">공백 제외</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="stats">
+        <div class="stat">
+          <div class="label">공백 제외</div>
+          <div class="value" id="v-exclude">0</div>
+        </div>
+        <div class="stat">
+          <div class="label">공백 포함</div>
+          <div class="value" id="v-include">0</div>
+        </div>
+        <div class="stat">
+          <div class="label">온라인 서비스용</div>
+          <div class="value" id="v-online">0</div>
+        </div>
+      </div>
+
+      <div class="editor-wrap">
+        <div id="mirror" class="mirror" aria-hidden="true"></div>
+        <textarea id="input" spellcheck="false" placeholder="여기에 입력하면 실시간으로 계산해줄게…"></textarea>
+      </div>
+
+      <div class="help">
+        • 온라인 서비스용 계산: ASCII 가시(U+0020–007E), 확장 ASCII 가시(U+00A0–00FF)는 1, 그 외는 2로 셈  
+        • 공백 제외는 스페이스·탭·줄바꿈 같은 공백류를 빼고 셈
+      </div>
+    </div>
+
+    <div class="footer">
+      만든 사람: ChatGPT o3
+    </div>
+  </div>
+
+<script>
+(function(){
+  const $ta = document.getElementById('input');
+  const $mirror = document.getElementById('mirror');
+  const $limit = document.getElementById('limit');
+  const $basis = document.getElementById('basis');
+  const $vExclude = document.getElementById('v-exclude');
+  const $vInclude = document.getElementById('v-include');
+  const $vOnline = document.getElementById('v-online');
+
+  const isPrintableASCII = cp => (cp >= 0x20 && cp <= 0x7E);
+  const isPrintableExtended = cp => (cp >= 0xA0 && cp <= 0xFF);
+
+  function isWhitespaceChar(ch) {
+    // 모든 공백류(스페이스, 탭, 줄바꿈, 전각공백 등)
+    return /\s/u.test(ch);
+  }
+
+  function countAll(text) {
+    let includeCount = 0;
+    let excludeCount = 0;
+    let onlineCount = 0;
+    for (const ch of text) {
+      const cp = ch.codePointAt(0);
+      includeCount += 1;
+      if (!isWhitespaceChar(ch)) excludeCount += 1;
+      if (isPrintableASCII(cp) || isPrintableExtended(cp)) {
+        onlineCount += 1;
+      } else {
+        onlineCount += 2;
+      }
+    }
+    return { includeCount, excludeCount, onlineCount };
+  }
+
+  function overflowStartIndexCodepoint(text, limit, basisKey) {
+    if (!(limit > 0)) return -1; // 제한 없음
+    let acc = 0;
+    let idx = 0; // 코드포인트 인덱스
+    for (const ch of text) {
+      const cp = ch.codePointAt(0);
+      let add = 1;
+      if (basisKey === 'exclude') {
+        add = isWhitespaceChar(ch) ? 0 : 1;
+      } else if (basisKey === 'include') {
+        add = 1;
+      } else { // online
+        add = (isPrintableASCII(cp) || isPrintableExtended(cp)) ? 1 : 2;
+      }
+      acc += add;
+      if (acc > limit) return idx; // 이 코드포인트부터 초과
+      idx += 1;
+    }
+    return -1; // 초과 없음
+  }
+
+  function escapeHTML(s) {
+    return s.replace(/[&<>"']/g, m => ({
+      '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+    }[m]));
+  }
+
+  function renderMirror(text, overStart) {
+    const arr = Array.from(text); // 코드포인트 단위 분해
+    if (overStart < 0 || overStart >= arr.length) {
+      $mirror.innerHTML = escapeHTML(arr.join(''));
+      return;
+    }
+    const head = escapeHTML(arr.slice(0, overStart).join(''));
+    const tail = escapeHTML(arr.slice(overStart).join(''));
+    $mirror.innerHTML = head + '<span class="over">' + tail + '</span>';
+  }
+
+  function syncScroll() {
+    $mirror.scrollTop = $ta.scrollTop;
+    $mirror.scrollLeft = $ta.scrollLeft;
+  }
+
+  function update() {
+    const text = $ta.value;
+    const { includeCount, excludeCount, onlineCount } = countAll(text);
+
+    $vInclude.textContent = includeCount.toString();
+    $vExclude.textContent = excludeCount.toString();
+    $vOnline.textContent = onlineCount.toString();
+
+    const lim = parseInt($limit.value, 10);
+    const basisKey = $basis.value;
+    const overStart = overflowStartIndexCodepoint(text, lim, basisKey);
+    renderMirror(text, overStart);
+  }
+
+  $ta.addEventListener('input', update);
+  $ta.addEventListener('scroll', syncScroll);
+  $limit.addEventListener('input', update);
+  $basis.addEventListener('change', update);
+
+  // 초기
+  update();
+})();
+</script>
+</body>
+</html>
