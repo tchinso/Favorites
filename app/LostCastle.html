@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>4×3 Board Game</title>
+<style>
+  body{font-family:sans-serif;display:flex;flex-direction:column;align-items:center;margin:0;padding:20px;gap:10px;}
+  #lifeBar{display:flex;gap:20px;flex-wrap:wrap;}
+  .player,.ai{display:flex;align-items:center;gap:4px;}
+  .heart{font-size:24px;}
+  .heart.lost{opacity:0.25;}
+  #board{display:grid;grid-template-columns:repeat(4,80px);grid-template-rows:repeat(3,80px);gap:2px;}
+  .cell{border:1px solid #333;width:80px;height:80px;position:relative;display:flex;flex-wrap:wrap;align-content:flex-start;justify-content:flex-start;}
+  .piece{position:relative;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:bold;margin:1px;user-select:none;}
+  .playerColor{background:#007bff;}
+  .aiColor{background:#e83e8c;}
+  /* shield ring */
+  .shield:after{content:"";position:absolute;top:-4px;left:-4px;width:calc(100% + 8px);height:calc(100% + 8px);border:3px solid rgba(0,255,255,0.85);border-radius:50%;pointer-events:none;box-shadow:0 0 6px rgba(0,255,255,0.8);}  
+  /* popup */
+  #popup{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.4);display:none;align-items:center;justify-content:center;}
+  #popupContent{background:#fff;padding:20px;border-radius:8px;display:flex;flex-wrap:wrap;gap:10px;min-width:300px;justify-content:center;}
+  .button{padding:10px 14px;font-size:18px;cursor:pointer;border:1px solid #333;border-radius:6px;background:#f0f0f0;}
+  #restart{padding:10px 20px;font-size:18px;display:none;cursor:pointer;border-radius:6px;border:1px solid #333;background:#ffe680;}
+</style>
+</head>
+<body>
+  <div id="lifeBar"></div>
+  <div id="board"></div>
+  <div id="popup"><div id="popupContent"></div></div>
+  <button id="restart" onclick="restart()">다시 시작</button>
+<script>
+/******************
+ * CONSTANTS
+ *****************/
+const ROWS=3, COLS=4;
+const DIR_MAP={'←':'left','→':'right','↑':'up','↓':'down'};
+const DIRECTIONS={
+  left:[[-1,0],[0,-1],[0,1],[1,0]],
+  right:[[1,0],[0,-1],[0,1],[-1,0]],
+  up:[[0,-1],[-1,0],[1,0],[0,1]],
+  down:[[0,1],[-1,0],[1,0],[0,-1]]
+};
+const DIR_PROB=[0.6,0.15,0.15,0.1];
+const PLUSES=[[0,0],[0,-1],[0,1],[-1,0],[1,0]];
+const CROSSES=[[0,0],[-1,-1],[-1,1],[1,-1],[1,1]];
+const HIGHLIGHT_COLOR={player:'rgba(173,216,230,0.5)',ai:'rgba(255,182,193,0.5)'};
+const SHIELD_TURNS=1;
+/******************
+ * STATE
+ *****************/
+let pieces=[], turnIndex=0, attackTiles=[], attackTeam=null;
+/******************
+ * INITIALISATION
+ *****************/
+function init(){
+  pieces=[
+    {id:1,team:'player',x:0,y:1,life:3,shield:0},
+    {id:1,team:'ai',    x:3,y:1,life:3,shield:0},
+    {id:2,team:'player',x:0,y:1,life:3,shield:0},
+    {id:2,team:'ai',    x:3,y:1,life:3,shield:0}
+  ];
+  turnIndex=0; attackTiles=[]; attackTeam=null;
+  document.getElementById('restart').style.display='none';
+  draw(); nextTurn();
+}
+/******************
+ * RENDERING
+ *****************/
+function draw(){ drawLifeBar(); drawBoard(); }
+function drawLifeBar(){
+  const bar=document.getElementById('lifeBar'); bar.innerHTML='';
+  pieces.forEach(p=>{
+    const wrap=document.createElement('div'); wrap.className=p.team;
+    wrap.textContent=(p.team==='player'?'플레이어 ':'AI ')+p.id+': ';
+    for(let i=0;i<3;i++){
+      const span=document.createElement('span'); span.className='heart'+(i<p.life?'':' lost'); span.textContent='❤'; wrap.appendChild(span);
+    }
+    bar.appendChild(wrap);
+  });
+}
+function drawBoard(){
+  const board=document.getElementById('board'); board.innerHTML='';
+  for(let y=0;y<ROWS;y++){
+    for(let x=0;x<COLS;x++){
+      const cell=document.createElement('div'); cell.className='cell';
+      if(attackTiles.some(t=>t.x===x&&t.y===y)) cell.style.background=HIGHLIGHT_COLOR[attackTeam];
+      pieces.filter(p=>p.x===x&&p.y===y&&p.life>0).forEach(p=>{
+        const piece=document.createElement('div');
+        piece.className='piece '+(p.team==='player'?'playerColor':'aiColor')+(p.shield>0?' shield':'');
+        piece.textContent=p.id; cell.appendChild(piece);
+      });
+      board.appendChild(cell);
+    }
+  }
+}
+/******************
+ * GAME FLOW
+ *****************/
+function nextTurn(){
+  if(checkGameOver()) return;
+  if(turnIndex>=pieces.length) turnIndex=0;
+  const piece=pieces[turnIndex];
+  if(piece.life<=0){ turnIndex++; nextTurn(); return; }
+  if(piece.shield>0) piece.shield--; // decay shield each own turn
+  if(piece.team==='player') showPopup(piece);
+  else {
+    const action=aiChooseAction(piece);
+    setTimeout(()=>executeAction(piece,action),300);
+  }
+}
+function executeAction(piece,cmd){
+  attackTiles=[]; attackTeam=null;
+  if(['←','→','↑','↓'].includes(cmd))      movePiece(piece,cmd);
+  else if(cmd==='🞤' || cmd==='╳')           attack(piece,cmd);
+  else if(cmd==='◯')                        defend(piece);
+  turnIndex++; draw(); nextTurn();
+}
+/******************
+ * ACTIONS
+ *****************/
+function movePiece(p,btn){
+  const set=DIRECTIONS[DIR_MAP[btn]];
+  let r=Math.random(), idx=0, sum=0;
+  for(let i=0;i<DIR_PROB.length;i++){ sum+=DIR_PROB[i]; if(r<sum){ idx=i; break; }}
+  const [dx,dy]=set[idx]; const nx=p.x+dx, ny=p.y+dy;
+  if(nx>=0&&nx<COLS&&ny>=0&&ny<ROWS){ p.x=nx; p.y=ny; }
+}
+function attack(p,btn){
+  const pattern = (btn==='🞤') ? (Math.random()<0.6?PLUSES:CROSSES) : (Math.random()<0.6?CROSSES:PLUSES);
+  attackTiles=[]; attackTeam=p.team;
+  pattern.forEach(([dx,dy])=>{
+    const tx=p.x+dx, ty=p.y+dy;
+    if(tx>=0&&tx<COLS&&ty>=0&&ty<ROWS){
+      attackTiles.push({x:tx,y:ty});
+      pieces.forEach(e=>{ if(e.team!==p.team && e.x===tx && e.y===ty && e.life>0 && e.shield===0) e.life--; });
+    }
+  });
+}
+function defend(p){ if(Math.random()<0.6) p.shield=SHIELD_TURNS; }
+/******************
+ * AI LOGIC
+ *****************/
+function aiChooseAction(p){
+  const enemies=pieces.filter(e=>e.team!==p.team&&e.life>0);
+  if(!enemies.length) return '◯';
+  const weakest=[...enemies].sort((a,b)=>a.life-b.life)[0];
+  const dist=(a,b)=>Math.abs(a.x-b.x)+Math.abs(a.y-b.y);
+  // emergency defend
+  if(p.life===1&&p.shield===0&&Math.random()<0.7) return '◯';
+  // adjacent attack opportunity
+  const adj=enemies.find(e=>{ const d=dist(p,e); return d===0||d===1||(Math.abs(p.x-e.x)===1&&Math.abs(p.y-e.y)===1); });
+  if(adj){ const diag=Math.abs(p.x-adj.x)===1&&Math.abs(p.y-adj.y)===1; if(Math.random()<0.6) return diag?'╳':'🞤'; }
+  // movement evaluation
+  const mode=(p.life>=weakest.life)?'agg':'esc';
+  const dirBtns=['←','→','↑','↓']; let best='←', bestScore=-Infinity;
+  dirBtns.forEach(b=>{
+    const set=DIRECTIONS[DIR_MAP[b]]; let expected=0;
+    set.forEach(([dx,dy],i)=>{
+      const nx=p.x+dx, ny=p.y+dy; if(nx<0||nx>=COLS||ny<0||ny>=ROWS) return;
+      const prob=DIR_PROB[i];
+      const curD=Math.abs(p.x-weakest.x)+Math.abs(p.y-weakest.y);
+      const newD=Math.abs(nx-weakest.x)+Math.abs(ny-weakest.y);
+      const delta=curD-newD; expected+=prob*(mode==='agg'?delta:-delta);
+    });
+    if(expected>bestScore){ bestScore=expected; best=b; }
+  });
+  return best;
+}
+/******************
+ * UTILITY
+ *****************/
+function showPopup(piece){
+  const popup=document.getElementById('popup'); const content=document.getElementById('popupContent'); content.innerHTML='';
+  const title=document.createElement('div'); title.style.width='100%'; title.style.textAlign='center'; title.style.fontSize='20px'; title.style.marginBottom='12px';
+  title.textContent=`플레이어 ${piece.id}번 말 차례`; content.appendChild(title);
+  ['←','→','↑','↓','🞤','╳','◯'].forEach(b=>{
+    const btn=document.createElement('button'); btn.className='button'; btn.textContent=b;
+    btn.onclick=()=>{ popup.style.display='none'; executeAction(piece,b); }; content.appendChild(btn);
+  });
+  popup.style.display='flex';
+}
+function checkGameOver(){
+  const playerAlive=pieces.some(p=>p.team==='player'&&p.life>0);
+  const aiAlive=pieces.some(p=>p.team==='ai'&&p.life>0);
+  if(!playerAlive||!aiAlive){
+    alert(playerAlive?'플레이어 승리!':'AI 승리!');
+    document.getElementById('restart').style.display='block';
+    return true;
+  }
+  return false;
+}
+function restart(){ init(); }
+window.onload=init;
+</script>
+</body>
+</html>
