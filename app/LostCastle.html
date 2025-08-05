@@ -111,7 +111,7 @@ function nextTurn(){
 function executeAction(piece,cmd){
   attackTiles=[]; attackTeam=null;
   if(['←','→','↑','↓'].includes(cmd))      movePiece(piece,cmd);
-  else if(cmd==='🞤' || cmd==='╳')           attack(piece,cmd);
+  else if(cmd==='+' || cmd==='╳')           attack(piece,cmd);
   else if(cmd==='◯')                        defend(piece);
   turnIndex++; draw(); nextTurn();
 }
@@ -126,7 +126,7 @@ function movePiece(p,btn){
   if(nx>=0&&nx<COLS&&ny>=0&&ny<ROWS){ p.x=nx; p.y=ny; }
 }
 function attack(p,btn){
-  const pattern = (btn==='＋') ? (Math.random()<0.6?PLUSES:CROSSES) : (Math.random()<0.6?CROSSES:PLUSES);
+  const pattern = (btn==='+') ? (Math.random()<0.6?PLUSES:CROSSES) : (Math.random()<0.6?CROSSES:PLUSES);
   attackTiles=[]; attackTeam=p.team;
   pattern.forEach(([dx,dy])=>{
     const tx=p.x+dx, ty=p.y+dy;
@@ -149,7 +149,7 @@ function aiChooseAction(p){
   if(p.life===1&&p.shield===0&&Math.random()<0.7) return '◯';
   // adjacent attack opportunity
   const adj=enemies.find(e=>{ const d=dist(p,e); return d===0||d===1||(Math.abs(p.x-e.x)===1&&Math.abs(p.y-e.y)===1); });
-  if(adj){ const diag=Math.abs(p.x-adj.x)===1&&Math.abs(p.y-adj.y)===1; if(Math.random()<0.6) return diag?'╳':'🞤'; }
+  if(adj){ const diag=Math.abs(p.x-adj.x)===1&&Math.abs(p.y-adj.y)===1; if(Math.random()<0.6) return diag?'╳':'+'; }
   // movement evaluation
   const mode=(p.life>=weakest.life)?'agg':'esc';
   const dirBtns=['←','→','↑','↓']; let best='←', bestScore=-Infinity;
@@ -173,7 +173,7 @@ function showPopup(piece){
   const popup=document.getElementById('popup'); const content=document.getElementById('popupContent'); content.innerHTML='';
   const title=document.createElement('div'); title.style.width='100%'; title.style.textAlign='center'; title.style.fontSize='20px'; title.style.marginBottom='12px';
   title.textContent=`플레이어 ${piece.id}번 말 차례`; content.appendChild(title);
-  ['←','→','↑','↓','🞤','╳','◯'].forEach(b=>{
+  ['←','→','↑','↓','+','╳','◯'].forEach(b=>{
     const btn=document.createElement('button'); btn.className='button'; btn.textContent=b;
     btn.onclick=()=>{ popup.style.display='none'; executeAction(piece,b); }; content.appendChild(btn);
   });
