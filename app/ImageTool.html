@@ -58,6 +58,21 @@
     .chipRow{display:flex;gap:8px;flex-wrap:wrap}
     .kbd{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;background:#0e1322;border:1px solid #263055;border-radius:6px;padding:1px 6px;color:#bcd} 
     .notice{border-left:4px solid var(--warn);padding:8px 12px;background:#161a28;color:#e7e1c7;border-radius:8px}
+  @media (max-width: 980px){
+      .row{grid-template-columns:1fr}
+      .canvasWrap{min-height:42vh}
+    }
+    .hidden{display:none}
+    .popDock{position:absolute;top:10px;right:10px;z-index:10;background:#0e1322;border:1px solid #2a3352;color:#cfe;border-radius:10px;padding:8px 10px;cursor:pointer}
+    .popDock:hover{border-color:#3a4a7a}
+    .portal{position:fixed;inset:0;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center}
+    .portal.hidden{display:none}
+    .port-inner{width:min(100vw,1100px);height:min(100vh,92vh);background:#0d1220;border:1px solid #2a3352;border-radius:16px;display:flex;flex-direction:column}
+    .port-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;border-bottom:1px solid #232b44;background:#0e1322}
+    .port-title{font-weight:700}
+    .port-controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .port_stage{flex:1;display:flex;align-items:center;justify-content:center;padding:8px}
+    #port_canvas{max-width:100%;max-height:100%;background:#0b0f1a;border:1px dashed #2a3352;border-radius:12px}
   </style>
 </head>
 <body>
@@ -587,6 +602,65 @@
     }
   })();
 
+    // ---------- 공통 전체 화면 미리보기 포털 ----------
+  (function(){
+    const portal=document.createElement('div');
+    // HTML은 바디 끝에 삽입됨 (다음 업데이트에서 주입), 여기서는 핸들러만 바인딩
+    function $(s){return document.querySelector(s)}
+    const openLaterQueue=[]; // DOM 삽입 이전 클릭 방지
+
+    function onReady(){
+      const p=$('#portal'); if(!p) return;
+      const portC=$('#port_canvas'); const portTitle=$('#port_title');
+      const z=$('#port_zoom'); const fit=$('#port_fit');
+      const btnClose=$('#port_close'); const btnSnap=$('#port_snap'); const btnDl=$('#port_dl');
+      let state={src:null,raf:0,zoom:1,fit:'contain',live:true};
+      const stage=()=>p.querySelector('.port_stage');
+      function render(){ if(!state.src) return; const sw=state.src.width, sh=state.src.height; const s=stage(); const aw=s.clientWidth, ah=s.clientHeight; let scale=1; if(state.fit==='pixel'){ scale=state.zoom; } else if(state.fit==='contain'){ scale=Math.min(aw/sw, ah/sh)*state.zoom; } else { scale=Math.max(aw/sw, ah/sh)*state.zoom; } const W=Math.max(1,Math.floor(sw*scale)), H=Math.max(1,Math.floor(sh*scale)); portC.width=W; portC.height=H; const x=portC.getContext('2d'); x.imageSmoothingEnabled=true; x.imageSmoothingQuality='high'; x.drawImage(state.src,0,0,W,H); if(state.live && !p.classList.contains('hidden')){ state.raf=requestAnimationFrame(render); } }
+      function openPortal(src,title){ state.src=src; state.live=true; state.zoom=1; z.value='1'; state.fit='contain'; fit.value='contain'; if(portTitle) portTitle.textContent=title||'미리보기'; p.classList.remove('hidden'); render(); }
+      function closePortal(){ cancelAnimationFrame(state.raf); p.classList.add('hidden'); state.src=null; }
+      window.__openPortal=openPortal;
+      btnClose?.addEventListener('click',closePortal);
+      p.addEventListener('click',e=>{ if(e.target.id==='portal') closePortal(); });
+      window.addEventListener('keydown',e=>{ if(e.key==='Escape' && !p.classList.contains('hidden')) closePortal(); });
+      z?.addEventListener('input',e=>{ state.zoom=parseFloat(e.target.value||'1'); if(!state.live) render(); });
+      fit?.addEventListener('change',e=>{ state.fit=e.target.value; if(!state.live) render(); });
+      btnSnap?.addEventListener('click',()=>{ state.live=!state.live; btnSnap.textContent = state.live? '스냅샷' : '라이브 재개'; if(state.live) render(); });
+      btnDl?.addEventListener('click',()=>{ if(!state.src) return; downloadDataURL(portC.toDataURL('image/png'),'preview.png'); });
+      window.addEventListener('resize',()=>{ if(!p.classList.contains('hidden') && !state.live) render(); });
+
+      // 각 캔버스에 팝아웃 버튼 설치
+      ['#a1_canvas','#a2_canvas','#b1_canvas','#b2_canvas','#b3_canvas','#b4_canvas'].forEach(sel=>{
+        const c=$(sel); if(!c) return; const wrap=c.parentElement; wrap.style.position='relative'; const b=document.createElement('button'); b.className='popDock'; b.type='button'; b.textContent='확대 미리보기'; b.addEventListener('click',()=>{ if(c.width>0 && c.height>0){ const sec=c.closest('section'); const title=sec? sec.querySelector('h2')?.textContent : '미리보기'; openPortal(c,title); } else { alert('미리보기 캔버스가 아직 비었어'); }}); wrap.appendChild(b); });
+
+      // 큐 처리
+      while(openLaterQueue.length){ const [src,title]=openLaterQueue.shift(); openPortal(src,title); }
+    }
+    if(document.readyState==='complete' || document.readyState==='interactive'){ setTimeout(onReady,0); } else { document.addEventListener('DOMContentLoaded', onReady); }
+  })();
+
   </script>
+  <!-- 전체 화면 미리보기 포털 -->
+  <div id="portal" class="portal hidden" role="dialog" aria-modal="true">
+    <div class="port-inner">
+      <div class="port-bar">
+        <div class="port-title" id="port_title">미리보기</div>
+        <div class="port-controls">
+          <label class="pill">줌
+            <input type="range" id="port_zoom" min="0.25" max="4" step="0.05" value="1" />
+          </label>
+          <select id="port_fit">
+            <option value="contain">맞춤(전체)</option>
+            <option value="cover">채우기</option>
+            <option value="pixel">1:1</option>
+          </select>
+          <button class="btn ghost" id="port_snap">스냅샷</button>
+          <button class="btn primary" id="port_dl">PNG 저장</button>
+          <button class="btn" id="port_close">닫기</button>
+        </div>
+      </div>
+      <div class="port_stage"><canvas id="port_canvas"></canvas></div>
+    </div>
+  </div>
 </body>
 </html>
