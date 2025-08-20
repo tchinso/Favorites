@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>이미지 조작 도구 — A/B 통합 (anchor 내비게이션)</title>
+  <style>
+    :root{
+      --bg:#0b0d12;--panel:#151925;--ink:#e8ecf3;--muted:#a9b3c7;--acc:#6ba4ff;--accent2:#ffae6b;
+      --ok:#6bffbf;--warn:#ffd86b;--danger:#ff6b8a;
+    }
+    html,body{height:100%}
+    body{margin:0;background:linear-gradient(180deg,#0b0d12 0,#0f1220 60%,#0b0d12 100%);color:var(--ink);font:15px/1.45 system-ui,Segoe UI,Roboto,Apple SD Gothic Neo,Apple Color Emoji,Noto Color Emoji,AppleGothic,NanumGothic,Arial,sans-serif}
+    a{color:var(--acc);text-decoration:none}
+    a:hover{text-decoration:underline}
+    header{
+      position:sticky;top:0;z-index:50;backdrop-filter:saturate(1.2) blur(10px);
+      background:color-mix(in oklab, var(--panel) 80%, transparent);
+      border-bottom:1px solid #20263a
+    }
+    .wrap{max-width:1120px;margin:0 auto;padding:0 16px}
+    .brand{display:flex;gap:12px;align-items:center;padding:10px 0}
+    .logo{width:28px;height:28px;border-radius:8px;background:conic-gradient(from 200deg at 60% 60%,var(--acc),var(--accent2),#7bffb4,#9fa9ff,var(--acc));box-shadow:0 0 0 1px #2a3555 inset}
+    nav{display:flex;flex-wrap:wrap;gap:10px 14px;padding:8px 0 14px}
+    nav a{padding:6px 10px;border-radius:10px;background:#0e1322;border:1px solid #232b44;color:var(--muted)}
+    nav a:hover{border-color:#33406a;color:var(--ink)}
+    h2{margin:22px 0 14px;font-size:22px}
+    h3{margin:18px 0 10px;font-size:18px;color:var(--ok)}
+    section{scroll-margin-top:90px}
+    .panel{background:var(--panel);border:1px solid #20263a;border-radius:16px;padding:16px;margin:16px 0;box-shadow:0 10px 30px rgba(5,7,12,.25) inset}
+    .row{display:grid;grid-template-columns:1.1fr .9fr;gap:16px}
+    .row-1{display:grid;grid-template-columns:1fr;gap:16px}
+    .controls{display:grid;gap:10px}
+    label{display:grid;gap:6px;color:var(--muted)}
+    input[type="file"],select,button,input[type="number"],input[type="text"],input[type="color"]{background:#0d1220;color:var(--ink);border:1px solid #232b44;border-radius:10px;padding:10px}
+    .btn{cursor:pointer}
+    .btn.primary{background:linear-gradient(180deg,#2a6bff,#2152c7);border-color:#3564ff}
+    .btn.ghost{background:#0e1322}
+    .btnRow{display:flex;gap:10px;flex-wrap:wrap}
+    .canvasWrap{background:#0e1322;border:1px dashed #2a3352;border-radius:14px;display:flex;align-items:center;justify-content:center;min-height:240px;position:relative}
+    canvas{max-width:100%;height:auto;border-radius:10px}
+    .grid{display:grid;gap:10px}
+    .grid.cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+    .grid.cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .grid.cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}
+    .pill{display:inline-flex;gap:8px;align-items:center;padding:6px 10px;border-radius:20px;background:#0e1322;border:1px solid #232b44;color:var(--muted)}
+    table{width:100%;border-collapse:collapse}
+    th,td{border-bottom:1px solid #232b44;padding:8px 6px;text-align:left}
+    th{color:#b6c2db;font-weight:600}
+    .swatch{width:28px;height:20px;border-radius:6px;border:1px solid #2b3255;display:inline-block}
+    .hint{color:var(--muted);font-size:13px}
+    .range{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px}
+    input[type="range"]{width:100%}
+    details{border:1px dashed #2a3352;padding:10px;border-radius:10px}
+    summary{cursor:pointer;color:#b9c6e4}
+    .foot{margin:40px 0;color:#7f8aa8}
+    .tag{font-size:12px;padding:2px 6px;border:1px solid #2c365d;border-radius:999px;color:#9fb1d9;background:#0e1322}
+    .chipRow{display:flex;gap:8px;flex-wrap:wrap}
+    .kbd{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;background:#0e1322;border:1px solid #263055;border-radius:6px;padding:1px 6px;color:#bcd} 
+    .notice{border-left:4px solid var(--warn);padding:8px 12px;background:#161a28;color:#e7e1c7;border-radius:8px}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <div class="brand">
+        <div class="logo" aria-hidden></div>
+        <div>
+          <div style="font-weight:700">이미지 조작 도구 — A/B 통합</div>
+          <div style="color:var(--muted);font-size:13px">모든 기능은 #anchor 로 이동 — 한 페이지 안에서 바로 처리</div>
+        </div>
+      </div>
+      <nav>
+        <a href="#a1">A-1 webp/svg → png</a>
+        <a href="#a2">A-2 색상 Hex 랭킹</a>
+        <a href="#b1">B-1 이미지 병합</a>
+        <a href="#b2">B-2 회전(슬라이더)</a>
+        <a href="#b3">B-3 크기 줄이기</a>
+        <a href="#b4">B-4 StackBlur</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section id="a1">
+      <h2>도구 A-1 — webp/svg → png 변환</h2>
+      <div class="panel row">
+        <div class="controls">
+          <label>파일 선택 (webp 또는 svg)
+            <input id="a1_file" type="file" accept=".webp,.svg" />
+          </label>
+          <label>출력 캔버스 크기
+            <div class="grid cols-2">
+              <input id="a1_w" type="number" min="1" value="0" placeholder="자동 폭" />
+              <input id="a1_h" type="number" min="1" value="0" placeholder="자동 높이" />
+            </div>
+            <div class="hint">0 또는 비우면 원본/뷰박스 기준 자동</div>
+          </label>
+          <div class="btnRow">
+            <button class="btn primary" id="a1_convert">PNG로 변환</button>
+            <button class="btn ghost" id="a1_download" disabled>PNG 다운로드</button>
+          </div>
+          <div class="notice hint">SVG에 외부 폰트/이미지가 링크된 경우 보안 정책에 따라 캔버스가 오염되어 저장이 막힐 수 있음. 가능한 한 자체 포함된 SVG 사용 권장.</div>
+        </div>
+        <div>
+          <div class="canvasWrap"><canvas id="a1_canvas"></canvas></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="a2">
+      <h2>도구 A-2 — 이미지 내 가장 많은 Hex 색상 랭킹</h2>
+      <div class="panel row">
+        <div class="controls">
+          <label>이미지 선택
+            <input id="a2_file" type="file" accept="image/*" />
+          </label>
+          <label>분석 해상도 (긴 변 기준)
+            <div class="range">
+              <span class="pill"><span>⟂</span><span id="a2_resLab">512px</span></span>
+              <input id="a2_res" type="range" min="128" max="2048" step="64" value="512" />
+              <span class="hint">낮을수록 빠름</span>
+            </div>
+          </label>
+          <label>표시 개수(Top N)
+            <input id="a2_topn" type="number" min="3" max="64" value="16" />
+          </label>
+          <div class="btnRow">
+            <button class="btn primary" id="a2_analyze">분석 시작</button>
+            <button class="btn ghost" id="a2_csv" disabled>CSV 다운로드</button>
+            <button class="btn ghost" id="a2_palette" disabled>팔레트 PNG</button>
+          </div>
+          <details>
+            <summary>정확도 메모</summary>
+            <div class="hint">모든 픽셀을 그대로 계산하되, 성능을 위해 먼저 축소하여 분석함. 로고/일러스트처럼 색이 적은 그림은 높은 해상도로, 사진은 512~1024로도 충분.</div>
+          </details>
+        </div>
+        <div>
+          <div class="canvasWrap" style="min-height:120px"><canvas id="a2_canvas" hidden></canvas><div id="a2_status" class="hint">이미지를 선택한 뒤 “분석 시작”</div></div>
+          <div class="panel row-1" style="margin-top:12px">
+            <div class="grid">
+              <div class="chipRow">
+                <span class="tag">HEX</span>
+                <span class="tag">Count</span>
+                <span class="tag">%</span>
+              </div>
+              <div id="a2_tableWrap" class="grid"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="b1">
+      <h2>도구 B-1 — 여러 PNG/JPG 병합 (가로/세로 + 스케일 모드)</h2>
+      <div class="panel row">
+        <div class="controls">
+          <label>이미지들 선택 (두 장 이상)
+            <input id="b1_files" type="file" accept="image/png,image/jpeg" multiple />
+          </label>
+          <label>방향
+            <select id="b1_dir">
+              <option value="h">가로로 연결</option>
+              <option value="v">세로로 연결</option>
+            </select>
+          </label>
+          <label>스케일 모드 (접하는 면 기준)
+            <select id="b1_scale">
+              <option value="none">맞추지 않음 (원본 유지)</option>
+              <option value="min">가장 짧은 쪽에 맞춤</option>
+              <option value="max">가장 긴 쪽에 맞춤</option>
+            </select>
+            <div class="hint">가로 연결은 높이, 세로 연결은 너비를 기준으로 맞춤</div>
+          </label>
+          <label>출력 배경색 (JPG용)
+            <input id="b1_bg" type="color" value="#000000" />
+          </label>
+          <div class="btnRow">
+            <button class="btn primary" id="b1_preview">미리보기</button>
+            <button class="btn ghost" id="b1_dl_png" disabled>PNG 다운로드(투명)</button>
+            <button class="btn ghost" id="b1_dl_jpg" disabled>JPG 다운로드(배경색)</button>
+          </div>
+        </div>
+        <div>
+          <div class="canvasWrap"><canvas id="b1_canvas"></canvas></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="b2">
+      <h2>도구 B-2 — 임의 각도 회전 (슬라이더 실시간)</h2>
+      <div class="panel row">
+        <div class="controls">
+          <label>이미지 선택
+            <input id="b2_file" type="file" accept="image/png,image/jpeg" />
+          </label>
+          <label>각도 (°)
+            <div class="range">
+              <span class="pill">⟳ <span id="b2_angLab">0°</span></span>
+              <input id="b2_ang" type="range" min="-180" max="180" step="1" value="0" />
+              <input id="b2_angNum" type="number" min="-180" max="180" step="1" value="0" />
+            </div>
+          </label>
+          <label>배경
+            <select id="b2_bgMode">
+              <option value="transparent">투명(PNG)</option>
+              <option value="fill">단색 채우기</option>
+            </select>
+          </label>
+          <label>배경색
+            <input id="b2_bgColor" type="color" value="#000000" />
+          </label>
+          <div class="btnRow">
+            <button class="btn primary" id="b2_reset">각도 0으로</button>
+            <button class="btn ghost" id="b2_dl_png" disabled>PNG 다운로드</button>
+            <button class="btn ghost" id="b2_dl_jpg" disabled>JPG 다운로드</button>
+          </div>
+        </div>
+        <div>
+          <div class="canvasWrap"><canvas id="b2_canvas"></canvas></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="b3">
+      <h2>도구 B-3 — 크기 줄이기 (리사이즈)</h2>
+      <div class="panel row">
+        <div class="controls">
+          <label>이미지 선택
+            <input id="b3_file" type="file" accept="image/png,image/jpeg" />
+          </label>
+          <div class="grid cols-2">
+            <label>가로(px)
+              <input id="b3_w" type="number" min="1" value="0" />
+            </label>
+            <label>세로(px)
+              <input id="b3_h" type="number" min="1" value="0" />
+            </label>
+          </div>
+          <div class="range">
+            <span class="pill">축소 % <span id="b3_pctLab">100%</span></span>
+            <input id="b3_pct" type="range" min="10" max="100" step="1" value="100" />
+            <span class="hint">가로·세로에 비율 적용</span>
+          </div>
+          <label class="pill"><input id="b3_lock" type="checkbox" checked /> 비율 고정</label>
+          <div class="btnRow">
+            <button class="btn primary" id="b3_preview">미리보기</button>
+            <button class="btn ghost" id="b3_dl_png" disabled>PNG 다운로드</button>
+            <button class="btn ghost" id="b3_dl_jpg" disabled>JPG 다운로드</button>
+          </div>
+          <div class="hint">고해상도 축소 시 선명도를 위해 캔버스 2단계 리샘플링 사용</div>
+        </div>
+        <div>
+          <div class="canvasWrap"><canvas id="b3_canvas"></canvas></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="b4">
+      <h2>도구 B-4 — StackBlur (반경 슬라이더, 실시간)</h2>
+      <div class="panel row">
+        <div class="controls">
+          <label>이미지 선택
+            <input id="b4_file" type="file" accept="image/png,image/jpeg" />
+          </label>
+          <label>반경
+            <div class="range">
+              <span class="pill">r=<span id="b4_rLab">0</span></span>
+              <input id="b4_r" type="range" min="0" max="80" step="1" value="0" />
+              <span class="hint">큰 반경은 느릴 수 있음</span>
+            </div>
+          </label>
+          <div class="btnRow">
+            <button class="btn primary" id="b4_apply">적용</button>
+            <button class="btn ghost" id="b4_reset" disabled>원본 복원</button>
+            <button class="btn ghost" id="b4_dl_png" disabled>PNG 다운로드</button>
+          </div>
+        </div>
+        <div>
+          <div class="canvasWrap"><canvas id="b4_canvas"></canvas></div>
+        </div>
+      </div>
+    </section>
+
+    <div class="foot">
+      ⓘ 모든 처리는 브라우저 로컬에서 수행됨. 이미지가 외부 서버로 전송되지 않음.
+    </div>
+  </main>
+
+  <script>
+  // ---------- 공통 유틸 ----------
+  const $ = s => document.querySelector(s);
+  const ctxOf = c => c.getContext('2d', { willReadFrequently: true });
+  function blobURL(file){ return URL.createObjectURL(file); }
+  function downloadDataURL(dataURL, filename){
+    const a=document.createElement('a');a.href=dataURL;a.download=filename;document.body.appendChild(a);a.click();a.remove();
+  }
+  function cleanCanvas(c,w,h){ c.width=w; c.height=h; const ctx=ctxOf(c); ctx.clearRect(0,0,w,h); return ctx; }
+  function fitWithin(w,h,max){ if(max<=0) return {w,h,scale:1}; const s = Math.min(max/w, max/h, 1); return {w:Math.round(w*s), h:Math.round(h*s), scale:s}; }
+  function readFileAsText(file){ return new Promise((res,rej)=>{ const fr=new FileReader(); fr.onload=()=>res(fr.result); fr.onerror=rej; fr.readAsText(file); }); }
+  function readImageBitmap(file){ return createImageBitmap(file); }
+  function imgToCanvas(img, w=img.width, h=img.height){ const c=document.createElement('canvas'); c.width=w; c.height=h; const x=ctxOf(c); x.drawImage(img,0,0,w,h); return c; }
+  function toPNG(c){ return c.toDataURL('image/png'); }
+  function toJPG(c, q=0.92, bg=null){
+    if(bg){const ctx=ctxOf(c); ctx.globalCompositeOperation='destination-over'; ctx.fillStyle=bg; ctx.fillRect(0,0,c.width,c.height); ctx.globalCompositeOperation='source-over';}
+    return c.toDataURL('image/jpeg', q);
+  }
+  function hex(r,g,b){ return '#' + [r,g,b].map(v=>v.toString(16).padStart(2,'0')).join('').toUpperCase(); }
+  function clamp(v,min,max){ return Math.max(min, Math.min(max, v)); }
+
+  // ---------- A-1: webp/svg -> png ----------
+  (function(){
+    const f=$('#a1_file'), btn=$('#a1_convert'), dl=$('#a1_download'), cn=$('#a1_canvas');
+    const iw=$('#a1_w'), ih=$('#a1_h');
+    let currentCanvas=null;
+
+    btn.addEventListener('click', async ()=>{
+      const file=f.files?.[0]; if(!file){ alert('파일을 선택해줘'); return; }
+      const ext=file.name.split('.').pop().toLowerCase();
+      if(ext==='webp'){
+        const bmp = await readImageBitmap(file);
+        const W = +iw.value||bmp.width, H = +ih.value||bmp.height;
+        const ctx=cleanCanvas(cn,W,H); ctx.drawImage(bmp,0,0,W,H); currentCanvas=cn;
+        dl.disabled=false; dl.onclick=()=>downloadDataURL(toPNG(cn), file.name.replace(/\.[^.]+$/, '')+'.png');
+      } else if(ext==='svg'){
+        // Read as text, then render with Image() from blob
+        const svgText = await readFileAsText(file);
+        // Try to get intrinsic size from viewBox
+        let W=+iw.value||0, H=+ih.value||0;
+        if(!W || !H){
+          const m = svgText.match(/viewBox\s*=\s*"([\d\.\s-]+)"/i); // minx miny w h
+          if(m){ const parts=m[1].trim().split(/\s+/).map(Number); if(parts.length===4){ W=W||Math.round(parts[2]); H=H||Math.round(parts[3]); } }
+        }
+        if(!W||!H){ // fall back to width/height attr
+          const mw = svgText.match(/width\s*=\s*"([\d\.]+)(px)?"/i);
+          const mh = svgText.match(/height\s*=\s*"([\d\.]+)(px)?"/i);
+          if(mw && mh){ W=W||Math.round(parseFloat(mw[1])); H=H||Math.round(parseFloat(mh[1])); }
+        }
+        if(!W||!H){ W=1024; H=1024; }
+        const blob=new Blob([svgText],{type:'image/svg+xml'});
+        const url=URL.createObjectURL(blob);
+        const img=new Image(); img.decoding='async';
+        await new Promise((res,rej)=>{ img.onload=res; img.onerror=rej; img.src=url; });
+        URL.revokeObjectURL(url);
+        const ctx=cleanCanvas(cn,W,H); ctx.drawImage(img,0,0,W,H); currentCanvas=cn;
+        dl.disabled=false; dl.onclick=()=>downloadDataURL(toPNG(cn), file.name.replace(/\.[^.]+$/, '')+'.png');
+      } else {
+        alert('webp 또는 svg만 선택해줘');
+      }
+    });
+  })();
+
+  // ---------- A-2: 가장 많은 HEX 색상 ----------
+  (function(){
+    const f=$('#a2_file'), btn=$('#a2_analyze'), csvBtn=$('#a2_csv'), palBtn=$('#a2_palette');
+    const resR=$('#a2_res'), resLab=$('#a2_resLab'), topN=$('#a2_topn');
+    const cn=$('#a2_canvas'), status=$('#a2_status'), tableWrap=$('#a2_tableWrap');
+    resR.addEventListener('input',()=>resLab.textContent=resR.value+'px');
+
+    let lastData=null;
+
+    btn.addEventListener('click', async ()=>{
+      const file=f.files?.[0]; if(!file){ alert('이미지를 선택해줘'); return; }
+      status.textContent='분석 중…';
+      const bmp=await readImageBitmap(file);
+      const target=fitWithin(bmp.width, bmp.height, +resR.value);
+      const ctx=cleanCanvas(cn, target.w, target.h); ctx.drawImage(bmp,0,0,target.w,target.h);
+      cn.hidden=false; status.textContent='색상 집계 중…';
+      await new Promise(requestAnimationFrame);
+      const id=ctx.getImageData(0,0,cn.width,cn.height);
+
+      const map=new Map();
+      const data=id.data, n=data.length;
+      for(let i=0;i<n;i+=4){ const r=data[i], g=data[i+1], b=data[i+2], a=data[i+3]; if(a<16) continue; const h=hex(r,g,b); map.set(h,(map.get(h)||0)+1); }
+      const totalPix=[...map.values()].reduce((a,b)=>a+b,0);
+      const arr=[...map.entries()].map(([h,c])=>({hex:h,count:c,pct: (c*100/totalPix)}));
+      arr.sort((a,b)=>b.count-a.count);
+      const top=arr.slice(0, clamp(+topN.value,1,512));
+      lastData={rows:top,total:totalPix};
+
+      // render table
+      tableWrap.innerHTML='';
+      const t=document.createElement('table');
+      const thead=document.createElement('thead');
+      thead.innerHTML='<tr><th>#</th><th>색</th><th>HEX</th><th>Count</th><th>%</th></tr>';
+      t.appendChild(thead);
+      const tb=document.createElement('tbody');
+      top.forEach((row,i)=>{
+        const tr=document.createElement('tr');
+        const sw=`<span class="swatch" style="background:${row.hex}"></span>`;
+        tr.innerHTML=`<td>${i+1}</td><td>${sw}</td><td><span class="kbd">${row.hex}</span></td><td>${row.count.toLocaleString()}</td><td>${row.pct.toFixed(2)}%</td>`;
+        tb.appendChild(tr);
+      });
+      t.appendChild(tb);
+      tableWrap.appendChild(t);
+      status.textContent=`고유 색상 ${map.size.toLocaleString()}개 중 상위 ${top.length}개 표시 (분석 픽셀 ${totalPix.toLocaleString()}개)`;
+      csvBtn.disabled=false; palBtn.disabled=false;
+    });
+
+    csvBtn.addEventListener('click',()=>{
+      if(!lastData){return}
+      const lines=['rank,hex,count,percent'];
+      lastData.rows.forEach((r,i)=>lines.push([i+1,r.hex,r.count,r.pct.toFixed(4)].join(',')));
+      const csv='\uFEFF'+lines.join('\n');
+      downloadDataURL('data:text/csv;charset=utf-8,'+encodeURIComponent(csv),'colors.csv');
+    });
+
+    palBtn.addEventListener('click',()=>{
+      if(!lastData){return}
+      const N=lastData.rows.length; const size=64; const c=document.createElement('canvas');
+      c.width=N*size; c.height=size; const x=ctxOf(c);
+      lastData.rows.forEach((r,i)=>{ x.fillStyle=r.hex; x.fillRect(i*size,0,size,size); });
+      downloadDataURL(toPNG(c),'palette.png');
+    });
+  })();
+
+  // ---------- B-1: 병합 ----------
+  (function(){
+    const input=$('#b1_files'), dir=$('#b1_dir'), scaleSel=$('#b1_scale'), bg=$('#b1_bg');
+    const prev=$('#b1_preview'), cn=$('#b1_canvas'), dlP=$('#b1_dl_png'), dlJ=$('#b1_dl_jpg');
+
+    async function loadAll(files){
+      const arr=[...files]; if(arr.length<2) throw new Error('두 장 이상 필요');
+      const bitmaps=await Promise.all(arr.map(readImageBitmap));
+      return bitmaps.map((bmp,i)=>({bmp,name:arr[i].name,w:bmp.width,h:bmp.height}));
+    }
+
+    function computeLayout(items, dir, scaleMode){
+      if(dir==='h'){
+        let targetH;
+        if(scaleMode==='min') targetH=Math.min(...items.map(i=>i.h));
+        else if(scaleMode==='max') targetH=Math.max(...items.map(i=>i.h));
+        else targetH=null;
+        let totalW=0, H= targetH?? Math.max(...items.map(i=>i.h));
+        const placed=[];
+        for(const it of items){
+          let w=it.w, h=it.h;
+          if(targetH){ const s=targetH/it.h; w=Math.round(it.w*s); h=targetH; }
+          placed.push({it,x:totalW,y:Math.round((H-h)/2),w,h});
+          totalW+=w;
+        }
+        return {W:totalW,H, placed};
+      }else{
+        let targetW;
+        if(scaleMode==='min') targetW=Math.min(...items.map(i=>i.w));
+        else if(scaleMode==='max') targetW=Math.max(...items.map(i=>i.w));
+        else targetW=null;
+        let totalH=0, W= targetW?? Math.max(...items.map(i=>i.w));
+        const placed=[];
+        for(const it of items){
+          let w=it.w, h=it.h;
+          if(targetW){ const s=targetW/it.w; w=targetW; h=Math.round(it.h*s); }
+          placed.push({it,x:Math.round((W-w)/2),y:totalH,w,h});
+          totalH+=h;
+        }
+        return {W,H:totalH, placed};
+      }
+    }
+
+    prev.addEventListener('click', async ()=>{
+      try{
+        const files=input.files; if(!files || files.length<2){ alert('두 장 이상 선택해줘'); return; }
+        const items=await loadAll(files);
+        const layout=computeLayout(items, dir.value, scaleSel.value);
+        const ctx=cleanCanvas(cn, layout.W, layout.H);
+        // Draw with transparency preserved; JPG export will fill later
+        for(const p of layout.placed){ ctx.drawImage(p.it.bmp, p.x, p.y, p.w, p.h); }
+        dlP.disabled=false; dlJ.disabled=false;
+        dlP.onclick=()=>downloadDataURL(toPNG(cn),'merge.png');
+        dlJ.onclick=()=>downloadDataURL(toJPG(cn,0.92,bg.value),'merge.jpg');
+      }catch(e){ alert(e.message||String(e)); }
+    });
+  })();
+
+  // ---------- B-2: 회전 ----------
+  (function(){
+    const f=$('#b2_file'), angR=$('#b2_ang'), angN=$('#b2_angNum'), angLab=$('#b2_angLab');
+    const bgMode=$('#b2_bgMode'), bgCol=$('#b2_bgColor');
+    const cn=$('#b2_canvas'), dlP=$('#b2_dl_png'), dlJ=$('#b2_dl_jpg'), reset=$('#b2_reset');
+
+    let bmp=null;
+    function sync(v){ angR.value=String(v); angN.value=String(v); angLab.textContent=v+'°'; }
+    angR.addEventListener('input',()=>{ sync(+angR.value); draw(); });
+    angN.addEventListener('input',()=>{ let v=clamp(+angN.value,-180,180); sync(v); draw(); });
+    reset.addEventListener('click',()=>{ sync(0); draw(); });
+
+    f.addEventListener('change', async ()=>{
+      const file=f.files?.[0]; if(!file){return}
+      bmp=await readImageBitmap(file); sync(0); draw(); dlP.disabled=false; dlJ.disabled=false;
+    });
+
+    function draw(){ if(!bmp){ return }
+      const deg=+angR.value; const rad=deg*Math.PI/180;
+      const sw=bmp.width, sh=bmp.height;
+      const W=Math.abs(sw*Math.cos(rad))+Math.abs(sh*Math.sin(rad));
+      const H=Math.abs(sw*Math.sin(rad))+Math.abs(sh*Math.cos(rad));
+      const ctx=cleanCanvas(cn, Math.ceil(W), Math.ceil(H));
+      if(bgMode.value==='fill'){ ctx.fillStyle=bgCol.value; ctx.fillRect(0,0,cn.width,cn.height); }
+      ctx.translate(cn.width/2, cn.height/2); ctx.rotate(rad); ctx.drawImage(bmp, -sw/2, -sh/2);
+    }
+
+    dlP.addEventListener('click',()=>{ if(!bmp) return; downloadDataURL(toPNG(cn),'rotate.png'); });
+    dlJ.addEventListener('click',()=>{ if(!bmp) return; downloadDataURL(toJPG(cn,0.92,bgCol.value),'rotate.jpg'); });
+  })();
+
+  // ---------- B-3: 크기 줄이기 ----------
+  (function(){
+    const f=$('#b3_file'), cn=$('#b3_canvas'), wI=$('#b3_w'), hI=$('#b3_h'), pct=$('#b3_pct'), pctLab=$('#b3_pctLab'), lock=$('#b3_lock');
+    const prev=$('#b3_preview'), dlP=$('#b3_dl_png'), dlJ=$('#b3_dl_jpg');
+    let bmp=null, origW=0, origH=0;
+
+    pct.addEventListener('input',()=>{ pctLab.textContent=pct.value+'%'; if(origW&&origH){ const s=+pct.value/100; wI.value=Math.round(origW*s); hI.value=Math.round(origH*s);} });
+
+    f.addEventListener('change', async ()=>{
+      const file=f.files?.[0]; if(!file) return; bmp=await readImageBitmap(file); origW=bmp.width; origH=bmp.height; wI.value=origW; hI.value=origH; pct.value=100; pctLab.textContent='100%'; draw(); dlP.disabled=false; dlJ.disabled=false;
+    });
+
+    function twoStepResize(imgCanvas, tw, th){
+      // Better downscale quality by stepping
+      let src=imgCanvas; let sw=src.width, sh=src.height;
+      while(sw/2>tw && sh/2>th){ const c=document.createElement('canvas'); c.width=Math.round(sw/2); c.height=Math.round(sh/2); const x=ctxOf(c); x.drawImage(src,0,0,c.width,c.height); src=c; sw=c.width; sh=c.height; }
+      const out=document.createElement('canvas'); out.width=tw; out.height=th; ctxOf(out).drawImage(src,0,0,tw,th); return out;
+    }
+
+    function draw(){ if(!bmp) return; const W=+wI.value||origW; let H=+hI.value||origH; if(lock.checked){ const ar=origW/origH; if(document.activeElement===wI){ H=Math.round(W/ar); hI.value=H; } else if(document.activeElement===hI){ const w2=Math.round(H*ar); wI.value=w2; }
+      }
+      const temp=imgToCanvas(bmp); const resized=twoStepResize(temp, W, H); const x=cleanCanvas(cn,W,H); x.drawImage(resized,0,0);
+    }
+
+    wI.addEventListener('input',draw); hI.addEventListener('input',draw); prev.addEventListener('click',draw);
+    dlP.addEventListener('click',()=>{ if(!bmp) return; downloadDataURL(toPNG(cn),'resize.png'); });
+    dlJ.addEventListener('click',()=>{ if(!bmp) return; downloadDataURL(toJPG(cn,0.92,'#000'),'resize.jpg'); });
+  })();
+
+  // ---------- B-4: StackBlur ----------
+  (function(){
+    const f=$('#b4_file'), cn=$('#b4_canvas'), rR=$('#b4_r'), rLab=$('#b4_rLab');
+    const apply=$('#b4_apply'), reset=$('#b4_reset'), dl=$('#b4_dl_png');
+    let original=null, current=null; let pending=false;
+
+    rR.addEventListener('input',()=>{ rLab.textContent=rR.value; live(); });
+
+    f.addEventListener('change', async ()=>{
+      const file=f.files?.[0]; if(!file) return; const bmp=await readImageBitmap(file); const x=cleanCanvas(cn,bmp.width,bmp.height); x.drawImage(bmp,0,0); original=ctxOf(cn).getImageData(0,0,cn.width,cn.height); current=new ImageData(new Uint8ClampedArray(original.data), original.width, original.height); reset.disabled=false; dl.disabled=false; rR.value=0; rLab.textContent='0';
+    });
+
+    reset.addEventListener('click',()=>{ if(!original) return; const x=ctxOf(cn); x.putImageData(original,0,0); current=new ImageData(new Uint8ClampedArray(original.data), original.width, original.height); });
+    dl.addEventListener('click',()=>{ if(!original) return; downloadDataURL(toPNG(cn),'stackblur.png'); });
+
+    function live(){ if(!original) return; if(pending) return; pending=true; requestAnimationFrame(()=>{ pending=false; const r=+rR.value|0; if(r<=0){ const x=ctxOf(cn); x.putImageData(original,0,0); return; } current=new ImageData(new Uint8ClampedArray(original.data), original.width, original.height); stackBlurImageData(current, r); ctxOf(cn).putImageData(current,0,0); }); }
+
+    apply.addEventListener('click',()=>live());
+
+    // --- StackBlur 구현 (RGBA) ---
+    // 참고: Mario Klingemann의 StackBlur 알고리즘 아이디어를 JS로 단순화/최적화하여 포팅
+    function stackBlurImageData(imageData, radius){
+      if(radius<1) return; const w=imageData.width, h=imageData.height; const data=imageData.data; const div=radius*2+1;
+      const rsum=new Uint32Array(w*h), gsum=new Uint32Array(w*h), bsum=new Uint32Array(w*h), asum=new Uint32Array(w*h);
+      // 가로 누적합
+      for(let y=0;y<h;y++){
+        let r=0,g=0,b=0,a=0; let idx=y*w*4; // 데이터 인덱스
+        // 초기 윈도우
+        for(let i=-radius;i<=radius;i++){
+          const x=clamp(i,0,w-1); const di=(y*w + x)*4; r+=data[di]; g+=data[di+1]; b+=data[di+2]; a+=data[di+3];
+        }
+        for(let x=0;x<w;x++){
+          const pi=y*w+x; rsum[pi]=r; gsum[pi]=g; bsum[pi]=b; asum[pi]=a;
+          const xAdd=clamp(x+radius+1,0,w-1), xSub=clamp(x-radius,0,w-1);
+          const diAdd=(y*w+xAdd)*4, diSub=(y*w+xSub)*4;
+          r+=data[diAdd]-data[diSub]; g+=data[diAdd+1]-data[diSub+1]; b+=data[diAdd+2]-data[diSub+2]; a+=data[diAdd+3]-data[diSub+3];
+        }
+      }
+      // 세로 블러 (가로 누적합을 이용)
+      for(let x=0;x<w;x++){
+        let r=0,g=0,b=0,a=0;
+        for(let i=-radius;i<=radius;i++){
+          const y=clamp(i,0,h-1); const pi=y*w+x; r+=rsum[pi]; g+=gsum[pi]; b+=bsum[pi]; a+=asum[pi];
+        }
+        for(let y=0;y<h;y++){
+          const pi=y*w+x; const di=pi*4; const denom=div*div; // 두 번의 창 합에 대한 평균
+          data[di]  = (r/denom)|0; data[di+1]=(g/denom)|0; data[di+2]=(b/denom)|0; data[di+3]=(a/denom)|0;
+          const yAdd=clamp(y+radius+1,0,h-1), ySub=clamp(y-radius,0,h-1);
+          const pAdd=yAdd*w+x, pSub=ySub*w+x;
+          r+=rsum[pAdd]-rsum[pSub]; g+=gsum[pAdd]-gsum[pSub]; b+=bsum[pAdd]-bsum[pSub]; a+=asum[pAdd]-asum[pSub];
+        }
+      }
+    }
+  })();
+
+  </script>
+</body>
+</html>
