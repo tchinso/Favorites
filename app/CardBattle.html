@@ -1,0 +1,461 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>속성 카드 배틀 · 프로토타입 v1</title>
+  <style>
+    :root{
+      --bg:#0f1115; --panel:#161a22; --panel-2:#1c2230; --text:#e6edf3; --muted:#9fb0c0; --accent:#7aa2f7; --danger:#ff5d62; --ok:#8bd5a1;
+      --card-w: 210px; --card-h: 170px; --radius:16px;
+      --fire:#ff7f27; --ice:#87cefa; --volt:#ffd700; --wind:#98fb98; --slash:#c2a14a; --strike:#6b7a8f; --pierce:#8b3a3a;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0; background:linear-gradient(180deg,#0c1016,#0f1219 25%,#0f1115); color:var(--text); font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,"Apple SD Gothic Neo","Noto Sans KR",sans-serif}
+    h1{margin:10px 0 4px; font-size:20px; font-weight:700}
+    .wrap{max-width:1200px; margin:0 auto; padding:16px}
+    .row{display:grid; gap:12px; grid-template-columns:repeat(3, 1fr); margin:8px 0 18px}
+    .side-title{display:flex; align-items:center; gap:8px; color:var(--muted); font-size:14px; letter-spacing:.2px}
+    .legend{display:flex; flex-wrap:wrap; gap:8px; margin:6px 0 12px}
+    .pill{display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:999px; font-size:12px; background:var(--panel-2); color:var(--text); border:1px solid #2a3446}
+    .pill .ico{font-size:14px}
+
+    .board{display:flex; flex-direction:column; gap:8px}
+    .card{position:relative; background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0)); border:1px solid #2a3446; border-radius:var(--radius); padding:10px; min-height:var(--card-h); cursor:pointer; transition:transform .15s ease, box-shadow .2s ease, border-color .2s ease; user-select:none}
+    .card:hover{transform:translateY(-2px)}
+    .card.dead{opacity:.35; filter:grayscale(60%); cursor:not-allowed}
+    .card.inactive{opacity:.55; cursor:not-allowed}
+    .card.selected{outline:2px solid var(--accent); box-shadow:0 0 0 6px rgba(122,162,247,.18) inset}
+    .card.enemy{background:linear-gradient(180deg, rgba(255,255,255,0.015), rgba(255,255,255,0));}
+    .card .top{display:flex; gap:8px; align-items:center; justify-content:space-between}
+    .role{display:inline-flex; align-items:center; gap:6px; padding:2px 8px; border-radius:999px; border:1px solid #2a3446; background:rgba(255,255,255,0.03); font-size:12px}
+    .hp{font-variant-numeric:tabular-nums; font-weight:700}
+    .bar{height:8px; border-radius:999px; background:#2a3446; overflow:hidden; margin:6px 0 2px}
+    .bar>i{display:block; height:100%; background:linear-gradient(90deg, #7ee787, #2ea043); width:100%}
+    .attrs{display:flex; gap:8px; margin-top:8px}
+    .attr{display:flex; align-items:center; gap:6px; padding:4px 8px; border-radius:10px; font-size:12px; border:1px solid #2a3446; background:rgba(255,255,255,0.03)}
+    .attr .ico{width:18px; height:18px; display:inline-flex; align-items:center; justify-content:center; border-radius:6px; color:#0f1115; font-weight:900}
+    .attr.fire .ico{background:var(--fire)}
+    .attr.ice .ico{background:var(--ice)}
+    .attr.volt .ico{background:var(--volt)}
+    .attr.wind .ico{background:var(--wind)}
+    .attr.slash .ico{background:var(--slash)}
+    .attr.strike .ico{background:var(--strike); color:#f2f2f2}
+    .attr.pierce .ico{background:var(--pierce); color:#f2f2f2}
+    .badges{display:flex; gap:6px; position:absolute; right:8px; bottom:8px}
+    .badge{font-size:11px; padding:3px 6px; border-radius:8px; border:1px solid #2a3446; color:var(--muted)}
+    .badge.stun{border-color:#665b00; background:rgba(255,215,0,.12); color:#ffd700}
+
+    .controls{display:flex; flex-wrap:wrap; gap:10px; align-items:center; padding:10px; border-radius:12px; background:var(--panel); border:1px solid #2a3446}
+    .btn{appearance:none; background:#22304a; color:#d6e1f3; border:1px solid #2a3446; padding:10px 14px; border-radius:10px; cursor:pointer; font-weight:700; transition:background .2s,border-color .2s,transform .04s}
+    .btn:hover{background:#2a3a55}
+    .btn:active{transform:translateY(1px)}
+    .btn.ghost{background:transparent}
+    .btn.green{background:#1e4d3a; border-color:#2c6e55}
+    .btn.red{background:#4d1e1e; border-color:#6e2c2c}
+    .btn.yellow{background:#4d441e; border-color:#6e5d2c}
+
+    .status{padding:10px 12px; border-radius:10px; background:var(--panel); border:1px solid #2a3446; color:var(--muted)}
+    .log{height:140px; overflow:auto; background:var(--panel); border:1px solid #2a3446; border-radius:12px; padding:10px; font-size:13px}
+    .log p{margin:0 0 6px; color:#cdd7e3}
+
+    .modal{position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.55); z-index:40}
+    .modal.open{display:flex}
+    .modal .box{width:min(560px, calc(100% - 24px)); background:var(--panel-2); border:1px solid #2a3446; border-radius:16px; padding:16px}
+    .modal h3{margin:4px 0 8px}
+    .modal .options{display:flex; flex-wrap:wrap; gap:8px}
+    .small{font-size:12px; color:var(--muted)}
+
+    .footer{display:flex; align-items:center; justify-content:space-between; margin-top:14px}
+
+    .hint{font-size:12px; color:#aebad0}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>속성 카드 배틀 · 프로토타입 v1</h1>
+    <div class="legend" id="legend"></div>
+
+    <div class="board">
+      <div class="side-title">적 덱 (AI) · 위쪽</div>
+      <div class="row" id="aiRow"></div>
+      <div class="side-title">아군 덱 (플레이어) · 아래쪽</div>
+      <div class="row" id="playerRow"></div>
+    </div>
+
+    <div class="controls">
+      <div id="turnInfo">내 턴: 공격 카드와 대상 카드를 순서대로 클릭</div>
+      <button class="btn ghost" id="skipBtn" title="테스트용">스킵</button>
+      <div class="hint">규칙 요약: 저항=0, 중립=10, 취약=45, 어태커는 2배. 브레이커는 대상에게 공격불가(취약이면 2턴). 쉴더는 200 HP, 대신 맞기 가능. 브레이커가 쉴더를 때리면서 공격속성이 쉴더의 저항이 아니면 135 고정 피해.</div>
+    </div>
+
+    <div class="status" id="status"></div>
+
+    <div style="display:grid; grid-template-columns:1fr 320px; gap:12px; margin-top:12px">
+      <div class="log" id="log"></div>
+      <div>
+        <button class="btn green" id="restartBtn">다시 시작</button>
+        <div class="small" style="margin-top:8px">팁: 내 턴에 힐러를 쓰면 공격 후 회복 대상을 아래에서 클릭하라는 안내가 떠요. 적 턴에는 방어 팝업에서 쉴더를 선택해 막을 수 있어요.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 방어(쉴드) 선택 모달 -->
+  <div class="modal" id="shieldModal" role="dialog" aria-modal="true">
+    <div class="box">
+      <h3>방어 선택</h3>
+      <p id="shieldText"></p>
+      <div class="options" id="shieldOptions"></div>
+      <div class="footer">
+        <button class="btn" id="noShieldBtn">쉴드하지 않기</button>
+        <button class="btn ghost" id="closeShieldBtn">닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ====== 데이터 정의 ======
+    const ATTRS = [
+      {key:'화', code:'fire', name:'Fire', ico:'\uD83D\uDD25', color:'var(--fire)'},
+      {key:'빙', code:'ice', name:'Ice', ico:'\u2744\uFE0F', color:'var(--ice)'},
+      {key:'뇌', code:'volt', name:'Volt', ico:'\u26A1\uFE0F', color:'var(--volt)'},
+      {key:'풍', code:'wind', name:'Wind', ico:'\uD83C\uDF43', color:'var(--wind)'},
+      {key:'참', code:'slash', name:'Slash', ico:'\uD83D\uDDE1\uFE0F', color:'var(--slash)'},
+      {key:'타', code:'strike', name:'Strike', ico:'\uD83D\uDD28', color:'var(--strike)'},
+      {key:'돌', code:'pierce', name:'Pierce', ico:'\uD83D\uDCA3', color:'var(--pierce)'}
+    ];
+
+    const ROLES = [
+      {key:'쉴더', ico:'\uD83D\uDEE1\uFE0F', desc:'200/200으로 시작, 아군 대신 맞기 가능'},
+      {key:'브레이커', ico:'\uD83D\uDD2A', desc:'대상에게 다음 턴 공격불가(취약이면 2턴). 쉴더를 때릴 때, 공격속성이 쉴더의 저항이 아니면 135 고정 피해'},
+      {key:'힐러', ico:'\u2764\uFE0F\u200D\uD83E\uDE79', desc:'공격 후 아군 1명 회복(기본 50, 쉴더 선택 시 100)'},
+      {key:'어태커', ico:'\uD83D\uDDE1\uFE0F', desc:'주는 피해 2배'}
+    ];
+
+    const S = { // 상태
+      player: [],
+      ai: [],
+      turn: 'player',
+      phase: 'selectAttacker', // 'selectTarget' | 'healSelect' | 'waiting'
+      selectedAttacker: null,
+      pendingHeal: null, // {by: card}
+      modal: null,
+      lastAIPlan: null,
+      gameOver: false,
+      turnCount: 1
+    };
+
+    function rng(n){ return Math.floor(Math.random()*n); }
+    function pick(arr){ return arr[rng(arr.length)]; }
+
+    function deepCopy(o){ return JSON.parse(JSON.stringify(o)); }
+
+    function makeCard(team, idx){
+      const role = ROLES[rng(ROLES.length)].key;
+      const maxHp = role==='쉴더'?200:100;
+      // 속성 5개 뽑기(겹치지 않게): 공격1 + 저항2 + 취약2
+      const order = ATTRS.map(a=>a.key).sort(()=>Math.random()-0.5);
+      const atk = order[0], res = [order[1],order[2]], vuln=[order[3],order[4]];
+      return { id: team+"-"+idx, team, role, maxHp, hp:maxHp, atk, res, vuln, stun:0, dead:false };
+    }
+
+    function newGame(){
+      S.player = Array.from({length:9}, (_,i)=>makeCard('player', i+1));
+      S.ai     = Array.from({length:9}, (_,i)=>makeCard('ai', i+1));
+      S.turn='player'; S.phase='selectAttacker'; S.selectedAttacker=null; S.pendingHeal=null; S.lastAIPlan=null; S.gameOver=false; S.turnCount=1;
+      logClear(); legendRender(); render(); setStatus(`게임 시작! 내 턴이야. 공격 카드와 대상 카드를 순서대로 클릭해줘.`);
+    }
+
+    function legendRender(){
+      const el=document.getElementById('legend');
+      el.innerHTML='';
+      ATTRS.forEach(a=>{
+        const p=document.createElement('span'); p.className='pill';
+        p.innerHTML = `<span class="ico" style="color:${a.color}">${a.ico}</span>${a.key} (${a.name})`;
+        el.appendChild(p);
+      })
+    }
+
+    function cardColorCls(key){
+      const map={ '화':'fire','빙':'ice','뇌':'volt','풍':'wind','참':'slash','타':'strike','돌':'pierce' };
+      return map[key]||'fire';
+    }
+
+    function hpBarPct(c){ return Math.max(0, Math.min(100, Math.round(100*c.hp/c.maxHp))); }
+
+    function cardEl(card){
+      const wrap=document.createElement('div');
+      wrap.className = `card ${card.team==='ai'?'enemy':''} ${card.dead?'dead':''}`;
+      wrap.dataset.id = card.id;
+
+      const canSelect = !S.gameOver && S.turn==='player' && card.team==='player' && !card.dead && card.stun===0 && (S.phase==='selectAttacker' || (S.phase==='healSelect' && S.pendingHeal && card.team==='player'));
+      const canTarget = !S.gameOver && S.turn==='player' && card.team==='ai' && !card.dead && S.phase==='selectTarget';
+
+      if(!(canSelect || canTarget)) wrap.classList.add('inactive');
+
+      wrap.onclick = ()=>{
+        if(S.gameOver) return;
+        if(S.turn==='player'){
+          if(S.phase==='selectAttacker'){
+            if(card.team!=='player' || card.dead || card.stun>0) return;
+            S.selectedAttacker = card; S.phase='selectTarget'; setStatus(`${fmtCard(card)} 선택됨. 타겟을 선택해줘.`);
+            render(); return;
+          }
+          if(S.phase==='selectTarget'){
+            if(card.team!=='ai' || card.dead) return;
+            // 공격 수행 (AI가 방어할지 판단)
+            playerAttemptAttack(S.selectedAttacker, card);
+            return;
+          }
+          if(S.phase==='healSelect' && S.pendingHeal){
+            if(card.team!=='player' || card.dead) return;
+            applyHeal(S.pendingHeal.by, card);
+            S.pendingHeal=null; endTurn(); return;
+          }
+        }
+      };
+
+      const roleMeta = ROLES.find(r=>r.key===card.role);
+
+      wrap.innerHTML = `
+        <div class="top">
+          <div class="role" title="${roleMeta.desc}">${roleMeta.ico} ${card.role}</div>
+          <div class="hp" title="HP">${card.hp}/${card.maxHp}</div>
+        </div>
+        <div class="bar"><i style="width:${hpBarPct(card)}%"></i></div>
+        <div class="attrs">
+          <div class="attr ${cardColorCls(card.atk)}" title="공격 속성">
+            <span class="ico">⚔️</span><span>${card.atk}</span>
+          </div>
+          <div class="attr ${cardColorCls(card.res[0])}" title="저항 속성">
+            <span class="ico">🛡️</span><span>${card.res[0]}</span>
+          </div>
+          <div class="attr ${cardColorCls(card.res[1])}" title="저항 속성">
+            <span class="ico">🛡️</span><span>${card.res[1]}</span>
+          </div>
+          <div class="attr ${cardColorCls(card.vuln[0])}" title="취약 속성">
+            <span class="ico">⚠️</span><span>${card.vuln[0]}</span>
+          </div>
+          <div class="attr ${cardColorCls(card.vuln[1])}" title="취약 속성">
+            <span class="ico">⚠️</span><span>${card.vuln[1]}</span>
+          </div>
+        </div>
+        <div class="badges">
+          ${card.stun>0?`<span class="badge stun" title="공격 불가">공격불가 ${card.stun}턴</span>`:''}
+        </div>
+      `;
+      return wrap;
+    }
+
+    function render(){
+      // death check
+      [...S.player, ...S.ai].forEach(c=>{ if(c.hp<=0){ c.hp=0; c.dead=true; c.stun=0; }});
+      const aiRow=document.getElementById('aiRow'); const plRow=document.getElementById('playerRow');
+      aiRow.innerHTML=''; plRow.innerHTML='';
+      S.ai.forEach(c=> aiRow.appendChild(cardEl(c)) );
+      S.player.forEach(c=> plRow.appendChild(cardEl(c)) );
+      document.getElementById('turnInfo').textContent = S.gameOver? '게임 종료' : (S.turn==='player'? (S.phase==='healSelect'? '힐러 사용: 회복 대상을 클릭' : '내 턴: 공격 카드와 대상 카드를 순서대로 클릭') : '적의 턴: 방어 여부를 선택해주세요');
+      checkGameOver();
+    }
+
+    function setStatus(msg){ document.getElementById('status').textContent = msg; }
+    function log(msg){ const el=document.getElementById('log'); const p=document.createElement('p'); p.textContent=msg; el.appendChild(p); el.scrollTop=el.scrollHeight; }
+    function logClear(){ document.getElementById('log').innerHTML=''; }
+
+    function findLive(arr){ return arr.filter(c=>!c.dead); }
+    function shieldsOf(arr){ return findLive(arr).filter(c=>c.role==='쉴더'); }
+
+    function fmtCard(c){ return `${c.team==='player'?'[내]':'[적]'}${c.role}/${c.atk}`; }
+
+    // ====== 전투 로직 ======
+    function baseDamage(attacker, target){
+      // 브레이커 특수: 대상이 쉴더이고 공격속성이 대상의 저항이 아닌 경우 135 고정
+      if(attacker.role==='브레이커' && target.role==='쉴더' && !target.res.includes(attacker.atk)){
+        return 135;
+      }
+      if(target.res.includes(attacker.atk)) return 0;
+      if(target.vuln.includes(attacker.atk)) return 45;
+      return 10;
+    }
+
+    function finalDamage(attacker, target){
+      let dmg = baseDamage(attacker, target);
+      if(attacker.role==='어태커') dmg *= 2;
+      return dmg;
+    }
+
+    function applyDamage(target, dmg){ target.hp = Math.max(0, target.hp - Math.max(0,Math.floor(dmg))); if(target.hp===0){ target.dead=true; target.stun=0; } }
+
+    function applyBreakerDebuff(attacker, actualDefender){
+      if(attacker.role!=='브레이커' || actualDefender.dead) return;
+      const turns = actualDefender.vuln.includes(attacker.atk) ? 2 : 1; // 취약이면 2턴
+      actualDefender.stun = Math.max(actualDefender.stun, turns);
+    }
+
+    function applyHeal(healer, ally){
+      if(healer.role!=='힐러' || healer.dead) return;
+      const amount = (ally.role==='쉴더') ? 100 : 50;
+      const prev=ally.hp; ally.hp = Math.min(ally.maxHp, ally.hp + amount);
+      log(`${fmtCard(healer)} 치유: [${ally.role}/${ally.atk}] ${prev}->${ally.hp}`);
+      render();
+    }
+
+    // 내 공격: AI가 쉴드할지 판단 후 해결
+    function playerAttemptAttack(attacker, target){
+      if(!attacker || attacker.dead || attacker.stun>0) return;
+      // AI 방어 평가
+      const defenders = shieldsOf(S.ai);
+      let chosenDefender = null;
+      if(defenders.length){
+        const plan = aiShouldGuard(attacker, target, defenders);
+        if(plan.guard && plan.with) chosenDefender = plan.with;
+      }
+
+      const actualDefender = chosenDefender || target;
+      const dmg = finalDamage(attacker, actualDefender);
+      applyDamage(actualDefender, dmg);
+      applyBreakerDebuff(attacker, actualDefender);
+      log(`${fmtCard(attacker)} ▶ ${chosenDefender?`[적쉴더 대체] `:''}[${actualDefender.role}/${actualDefender.atk}] 에게 ${dmg} 피해`);
+
+      // 힐러 처리(공격 후)
+      if(attacker.role==='힐러' && !S.gameOver){
+        S.pendingHeal = {by: attacker};
+        S.phase='healSelect';
+        setStatus('힐러 사용: 회복 대상을 아래에서 클릭해줘.');
+        render();
+      } else {
+        endTurn();
+      }
+    }
+
+    function endTurn(){
+      if(S.gameOver){ render(); return; }
+      if(S.turn==='player'){
+        S.turn='ai'; S.phase='waiting';
+        // 아군(플레이어) 쪽의 공격불가 감소는 "내 턴 시작 시" 처리
+        decrementStun('player');
+        setTimeout(aiTurn, 450);
+      } else {
+        S.turn='player'; S.phase='selectAttacker'; S.selectedAttacker=null; S.turnCount++;
+        decrementStun('ai');
+        setStatus('내 턴이야. 공격 카드와 대상 카드를 순서대로 클릭해줘.');
+        render();
+      }
+    }
+
+    function decrementStun(team){
+      const arr = team==='player'? S.player : S.ai;
+      findLive(arr).forEach(c=>{ if(c.stun>0) c.stun--; });
+    }
+
+    function checkGameOver(){
+      const pAlive = findLive(S.player).length;
+      const aAlive = findLive(S.ai).length;
+      if(!S.gameOver && (pAlive===0 || aAlive===0)){
+        S.gameOver=true;
+        setStatus(pAlive>0? '승리! 다시 시작을 눌러 새 게임을 해볼까?' : '패배… 다시 도전해볼까?');
+        log(pAlive>0? '🎉 승리':'💀 패배');
+      }
+    }
+
+    // ====== AI ======
+    function aiTurn(){
+      if(S.gameOver) return;
+      const attackers = findLive(S.ai).filter(c=>c.stun===0);
+      if(attackers.length===0){ log('[적] 사용할 카드가 없어 턴을 넘겼다'); endTurn(); return; }
+
+      const targets = findLive(S.player);
+      // 간단한 탐욕적 평가: 최대 기대가치(피해 + 디버프가치)를 주는 조합 선택
+      let best=null; let bestScore=-1;
+      for(const atk of attackers){
+        for(const t of targets){
+          const shieldOptions = [null, ...shieldsOf(S.player)];
+          for(const sh of shieldOptions){
+            const def = sh||t;
+            const dmg = finalDamage(atk, def);
+            const debuffTurns = (atk.role==='브레이커') ? (def.vuln.includes(atk.atk)?2:1) : 0;
+            const debuffValue = (atk.role==='브레이커') ? (debuffTurns*18) : 0; // 가중치
+            const killBonus = (dmg>=def.hp)? 30 : 0;
+            const score = dmg + debuffValue + killBonus + (atk.role==='힐러'?10:0) + (atk.role==='어태커'?5:0);
+            if(score>bestScore){ bestScore=score; best={atk, target:t, guardTarget:sh, dmg, debuffTurns}; }
+          }
+        }
+      }
+      const plan = best; S.lastAIPlan = plan;
+      // 내 쉴드 선택 팝업
+      openShieldModal(plan);
+    }
+
+    function openShieldModal(plan){
+      const modal=document.getElementById('shieldModal');
+      const txt=document.getElementById('shieldText');
+      const opts=document.getElementById('shieldOptions');
+      opts.innerHTML='';
+      const atk=plan.atk, t=plan.target;
+      txt.textContent = `적이 ${fmtCard(atk)} 로 [내 ${t.role}/${t.atk}] 을(를) 공격하려고 해. 쉴더로 대신 맞을래?`;
+      const myShields = shieldsOf(S.player);
+      myShields.forEach(sh=>{
+        const b=document.createElement('button'); b.className='btn yellow';
+        b.textContent=`내 쉴더(${sh.hp}/${sh.maxHp})로 대신 맞기`;
+        b.onclick=()=>{ closeShieldModal(); resolveAiAttack(plan, sh); };
+        opts.appendChild(b);
+      });
+      document.getElementById('noShieldBtn').onclick=()=>{ closeShieldModal(); resolveAiAttack(plan, null); };
+      document.getElementById('closeShieldBtn').onclick=()=>{ closeShieldModal(); resolveAiAttack(plan, null); };
+      modal.classList.add('open');
+    }
+    function closeShieldModal(){ document.getElementById('shieldModal').classList.remove('open'); }
+
+    function resolveAiAttack(plan, myShield){
+      const attacker = plan.atk; const originalTarget = plan.target;
+      const actualDefender = myShield || originalTarget;
+      const dmg = finalDamage(attacker, actualDefender);
+      applyDamage(actualDefender, dmg);
+      applyBreakerDebuff(attacker, actualDefender);
+      log(`${fmtCard(attacker)} ▶ ${myShield?`[내 쉴더 대체] `:''}[${actualDefender.role}/${actualDefender.atk}] 에게 ${dmg} 피해`);
+      // 힐러라면 회복: 가장 체력이 낮은 아군 우선(쉴더 가중치)
+      if(attacker.role==='힐러'){
+        const allies = findLive(S.ai);
+        let best = null; let score=-1;
+        for(const ally of allies){
+          const ratio = ally.hp/ally.maxHp;
+          const val = (1-ratio) + (ally.role==='쉴더'?0.2:0);
+          if(val>score){ score=val; best=ally; }
+        }
+        if(best) applyHeal(attacker, best);
+      }
+      endTurn();
+    }
+
+    // AI 방어 의사결정(내 공격 시)
+    function aiShouldGuard(myAttacker, myTarget, aiShieldList){
+      // 원래 맞을 때의 피해/디버프 비용 계산
+      const costNoGuard = evalDefenseCost(myAttacker, myTarget);
+      let best = {guard:false, with:null, cost:costNoGuard};
+      for(const sh of aiShieldList){
+        const costWith = evalDefenseCost(myAttacker, sh);
+        if(costWith < best.cost){ best = {guard:true, with:sh, cost:costWith}; }
+      }
+      return best;
+    }
+
+    function evalDefenseCost(attacker, defender){
+      const dmg = finalDamage(attacker, defender);
+      const lethalPenalty = (dmg>=defender.hp) ? 50 : 0; // 죽으면 큰 손실
+      const debuffTurns = attacker.role==='브레이커' ? (defender.vuln.includes(attacker.atk)?2:1) : 0;
+      const debuffPenalty = attacker.role==='브레이커' ? debuffTurns*18 : 0;
+      const roleWeight = defender.role==='힐러'?1.25 : defender.role==='브레이커'?1.15 : defender.role==='쉴더'?1.1 : 1.0;
+      return (dmg + lethalPenalty + debuffPenalty) * roleWeight;
+    }
+
+    // ====== 이벤트 ======
+    document.getElementById('restartBtn').onclick = newGame;
+    document.getElementById('skipBtn').onclick = ()=>{ if(S.turn==='ai') return; // 테스트용: 내 턴 스킵
+      log('[내] 턴을 넘겼다'); endTurn(); };
+
+    // 초기화
+    newGame();
+  </script>
+</body>
+</html>
