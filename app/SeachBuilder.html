@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>검색엔진 스니펫 생성기 (Carrd용)</title>
+<style>
+  :root { --fg:#111; --muted:#666; --line:#ddd; --bg:#fafafa; --pri:#2d6cdf; }
+  html,body{margin:0;padding:0;background:#fff;color:var(--fg);font-family:system-ui,-apple-system,Segoe UI,Roboto,Noto Sans,Apple SD Gothic Neo,Malgun Gothic,sans-serif}
+  .wrap{max-width:1000px;margin:24px auto;padding:16px}
+  h1{font-size:22px;margin:0 0 12px}
+  .bar{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 16px}
+  button,.btn{border:1px solid var(--line);background:#fff;border-radius:10px;height:40px;padding:0 12px;cursor:pointer}
+  button:hover{border-color:#bbb}
+  .btn-pri{background:var(--pri);color:#fff;border-color:var(--pri)}
+  .hint{color:var(--muted);font-size:13px;margin:6px 0 14px}
+  .list{border:1px solid var(--line);border-radius:12px;padding:8px;background:var(--bg)}
+  .item{display:grid;grid-template-columns:28px 1fr 1.3fr auto;gap:8px;align-items:center;background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px;margin:8px 0}
+  .item.engine{grid-template-columns:28px 1fr 1.8fr auto}
+  .item.category{grid-template-columns:28px 1fr auto}
+  .handle{user-select:none;text-align:center;color:#999;cursor:grab}
+  .pill{font-size:12px;border:1px solid var(--line);color:#555;padding:2px 8px;border-radius:999px;background:#fff}
+  input[type="text"]{height:36px;border:1px solid var(--line);border-radius:8px;padding:0 10px;width:100%;box-sizing:border-box}
+  .del{border-color:#f1c0c0;color:#a33;background:#ffecec}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .grow{flex:1}
+  textarea{width:100%;min-height:220px;border:1px solid var(--line);border-radius:12px;padding:12px;box-sizing:border-box;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  .footer{margin-top:16px;display:flex;gap:8px;flex-wrap:wrap}
+  .danger{color:#b11;font-weight:600}
+  .ok{color:#0a7a35}
+  .file{display:none}
+  .legend{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 8px}
+  .legend span{font-size:12px;color:#555}
+</style>
+<script type="text/javascript" nonce="9cd49e0e84ae432da22f482ff05" src="//local.adguard.org?ts=1755769340060&amp;type=content-script&amp;dmn=cdn.discordapp.com&amp;url=https%3A%2F%2Fcdn.discordapp.com%2Fattachments%2F805539848160542752%2F1408006997068087347%2Fbuilder.html%3Fex%3D68a82c33%26is%3D68a6dab3%26hm%3D5069f312e457111fa7c7335261642fc54623da621a778f00f54e2884591ef19e%26&amp;app=msedge.exe&amp;css=3&amp;js=1&amp;rel=1&amp;rji=1&amp;sbe=1"></script><script type="text/javascript" nonce="9cd49e0e84ae432da22f482ff05" src="//local.adguard.org?ts=1755769340060&amp;name=AdsBypasser&amp;name=Anti-Adblock%20Killer%20%7C%20Reek&amp;name=AdGuard%20Extra&amp;name=AdGuard%20Popup%20Blocker&amp;name=Web%20of%20Trust&amp;type=user-script"></script></head>
+<body>
+<div class="wrap">
+  <h1>검색엔진 스니펫 생성기 <small style="font-weight:400;color:#666">/ Carrd Custom Script</small></h1>
+
+  <div class="bar">
+    <button id="addCat">새 카테고리 추가</button>
+    <button id="addEng">새 검색엔진 추가</button>
+    <button id="exportBtn">목록 내보내기</button>
+    <button id="importBtn">목록 불러오기</button>
+    <input type="file" id="file" class="file" accept=".json,application/json" />
+  </div>
+
+  <div class="hint">정렬 순서가 “소속”을 결정해. <b>카테고리</b>가 먼저 나오고, 그 아래로 이어지는 <b>검색엔진</b>들이 그 카테고리에 속해. 드래그해서 위치를 바꿀 수 있어.</div>
+
+  <div class="legend">
+    <span class="pill">카테고리</span>
+    <span class="pill">검색엔진 (URL에는 반드시 <code>imouto</code> 포함)</span>
+  </div>
+
+  <div id="list" class="list"></div>
+
+  <div class="bar" style="margin-top:16px">
+    <button id="gen" class="btn-pri">생성</button>
+    <button id="copy">복사</button>
+    <span id="status" class="hint"></span>
+  </div>
+
+  <textarea id="out" placeholder="여기에 Carrd에 붙여넣을 스니펫이 생성돼."></textarea>
+
+  <div class="footer">
+    <details>
+      <summary>도움말</summary>
+      <div class="hint" style="max-width:800px">
+        • URL에는 <code>imouto</code>가 들어가야 해. 검색 시 입력어가 그 자리로 <code>encodeURIComponent</code> 되어 삽입돼.<br/>
+        • 예) <code>https://www.google.com/search?q=imouto&gl=US&num=100&newwindow=1</code><br/>
+        • 예) <code>https://test.com/search/imouto</code><br/>
+        • Carrd에서는 <i>head/meta/link</i> 기반 수정이 막히므로, 스니펫은 오직 자바스크립트로 UI를 만들어. 스타일은 인라인로 적용돼.<br/>
+        • 기본 선택은 “첫 번째 카테고리의 첫 번째 검색엔진”. 엔진이 하나도 없는 카테고리는 허용하지만, 최소한 첫 번째 카테고리에는 엔진이 1개 이상 필요해.
+      </div>
+    </details>
+  </div>
+</div>
+
+<script>
+(function(){
+  /** 데이터 모델: 선형 배열. type: 'category' | 'engine'
+   * category: { type, name }
+   * engine  : { type, name, url }
+   * 소속 규칙: 배열을 위에서 아래로 읽으면서, 마지막으로 등장한 category가 이후 engine들의 소속이 됨.
+   */
+  let items = [
+    { type:'category', name:'종합' },
+    { type:'engine',   name:'구글', url:'https://www.google.com/search?q=imouto&gl=US&num=100&newwindow=1' },
+    { type:'engine',   name:'네이버', url:'https://search.naver.com/search.naver?query=imouto' },
+    { type:'category', name:'동영상' },
+    { type:'engine',   name:'유튜브', url:'https://www.youtube.com/results?search_query=imouto' }
+  ];
+
+  const $ = sel => document.querySelector(sel);
+  const listEl = $('#list');
+  const statusEl = $('#status');
+  const outEl = $('#out');
+
+  // 렌더링
+  function render(){
+    listEl.innerHTML = '';
+    items.forEach((it, idx) => {
+      const li = document.createElement('div');
+      li.className = 'item ' + it.type;
+      li.setAttribute('draggable','true');
+      li.dataset.index = idx;
+
+      const handle = document.createElement('div');
+      handle.className = 'handle';
+      handle.title = '끌어서 순서 변경';
+      handle.textContent = '↕';
+      li.appendChild(handle);
+
+      if(it.type === 'category'){
+        const name = document.createElement('input');
+        name.type = 'text';
+        name.placeholder = '카테고리명';
+        name.value = it.name || '';
+        name.addEventListener('input', e => { items[idx].name = e.target.value; });
+        li.appendChild(name);
+
+        const del = document.createElement('button');
+        del.className = 'del';
+        del.textContent = '삭제';
+        del.addEventListener('click', () => removeAt(idx));
+        li.appendChild(del);
+      } else {
+        const name = document.createElement('input');
+        name.type = 'text';
+        name.placeholder = '검색엔진명';
+        name.value = it.name || '';
+        name.addEventListener('input', e => { items[idx].name = e.target.value; });
+
+        const url = document.createElement('input');
+        url.type = 'text';
+        url.placeholder = 'https://...imouto...';
+        url.value = it.url || '';
+        url.addEventListener('input', e => { items[idx].url = e.target.value; });
+
+        li.appendChild(name);
+        li.appendChild(url);
+
+        const del = document.createElement('button');
+        del.className = 'del';
+        del.textContent = '삭제';
+        del.addEventListener('click', () => removeAt(idx));
+        li.appendChild(del);
+      }
+
+      // DnD
+      li.addEventListener('dragstart', onDragStart);
+      li.addEventListener('dragover', onDragOver);
+      li.addEventListener('drop', onDrop);
+
+      listEl.appendChild(li);
+    });
+  }
+
+  function removeAt(i){
+    items.splice(i,1);
+    render();
+  }
+
+  let dragIndex = null;
+  function onDragStart(e){
+    dragIndex = +e.currentTarget.dataset.index;
+    e.dataTransfer.effectAllowed = 'move';
+  }
+  function onDragOver(e){
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  }
+  function onDrop(e){
+    e.preventDefault();
+    const target = e.currentTarget;
+    const to = +target.dataset.index;
+    if(dragIndex === null || to === dragIndex) return;
+    const moved = items.splice(dragIndex,1)[0];
+    items.splice(to,0,moved);
+    dragIndex = null;
+    render();
+  }
+
+  // 카테고리/엔진 추가
+  $('#addCat').addEventListener('click', () => {
+    items.push({ type:'category', name:'' });
+    render();
+  });
+  $('#addEng').addEventListener('click', () => {
+    items.push({ type:'engine', name:'', url:'' });
+    render();
+  });
+
+  // 내보내기/불러오기
+  $('#exportBtn').addEventListener('click', () => {
+    const blob = new Blob([JSON.stringify(items,null,2)], {type:'application/json'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'search-list.json';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+  $('#importBtn').addEventListener('click', () => $('#file').click());
+  $('#file').addEventListener('change', async (e) => {
+    const f = e.target.files[0];
+    if(!f) return;
+    try{
+      const text = await f.text();
+      const data = JSON.parse(text);
+      if(!Array.isArray(data)) throw new Error('형식 오류');
+      // 간단 검증
+      const ok = data.every(it => it && (it.type==='category' || (it.type==='engine' && typeof it.url==='string')));
+      if(!ok) throw new Error('항목 형식 오류');
+      items = data;
+      render();
+      setStatus('불러오기 완료', true);
+    }catch(err){
+      setStatus('불러오기 실패: ' + err.message, false);
+    } finally {
+      e.target.value = '';
+    }
+  });
+
+  function setStatus(msg, good){
+    statusEl.textContent = msg;
+    statusEl.className = good ? 'hint ok' : 'hint danger';
+    if(msg) setTimeout(()=>{ statusEl.textContent=''; statusEl.className='hint'; }, 2500);
+  }
+
+  // 검증 + 구성 변환
+  function buildConfig(){
+    if(items.length === 0) throw new Error('항목이 비어 있어');
+    // 첫 항목이 엔진이면 오류
+    if(items[0].type !== 'category'){
+      throw new Error('목록의 첫 항목은 카테고리여야 해');
+    }
+    // category -> engines 배열
+    const config = [];
+    let current = null;
+    for(const it of items){
+      if(it.type === 'category'){
+        const name = (it.name || '').trim();
+        if(!name) throw new Error('비어있는 카테고리명이 있어');
+        current = { category:name, engines:[] };
+        config.push(current);
+      }else{
+        if(!current) throw new Error('카테고리 없이 검색엔진이 있어');
+        const name = (it.name || '').trim();
+        const url  = (it.url  || '').trim();
+        if(!name) throw new Error('비어있는 검색엔진명이 있어');
+        if(!url || !url.includes('imouto')) throw new Error(`엔진 "${name}" 의 URL에 imouto가 없어`);
+        current.engines.push({ name, url });
+      }
+    }
+    if(config[0].engines.length === 0){
+      throw new Error('첫 번째 카테고리에 최소 1개 이상의 검색엔진이 필요해');
+    }
+    return config;
+  }
+
+  // Carrd 스니펫 생성
+  function generateSnippet(){
+    const cfg = buildConfig();
+    const cfgJson = JSON.stringify(cfg);
+    // 순수 JS + 인라인 스타일, body에 즉시 삽입
+    const code =
+`(function(){
+  var CFG = ${cfgJson};
+  function css(el, obj){ for(var k in obj){ el.style[k] = obj[k]; } }
+  function el(tag, attrs, parent){
+    var x = document.createElement(tag);
+    if(attrs){ for(var k in attrs){
+      if(k==='text') x.textContent = attrs[k];
+      else if(k==='html') x.innerHTML = attrs[k];
+      else x.setAttribute(k, attrs[k]);
+    } }
+    if(parent) parent.appendChild(x);
+    return x;
+  }
+
+  var wrap = el('div', { });
+  css(wrap, {
+    maxWidth:'960px', margin:'24px auto', padding:'16px',
+    border:'1px solid #ddd', borderRadius:'12px',
+    boxShadow:'0 1px 6px rgba(0,0,0,.08)',
+    fontFamily:"system-ui,-apple-system,Segoe UI,Roboto,Noto Sans,Apple SD Gothic Neo,Malgun Gothic,sans-serif"
+  });
+
+  var title = el('div', {text:'검색'}, wrap);
+  css(title, {fontSize:'14px', color:'#666', margin:'0 0 8px'});
+
+  var input = el('input', {type:'text', placeholder:'검색어 입력'}, wrap);
+  css(input, {
+    width:'100%', height:'56px', boxSizing:'border-box',
+    border:'1px solid #ccc', borderRadius:'12px', padding:'0 16px',
+    fontSize:'18px'
+  });
+
+  var row = el('div', {}, wrap);
+  css(row, {display:'flex', gap:'8px', marginTop:'12px', flexWrap:'wrap'});
+
+  var selCat = el('select', {}, row);
+  var selEng = el('select', {}, row);
+  [selCat, selEng].forEach(function(s){
+    css(s, {
+      flex:'1 1 240px', minWidth:'200px',
+      minHeight:'44px', border:'1px solid #ccc', borderRadius:'10px',
+      padding:'8px', fontSize:'16px', boxSizing:'border-box'
+    });
+  });
+
+  var btn = el('button', {text:'검색'}, wrap);
+  css(btn, {
+    width:'100%', height:'52px', marginTop:'12px',
+    border:'1px solid #2d6cdf', borderRadius:'12px',
+    background:'#2d6cdf', color:'#fff', fontSize:'18px', cursor:'pointer'
+  });
+
+  // 데이터 바인딩
+  function populateCats(){
+    selCat.innerHTML = '';
+    CFG.forEach(function(c, i){
+      var op = el('option', {value:String(i), text:c.category}, selCat);
+    });
+  }
+  function populateEngs(catIdx){
+    selEng.innerHTML = '';
+    var list = CFG[catIdx].engines;
+    list.forEach(function(e, i){
+      el('option', {value:String(i), text:e.name}, selEng);
+    });
+  }
+  populateCats();
+  populateEngs(0); // 기본: 첫 카테고리
+
+  selCat.addEventListener('change', function(){
+    var ci = +selCat.value;
+    populateEngs(ci);
+  });
+
+  function currentUrl(){
+    var ci = +selCat.value;
+    var ei = +selEng.value;
+    return CFG[ci].engines[ei].url;
+  }
+
+  function go(){
+    var q = input.value || '';
+    if(!q){ input.focus(); return; }
+    var url = currentUrl().split('imouto').join(encodeURIComponent(q));
+    var w = window.open(url, '_blank');
+    if(!w) location.href = url;
+  }
+
+  btn.addEventListener('click', go);
+  input.addEventListener('keydown', function(e){
+    if(e.key === 'Enter') go();
+  });
+
+  // 기본 선택: 첫 카테고리의 첫 엔진
+  selCat.value = '0';
+  selEng.value = '0';
+
+  document.body.appendChild(wrap);
+})();`;
+    return code;
+  }
+
+  // 생성 & 복사
+  $('#gen').addEventListener('click', () => {
+    try{
+      const code = generateSnippet();
+      outEl.value = code;
+      setStatus('생성 완료', true);
+    }catch(err){
+      outEl.value = '';
+      setStatus(err.message, false);
+    }
+  });
+
+  $('#copy').addEventListener('click', async () => {
+    const v = outEl.value.trim();
+    if(!v){ setStatus('먼저 생성 버튼을 눌러줘', false); return; }
+    try{
+      await navigator.clipboard.writeText(v);
+      setStatus('복사됨', true);
+    }catch{
+      setStatus('복사 실패… 수동으로 복사해줘', false);
+    }
+  });
+
+  // 최초 렌더
+  render();
+})();
+</script>
+</body>
+</html>
