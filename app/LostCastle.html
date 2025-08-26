@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>Lost Castle – Mobile+ Edition</title>
+<style>
+  :root{
+    --cell: 64px;            /* JS에서 보드 크기에 맞춰 갱신 */
+    --gap: 4px;
+    --radius: 14px;
+    --bg: radial-gradient(1200px 600px at 10% 0%, #1f2633 0%, #0e1320 50%, #0a0d17 100%);
+    --panel: rgba(255,255,255,0.06);
+    --panel-2: rgba(255,255,255,0.1);
+    --ink: #e6f1ff;
+    --ink-dim: #b8c6e3;
+    --blue: #4aa8ff;  --pink: #ff6aa9;  --teal:#2ee6d6;  --amber:#ffd166;  --lime:#aef359;
+    --danger:#ff3b5c; --ok:#38d27a; --wall:#6b7280;
+  }
+  html,body{height:100%;}
+  body{
+    margin:0; padding:0; color:var(--ink); font-family: ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Apple Color Emoji,Noto Color Emoji;
+    background: var(--bg);
+    display:flex; flex-direction:column; gap:10px;
+  }
+  /* Top bar */
+  header{
+    position:sticky; top:0; z-index:5; backdrop-filter: blur(10px);
+    background: linear-gradient(180deg, rgba(0,0,0,0.45), rgba(0,0,0,0.15));
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+  .wrap{max-width:1200px; margin:0 auto; padding:10px 14px;}
+  .row{display:flex; flex-wrap:wrap; gap:10px; align-items:center;}
+  .title{font-weight:800; letter-spacing:.5px; font-size:18px; opacity:.95}
+  .sp{flex:1}
+  .btn{border:1px solid rgba(255,255,255,0.15); background:var(--panel); color:var(--ink); padding:8px 12px; border-radius:12px; cursor:pointer; font-weight:650}
+  .btn:hover{background:var(--panel-2)}
+  .btn.acc{background:linear-gradient(180deg,#1e293b,#0b1220); box-shadow:0 6px 24px rgba(76,144,255,.15) inset, 0 0 0 1px rgba(255,255,255,0.06)}
+  .btn.warn{border-color:rgba(255,107,107,.4);}
+  /* Settings */
+  details.settings{margin-top:6px}
+  details.settings summary{cursor:pointer; user-select:none; padding:8px 12px; border-radius:12px; background:var(--panel);}
+  .grid-opts{display:grid; grid-template-columns:repeat(2,minmax(160px,1fr)); gap:10px; padding:12px}
+  .card{background:var(--panel); border:1px solid rgba(255,255,255,0.08); border-radius:14px; padding:10px}
+  label.small{font-size:12px; opacity:.8}
+  input[type=number],select{width:100%; padding:8px 10px; border-radius:10px; border:1px solid rgba(255,255,255,0.15); background:#0f1421; color:var(--ink)}
+  .hint{font-size:12px; color:var(--ink-dim)}
+
+  /* Layout */
+  main{display:grid; grid-template-columns: 1fr; gap:12px; align-items:start}
+  @media(min-width:900px){ main{ grid-template-columns: minmax(280px, 360px) 1fr; } }
+
+  /* Side panel */
+  .panel{background:var(--panel); border:1px solid rgba(255,255,255,0.08); border-radius:16px; padding:10px;}
+  .lifeBar{display:flex; flex-direction:column; gap:8px}
+  .teamGroup{background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.08); border-radius:14px; padding:8px}
+  .teamTitle{display:flex; align-items:center; gap:8px; font-weight:800; letter-spacing:.3px; margin-bottom:6px}
+  .pill{display:inline-flex; align-items:center; gap:6px; padding:6px 8px; border-radius:999px; border:1px solid rgba(255,255,255,0.1); background:#0f1421; margin:2px}
+  .dot{width:10px; height:10px; border-radius:50%}
+  .playerDot{background:var(--blue)} .aiDot{background:var(--pink)}
+  .hearts{font-size:14px}
+  .cool{font-size:11px; opacity:.75}
+
+  /* Board */
+  #boardWrap{ display:flex; justify-content:center; align-items:center; }
+  #board{ display:grid; gap:var(--gap); border-radius:18px; padding:var(--gap); background:linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02)); border:1px solid rgba(255,255,255,0.08)}
+  .cell{ width:var(--cell); height:var(--cell); border-radius:10px; position:relative; overflow:hidden; display:flex; align-items:center; justify-content:center; background: #0d1221; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.05)}
+  .cell.wall{ background: repeating-linear-gradient(45deg,#121827,#121827 8px,#172033 8px,#172033 16px); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06)}
+  .cell.highlightP{ box-shadow: inset 0 0 0 2px rgba(74,168,255,.7), 0 0 18px rgba(74,168,255,.25)}
+  .cell.highlightA{ box-shadow: inset 0 0 0 2px rgba(255,106,169,.7), 0 0 18px rgba(255,106,169,.25)}
+
+  /* Items / terrain glyphs */
+  .glyph{ position:absolute; font-size: calc(var(--cell) * .45); opacity:.9; pointer-events:none; filter: drop-shadow(0 2px 6px rgba(0,0,0,.6)); }
+  .glyph.heart{ color:var(--ok) }
+  .glyph.shield{ color:var(--teal) }
+  .glyph.bomb{ color:var(--danger) }
+  .glyph.portal{ color:#a78bfa }
+
+  /* Pieces */
+  .piece{ position:absolute; width: calc(var(--cell) * .75); height: calc(var(--cell) * .75); border-radius:16px; display:flex; align-items:center; justify-content:center; font-weight:800; letter-spacing:.2px;
+          color:#fff; user-select:none; transform: translateZ(0); box-shadow: 0 6px 16px rgba(0,0,0,.35);}
+  .playerPiece{ background: linear-gradient(180deg, #3193ff, #1d5cff); border: 1px solid rgba(74,168,255,.55)}
+  .aiPiece{ background: linear-gradient(180deg, #ff6aa9, #b23b88); border: 1px solid rgba(255,106,169,.55)}
+  .shieldRing::after{ content:""; position:absolute; inset:-6px; border-radius:22px; border:3px solid rgba(46,230,214,.9); box-shadow:0 0 10px rgba(46,230,214,.6); }
+  .tiny{ position:absolute; bottom:2px; right:4px; font-size:10px; opacity:.9 }
+
+  /* Bottom action sheet */
+  .sheet{ position:fixed; left:0; right:0; bottom:0; z-index:10; padding:10px; display:flex; justify-content:center; }
+  .sheetInner{ width:min(980px, 100%); display:flex; flex-wrap:wrap; gap:8px; padding:10px; border-radius:16px; background:rgba(10,14,25,.75); border:1px solid rgba(255,255,255,0.08); backdrop-filter: blur(10px); }
+  .action{ flex:1 1 80px; min-width:80px; padding:10px 8px; border-radius:12px; border:1px solid rgba(255,255,255,0.1); background:linear-gradient(180deg,#0f1628,#0a0f1d); color:var(--ink); font-weight:700; cursor:pointer }
+  .action:disabled{ opacity:.45; filter:grayscale(1); cursor:not-allowed }
+  .action.big{ min-width:120px }
+  .turnTag{ padding:6px 10px; border-radius:999px; border:1px solid rgba(255,255,255,0.06); background:rgba(255,255,255,0.06); font-size:12px }
+
+  .toast{ position:fixed; top:10px; right:10px; background:rgba(0,0,0,.6); padding:8px 10px; border-radius:10px; font-size:13px; border:1px solid rgba(255,255,255,.1) }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="row">
+      <div class="title">Lost Castle – Mobile+ Edition</div>
+      <span class="sp"></span>
+      <button class="btn acc" id="btnStart">새 판 시작</button>
+      <button class="btn" id="btnRestart">빠른 재시작</button>
+    </div>
+    <details class="settings" id="settings">
+      <summary>세팅 열기 · 보드/말/난이도 수정</summary>
+      <div class="grid-opts">
+        <div class="card">
+          <label class="small">가로 칸 (COLS)</label>
+          <input type="number" id="inCols" min="6" max="15" step="1" value="9">
+          <div class="hint">화면에 맞춰 자동 크기 조정</div>
+        </div>
+        <div class="card">
+          <label class="small">세로 칸 (ROWS)</label>
+          <input type="number" id="inRows" min="6" max="12" step="1" value="9">
+        </div>
+        <div class="card">
+          <label class="small">팀당 말 수</label>
+          <input type="number" id="inUnits" min="3" max="10" step="1" value="6">
+          <div class="hint">짧게 하려면 줄이고 길게 하려면 늘리기</div>
+        </div>
+        <div class="card">
+          <label class="small">말 기본 체력(하트)</label>
+          <input type="number" id="inLife" min="2" max="5" step="1" value="3">
+        </div>
+        <div class="card">
+          <label class="small">장애물 밀도</label>
+          <select id="inWalls">
+            <option value="0">없음</option>
+            <option value="0.04">낮음</option>
+            <option value="0.07" selected>보통</option>
+            <option value="0.1">많음</option>
+          </select>
+        </div>
+        <div class="card">
+          <label class="small">아이템 등장 밀도</label>
+          <select id="inItems">
+            <option value="0">없음</option>
+            <option value="0.03">낮음</option>
+            <option value="0.05" selected>보통</option>
+            <option value="0.09">많음</option>
+          </select>
+          <div class="hint">하트🟢/방패🔵/폭탄🔴/포탈🟣</div>
+        </div>
+      </div>
+    </details>
+  </div>
+</header>
+
+<main class="wrap">
+  <aside class="panel">
+    <div class="row" style="justify-content:space-between; align-items:center">
+      <div class="turnTag" id="turnInfo">게임을 시작해줘</div>
+      <div class="hint">모바일에선 아래 동작 시트로 조작</div>
+    </div>
+    <div class="lifeBar" id="lifeBar"></div>
+  </aside>
+
+  <section id="boardWrap">
+    <div id="board"></div>
+  </section>
+</main>
+
+<!-- bottom action sheet -->
+<div class="sheet">
+  <div class="sheetInner" id="actionBar" style="display:none">
+    <button class="action" data-act="←">←</button>
+    <button class="action" data-act="→">→</button>
+    <button class="action" data-act="↑">↑</button>
+    <button class="action" data-act="↓">↓</button>
+    <button class="action" data-act="+">＋</button>
+    <button class="action" data-act="╳">╳</button>
+    <button class="action" data-act="◯">방어</button>
+    <button class="action big" data-act="⚔">강공</button>
+    <button class="action big" data-act="⚡">돌진</button>
+    <button class="action big" data-act="✚">회복</button>
+  </div>
+</div>
+
+<div class="toast" id="toast" style="display:none"></div>
+
+<script>
+/******************
+ * CONFIG & CONSTS
+ *****************/
+const DIR_MAP={'←':'left','→':'right','↑':'up','↓':'down'};
+const DIRECTIONS={
+  left:[[-1,0],[0,-1],[0,1],[1,0]],
+  right:[[1,0],[0,-1],[0,1],[-1,0]],
+  up:[[0,-1],[-1,0],[1,0],[0,1]],
+  down:[[0,1],[-1,0],[1,0],[0,-1]]
+};
+const DIR_PROB=[0.60,0.18,0.18,0.04]; // 전진:후측면:후진
+const PLUSES=[[0,0],[0,-1],[0,1],[-1,0],[1,0]];
+const CROSSES=[[0,0],[-1,-1],[-1,1],[1,-1],[1,1]];
+const HIGHLIGHT_COLOR={player:'highlightP', ai:'highlightA'};
+const TEAM_COLOR_CLASS={player:'playerPiece', ai:'aiPiece'};
+
+// 스킬 쿨타임
+const CD = { POWER:3, DASH:2, HEAL:3 };
+
+/******************
+ * STATE
+ *****************/
+let ROWS=9, COLS=9, UNITS=6, BASE_LIFE=3, WALL_DENSITY=0.07, ITEM_DENSITY=0.05;
+let boardCells=[]; // {wall:boolean, item:null|{type}}
+let pieces=[];     // piece objects
+let turnOrder=[];  // indices into pieces
+let turnIndex=0;   // pointer in turnOrder
+let attackTiles=[]; let attackTeam=null;
+let running=false; let gameOver=false;
+
+const $ = sel => document.querySelector(sel);
+const boardEl = $('#board');
+const lifeEl = $('#lifeBar');
+const turnInfoEl = $('#turnInfo');
+const actionBar = $('#actionBar');
+const toastEl = $('#toast');
+
+/******************
+ * INIT & UI
+ *****************/
+function readSettings(){
+  COLS = clamp(intVal('#inCols'),6,15);
+  ROWS = clamp(intVal('#inRows'),6,12);
+  UNITS= clamp(intVal('#inUnits'),3,10);
+  BASE_LIFE = clamp(intVal('#inLife'),2,5);
+  WALL_DENSITY = parseFloat($('#inWalls').value||'0');
+  ITEM_DENSITY = parseFloat($('#inItems').value||'0');
+}
+function intVal(sel){ return parseInt($(sel).value,10) || 0 }
+function clamp(n,a,b){ return Math.max(a, Math.min(b, n)) }
+
+function computeCellSize(){
+  // 보드가 화면에 자연스럽게 맞도록 셀 크기 계산
+  const availW = Math.min(window.innerWidth-24, 1200);
+  const availH = Math.max(300, window.innerHeight - 280); // 상단/하단 패널 고려
+  const boardW = Math.min(availW*0.98, availH*0.98);
+  const cell = Math.floor((boardW - (COLS+1)* (getGap())) / COLS);
+  document.documentElement.style.setProperty('--cell', cell+'px');
+}
+function getGap(){ return 6 }
+
+function buildBoardDom(){
+  boardEl.style.gridTemplateColumns = `repeat(${COLS}, var(--cell))`;
+  boardEl.style.gridTemplateRows = `repeat(${ROWS}, var(--cell))`;
+}
+
+function showToast(msg, ms=1200){ toastEl.textContent=msg; toastEl.style.display='block'; setTimeout(()=>toastEl.style.display='none', ms) }
+
+function setupListeners(){
+  window.addEventListener('resize', ()=>{ computeCellSize(); drawBoard();});
+  $('#btnStart').onclick=()=>{ $('#settings').open=false; startNew(); };
+  $('#btnRestart').onclick=()=>{ startNew(); };
+  actionBar.querySelectorAll('.action').forEach(btn=>{
+    btn.onclick = ()=>{ if(!running) return; const act = btn.dataset.act; const p = currentPiece();
+      if(p.team!=='player') return; handleAction(p, act);
+    };
+  });
+}
+
+/******************
+ * GAME SETUP
+ *****************/
+function startNew(){
+  readSettings();
+  gameOver=false; running=true; attackTiles=[]; attackTeam=null; pieces=[]; turnOrder=[]; turnIndex=0;
+  // 보드 셀 초기화
+  boardCells = new Array(ROWS*COLS).fill(0).map(_=>({wall:false, item:null}));
+  placeWalls();
+  placeInitialItems();
+  // 말 생성 및 배치
+  spawnTeam('player', UNITS, 1);
+  spawnTeam('ai', UNITS, -1);
+  // 턴 순서: 단순히 pieces 배열 순회
+  turnOrder = pieces.map((_,i)=>i);
+  // 셀 크기/보드 레이아웃
+  computeCellSize(); buildBoardDom();
+  drawAll();
+  turnInfoEl.textContent = `플레이어 차례 – 말 ${currentPiece().id}`;
+  actionBar.style.display='flex';
+}
+
+function placeWalls(){
+  const count = Math.floor(ROWS*COLS*WALL_DENSITY);
+  let tries=0, placed=0;
+  while(placed<count && tries<5000){
+    tries++;
+    const idx = rndInt(0, ROWS*COLS-1);
+    const [x,y] = fromIndex(idx);
+    // 가장 왼쪽/오른쪽 2열은 시작 지대 → 벽 배치 금지
+    if(x<2 || x>COLS-3) continue;
+    if(boardCells[idx].wall) continue;
+    boardCells[idx].wall=true; placed++;
+  }
+}
+
+function placeInitialItems(){
+  const count = Math.floor(ROWS*COLS*ITEM_DENSITY);
+  for(let i=0;i<count;i++) placeRandomItem();
+}
+
+function placeRandomItem(){
+  const free = emptyCells(); if(!free.length) return;
+  const idx = free[rndInt(0, free.length-1)];
+  const types = ['heart','shield','bomb','portal'];
+  boardCells[idx].item = { type: types[rndInt(0, types.length-1)] };
+}
+
+function spawnTeam(team, n, side){
+  // side: 1=왼쪽, -1=오른쪽
+  const baseLife = BASE_LIFE;
+  let id=1;
+  const cols = side===1 ? [0,1] : [COLS-1, COLS-2];
+  const rows = [...Array(ROWS).keys()];
+  rows.sort(()=>Math.random()-0.5);
+  while(id<=n){
+    const x = cols[id%2];
+    const y = rows[(id-1)%ROWS];
+    if(!isBlocked(x,y)){
+      const piece = {
+        id, team, x, y,
+        life: baseLife, maxLife: baseLife,
+        shield:0,
+        cdPower:0, cdDash:0, cdHeal:0
+      };
+      pieces.push(piece); id++;
+    }else{
+      // 빈 칸 찾기
+      const opts = startZoneCells(side);
+      const cand = opts.find(([cx,cy])=>!isBlocked(cx,cy));
+      if(!cand) break; else {
+        const [cx,cy]=cand;
+        const piece={ id, team, x:cx, y:cy, life:baseLife, maxLife:baseLife, shield:0, cdPower:0, cdDash:0, cdHeal:0 };
+        pieces.push(piece); id++;
+      }
+    }
+  }
+}
+
+function startZoneCells(side){
+  const cols = side===1 ? [0,1] : [COLS-1, COLS-2];
+  const cells=[]; for(const c of cols){ for(let r=0;r<ROWS;r++) cells.push([c,r]); }
+  return cells;
+}
+
+/******************
+ * RENDERING
+ *****************/
+function drawAll(){ drawLife(); drawBoard(); }
+
+function drawLife(){
+  lifeEl.innerHTML='';
+  ['player','ai'].forEach(team=>{
+    const group = document.createElement('div'); group.className='teamGroup';
+    const t = document.createElement('div'); t.className='teamTitle';
+    const dot = document.createElement('span'); dot.className='dot '+(team==='player'?'playerDot':'aiDot');
+    t.appendChild(dot); t.appendChild(document.createTextNode(team==='player'?'플레이어':'AI'));
+    group.appendChild(t);
+    pieces.filter(p=>p.team===team).forEach(p=>{
+      const pill = document.createElement('span'); pill.className='pill';
+      pill.innerHTML = `#${p.id} <span class="hearts">${'❤'.repeat(p.life)}${'♡'.repeat(p.maxLife-p.life)}</span>`+
+        ` <span class="cool">(${p.cdPower>0?'⚔'+p.cdPower+' ':''}${p.cdDash>0?'⚡'+p.cdDash+' ':''}${p.cdHeal>0?'✚'+p.cdHeal+' ':''})</span>`;
+      group.appendChild(pill);
+    });
+    lifeEl.appendChild(group);
+  });
+}
+
+function drawBoard(){
+  boardEl.innerHTML='';
+  for(let y=0;y<ROWS;y++){
+    for(let x=0;x<COLS;x++){
+      const idx = toIndex(x,y);
+      const cell = document.createElement('div');
+      cell.className='cell'+(boardCells[idx].wall?' wall':'');
+      if(attackTiles.some(t=>t.x===x&&t.y===y)) cell.classList.add(HIGHLIGHT_COLOR[attackTeam]);
+
+      // 아이템 표시
+      const itm = boardCells[idx].item;
+      if(itm){
+        const g = document.createElement('div');
+        g.className = `glyph ${itm.type}`;
+        g.textContent = itm.type==='heart'?'❤': itm.type==='shield'?'🛡': itm.type==='bomb'?'💣':'🌀';
+        cell.appendChild(g);
+      }
+
+      // 말 표시 (여러 개 가능)
+      pieces.filter(p=>p.x===x&&p.y===y&&p.life>0).forEach(p=>{
+        const d=document.createElement('div'); d.className = `piece ${TEAM_COLOR_CLASS[p.team]} ${p.shield>0?'shieldRing':''}`;
+        d.textContent = p.id;
+        const tiny=document.createElement('div'); tiny.className='tiny'; tiny.textContent = `${p.life}❤`;
+        d.appendChild(tiny);
+        cell.appendChild(d);
+      });
+
+      boardEl.appendChild(cell);
+    }
+  }
+}
+
+/******************
+ * TURN FLOW
+ *****************/
+function currentPiece(){ return pieces[turnOrder[turnIndex]] }
+
+function nextTurn(){
+  if(gameOver) return;
+  // 다음 활성 말 찾기
+  let safety=0;
+  while(safety++<pieces.length){
+    turnIndex = (turnIndex+1) % turnOrder.length;
+    const p = currentPiece();
+    if(p && p.life>0){
+      // 쿨타임 감소
+      p.cdPower = Math.max(0, p.cdPower-1);
+      p.cdDash  = Math.max(0, p.cdDash-1);
+      p.cdHeal  = Math.max(0, p.cdHeal-1);
+      if(p.shield>0) p.shield--; // 자기 턴에 방패 감소
+      break;
+    }
+  }
+  drawAll();
+  const now = currentPiece();
+  if(!now){ checkGameOver(); return; }
+  turnInfoEl.textContent = `${now.team==='player'?'플레이어':'AI'} 차례 – 말 ${now.id}`;
+  if(now.team==='player'){ actionBarToggle(true); }
+  else { actionBarToggle(false); setTimeout(()=>aiAct(now), 350); }
+}
+
+function actionBarToggle(show){ actionBar.style.display = show?'flex':'none'; }
+
+function handleAction(piece, act){
+  if(!running || gameOver) return;
+  // 유효성 검사 (쿨타임 등)
+  if(act==='⚔' && piece.cdPower>0) return showToast(`강공 쿨타임 ${piece.cdPower}턴…`);
+  if(act==='⚡' && piece.cdDash>0)  return showToast(`돌진 쿨타임 ${piece.cdDash}턴…`);
+  if(act==='✚' && piece.cdHeal>0)  return showToast(`회복 쿨타임 ${piece.cdHeal}턴…`);
+
+  // 실행
+  performAction(piece, act);
+  // 종료 처리 및 다음 턴
+  drawAll();
+  if(checkGameOver()) return;
+  nextTurn();
+}
+
+function performAction(p, act){
+  attackTiles=[]; attackTeam=null;
+  switch(act){
+    case '←': case '→': case '↑': case '↓':
+      moveByBias(p, act, 1);
+      break;
+    case '+': attackPattern(p, PLUSES); break;
+    case '╳': attackPattern(p, CROSSES); break;
+    case '◯': defend(p); break;
+    case '⚔': powerStrike(p); break;
+    case '⚡': dash(p); break;
+    case '✚': healSelf(p); break;
+  }
+  // 아이템 획득 체크
+  pickupItemIfAny(p);
+}
+
+/******************
+ * ACTIONS
+ *****************/
+function moveByBias(p, btn, steps){
+  for(let s=0;s<steps;s++){
+    const set = DIRECTIONS[DIR_MAP[btn]]; 
+    let r=Math.random(), idx=0, sum=0;
+    for(let i=0;i<set.length;i++){ sum+=DIR_PROB[i]; if(r<sum){ idx=i; break; }}
+    const [dx,dy] = set[idx];
+    const nx = p.x+dx, ny = p.y+dy;
+    if(inBoard(nx,ny) && !isWall(nx,ny)) { p.x=nx; p.y=ny; }
+    else break; // 막히면 정지
+  }
+}
+
+function attackPattern(p, pattern){
+  attackTiles=[]; attackTeam=p.team;
+  for(const [dx,dy] of pattern){
+    const tx=p.x+dx, ty=p.y+dy; if(!inBoard(tx,ty)) continue;
+    attackTiles.push({x:tx,y:ty});
+    for(const e of pieces){
+      if(e.team!==p.team && e.x===tx && e.y===ty && e.life>0){
+        if(e.shield>0) { /* 방패로 무효화 */ }
+        else { e.life--; }
+      }
+    }
+  }
+}
+
+function defend(p){ p.shield = Math.max(p.shield, 2); }
+
+function powerStrike(p){
+  // + 와 X를 동시에 적용 (광역). 쿨 3
+  p.cdPower = CD.POWER;
+  const merged = [];
+  for(const t of PLUSES) merged.push(t);
+  for(const t of CROSSES) if(!merged.some(m=>m[0]===t[0]&&m[1]===t[1])) merged.push(t);
+  attackPattern(p, merged);
+}
+
+function dash(p){ p.cdDash = CD.DASH; moveByBias(p, '→←↑↓'[0], 0); /* no-op to keep highlight clear */
+  // 돌진: 마지막으로 선택한 방향 개념이 없으니, 가장 가까운 적에게 다가가는 성향으로 설정
+  const foe = nearestEnemy(p); if(!foe){ return; }
+  // x/y 축 우선 방향 결정
+  const dx = Math.sign(foe.x - p.x); const dy = Math.sign(foe.y - p.y);
+  const pri = Math.abs(foe.x-p.x) >= Math.abs(foe.y-p.y) ? (dx<0?'←':'→') : (dy<0?'↑':'↓');
+  moveByBias(p, pri, 2);
+}
+
+function healSelf(p){ p.cdHeal = CD.HEAL; p.life = Math.min(p.maxLife, p.life+1); }
+
+/******************
+ * ITEMS & CELLS
+ *****************/
+function pickupItemIfAny(p){
+  const idx = toIndex(p.x,p.y); const itm = boardCells[idx].item;
+  if(!itm) return;
+  if(itm.type==='heart'){ p.life = Math.min(p.maxLife, p.life+1); showToast(`말 ${p.id} 하트 +1`) }
+  else if(itm.type==='shield'){ p.shield = Math.max(p.shield, 3); showToast(`말 ${p.id} 방패 전개`) }
+  else if(itm.type==='bomb'){
+    // 주변 8칸 폭발 (아군 무시, 적만 타격)
+    const area = [...PLUSES,...CROSSES].filter((v,i,a)=>a.findIndex(t=>t[0]===v[0]&&t[1]===v[1])===i);
+    for(const [dx,dy] of area){ const tx=p.x+dx, ty=p.y+dy; if(!inBoard(tx,ty)) continue;
+      for(const e of pieces){ if(e.team!==p.team && e.x===tx && e.y===ty && e.life>0 && e.shield===0) e.life--; }
+    }
+    showToast('💥 폭탄 발동')
+  }
+  else if(itm.type==='portal'){
+    const free = emptyCells(); if(free.length){ const pick = free[rndInt(0, free.length-1)]; const [nx,ny]=fromIndex(pick); p.x=nx; p.y=ny; showToast('🌀 포탈 이동'); }
+  }
+  // 아이템 제거 & 낮은 확률로 재생성
+  boardCells[idx].item=null; if(Math.random()<ITEM_DENSITY*0.65) placeRandomItem();
+}
+
+function emptyCells(){
+  const arr=[]; for(let i=0;i<ROWS*COLS;i++){
+    if(boardCells[i].wall) continue;
+    const [x,y] = fromIndex(i);
+    const occ = pieces.some(p=>p.life>0 && p.x===x && p.y===y);
+    if(!occ && !boardCells[i].item) arr.push(i);
+  }
+  return arr;
+}
+
+/******************
+ * AI
+ *****************/
+function aiAct(p){
+  if(!running||gameOver||p.life<=0) return;
+  // 우선순위: 마감 위기 → 방어/힐 → 인접 적 다수면 강공 → 인접이면 기본 공격 → 아이템 먹기 위해 돌진 → 접근 이동
+  const enemies = pieces.filter(e=>e.team!==p.team && e.life>0);
+  if(!enemies.length){ checkGameOver(); return; }
+
+  // 위험도 판단
+  const inThreat = enemies.some(e=> Math.abs(e.x-p.x)<=1 && Math.abs(e.y-p.y)<=1 );
+  if(p.life<=1 && p.cdHeal===0){ performAction(p, '✚'); postAITurn(); return; }
+  if(p.life<=1 && p.shield===0){ performAction(p, '◯'); postAITurn(); return; }
+
+  // 인접 적 수 카운트
+  const adjCount = enemies.filter(e=> Math.abs(e.x-p.x)<=1 && Math.abs(e.y-p.y)<=1 ).length;
+  if(adjCount>=2 && p.cdPower===0){ performAction(p,'⚔'); postAITurn(); return; }
+
+  // 인접 하나면 +/X 중 더 많이 맞출 수 있는 쪽 선택
+  if(adjCount>=1){
+    const plusHits = countHits(p, PLUSES);
+    const crossHits = countHits(p, CROSSES);
+    performAction(p, plusHits>=crossHits?'+':'╳'); postAITurn(); return;
+  }
+
+  // 근처 아이템 우선 접근 (두 칸 이내)
+  const itmTarget = nearestItem(p);
+  if(itmTarget && dist(p, itmTarget)<=3 && p.cdDash===0){ performAction(p,'⚡'); postAITurn(); return; }
+
+  // 가장 약한 적에게 접근
+  const target = enemies.sort((a,b)=>a.life-b.life)[0];
+  const pri = primaryDirToward(p, target);
+  performAction(p, pri); postAITurn();
+}
+
+function postAITurn(){ drawAll(); if(checkGameOver()) return; setTimeout(()=>nextTurn(), 300); }
+
+function countHits(p, pattern){
+  let hits=0; for(const [dx,dy] of pattern){ const tx=p.x+dx, ty=p.y+dy; if(!inBoard(tx,ty)) continue; if(pieces.some(e=>e.team!==p.team && e.x===tx && e.y===ty && e.life>0 && e.shield===0)) hits++; }
+  return hits;
+}
+
+function nearestEnemy(p){
+  const foes = pieces.filter(e=>e.team!==p.team && e.life>0);
+  if(!foes.length) return null; return foes.sort((a,b)=>dist(p,a)-dist(p,b))[0];
+}
+function nearestItem(p){
+  let best=null, bestD=1e9; for(let i=0;i<ROWS*COLS;i++){ if(boardCells[i].item){ const [x,y]=fromIndex(i); const d=Math.abs(p.x-x)+Math.abs(p.y-y); if(d<bestD){ bestD=d; best={x,y}; } } }
+  return best;
+}
+function primaryDirToward(a,b){
+  const dx = Math.sign(b.x - a.x); const dy = Math.sign(b.y - a.y);
+  if(Math.abs(b.x-a.x) >= Math.abs(b.y-a.y)) return dx<0?'←':'→';
+  else return dy<0?'↑':'↓';
+}
+
+/******************
+ * UTILS & CHECKS
+ *****************/
+function toIndex(x,y){ return y*COLS + x }
+function fromIndex(i){ const y=Math.floor(i/COLS), x = i%COLS; return [x,y] }
+function inBoard(x,y){ return x>=0 && x<COLS && y>=0 && y<ROWS }
+function isWall(x,y){ return boardCells[toIndex(x,y)].wall }
+function isBlocked(x,y){ return isWall(x,y) }
+function dist(a,b){ return Math.abs(a.x-b.x)+Math.abs(a.y-b.y) }
+function rndInt(a,b){ return (Math.random()* (b-a+1) | 0) + a }
+
+function checkGameOver(){
+  const playerAlive = pieces.some(p=>p.team==='player' && p.life>0);
+  const aiAlive     = pieces.some(p=>p.team==='ai' && p.life>0);
+  if(!playerAlive || !aiAlive){
+    running=false; gameOver=true;
+    actionBarToggle(false);
+    turnInfoEl.textContent = playerAlive? '플레이어 승리!':'AI 승리!';
+    showToast(playerAlive?'승리! 🎉':'패배…');
+    return true;
+  }
+  return false;
+}
+
+/******************
+ * BOOT
+ *****************/
+setupListeners();
+computeCellSize(); buildBoardDom(); drawAll();
+</script>
+</body>
+</html>
