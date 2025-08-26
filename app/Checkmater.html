@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>Seal‑Escape+ 9×9 (Mobile‑first)</title>
+  <style>
+    :root{
+      --bg:#0f1115; --panel:#151821; --accent:#6aa5ff; --accent-2:#ff6ad5;
+      --ok:#28c76f; --warn:#ffb84d; --danger:#ff5b5b; --line:#2a2f3a; --muted:#9aa3b2; --txt:#e6e9ef;
+      --tile-a:#1b2030; --tile-b:#1e2536; --hl:#213245; --shadow:0 6px 20px rgba(0,0,0,.35);
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:radial-gradient(1200px 600px at 70% -10%,#1b2130 0%,#0f1115 55%),var(--bg);color:var(--txt);
+         font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,"Apple SD Gothic Neo","Noto Sans KR",sans-serif;
+         display:flex;flex-direction:column;align-items:center;gap:.8rem;padding:clamp(.6rem,2.5vmin,1.2rem)}
+
+    /* Header */
+    .wrap{width:min(96vw,960px);display:grid;gap:.8rem}
+    header{display:flex;justify-content:space-between;align-items:center;gap:.6rem;padding:.8rem 1rem;border:1px solid var(--line);border-radius:14px;background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.02));box-shadow:var(--shadow)}
+    h1{margin:0;font-size:clamp(1rem,3.6vmin,1.5rem);letter-spacing:.3px}
+    .badges{display:flex;gap:.6rem;flex-wrap:wrap}
+    .badge{display:inline-flex;align-items:center;gap:.4rem;border:1px solid var(--line);padding:.35rem .6rem;border-radius:999px;font-size:clamp(.72rem,2.2vmin,.95rem);background:#121620}
+    .dot{width:.5rem;height:.5rem;border-radius:50%}
+
+    /* Board */
+    #board{width:min(94vmin,560px);aspect-ratio:1/1;display:grid;grid-template-columns:repeat(9,1fr);grid-template-rows:repeat(9,1fr);
+           border-radius:16px;overflow:hidden;border:1px solid var(--line);box-shadow:var(--shadow)}
+    .cell{display:flex;align-items:center;justify-content:center;user-select:none;cursor:pointer;position:relative;
+          font-size:clamp(.7rem,2.6vmin,1.05rem);transition:background .15s ease}
+    .cell:nth-child(odd){background:var(--tile-a)}
+    .cell:nth-child(even){background:var(--tile-b)}
+    .cell:active{filter:brightness(1.05)}
+    .cell.highlight{outline:2px solid var(--accent);z-index:1}
+
+    .player{position:relative;background:linear-gradient(180deg,#2b8647,#1f6b38);color:#fff;z-index:2}
+    .player::before{content:"";position:absolute;inset:16%;border-radius:50%;border:3px solid #34d399;box-shadow:0 0 10px rgba(52,211,153,.7),0 0 0 6px rgba(52,211,153,.16) inset}
+    .player::after{content:"YOU";position:absolute;bottom:6%;right:6%;font-weight:900;font-size:clamp(.7rem,2.8vmin,1rem);padding:.05rem .35rem;border-radius:6px;background:rgba(52,211,153,.18);border:2px solid #34d399;color:#eafff6}
+
+    .ai{position:relative;background:linear-gradient(180deg,#ad2e2e,#7f2020);color:#fff;z-index:2}
+    .ai::before{content:"";position:absolute;inset:18%;transform:rotate(45deg);background:linear-gradient(180deg,#ff8d8d,#d44);box-shadow:0 0 10px rgba(255,107,107,.55)}
+    .ai::after{content:"AI";position:absolute;top:6%;left:6%;font-weight:900;font-size:clamp(.7rem,2.8vmin,1rem);padding:.05rem .35rem;border-radius:6px;background:rgba(255,107,107,.16);border:2px solid #ff6b6b;color:#fff1f1}
+
+    .tomb{background:#3a3f4a;color:#fff}
+    .tomb::after{content:"†";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;opacity:.92;font-weight:700}
+
+    .sealed{background:#2d3447}
+    .sealed::after{content:"✕";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--danger);font-weight:800}
+
+    .rune{background:repeating-linear-gradient(45deg,#2e3b5a 0 12px,#2a3552 12px 24px)}
+    .rune::after{content:"⛬";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;opacity:.95}
+
+    .key::after{content:"🔑";position:absolute}
+    .gate::after{content:"🚪";position:absolute}
+    .trap::after{content:"⚠";position:absolute}
+
+    /* Info + Controls */
+    .info{display:grid;grid-template-columns:1fr auto;gap:.8rem;align-items:center}
+    .stats{display:flex;gap:.6rem;flex-wrap:wrap}
+    .pill{padding:.45rem .75rem;border-radius:999px;border:1px solid var(--line);background:#131925;font-size:clamp(.75rem,2.2vmin,.95rem)}
+    .pill b{font-weight:700;color:var(--accent)}
+
+    .panel{display:flex;gap:.5rem;flex-wrap:wrap;padding:.7rem;border:1px solid var(--line);background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,.02));border-radius:14px}
+    /* Legend chips */
+    .legend{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin-top:.2rem}
+    .lg{display:inline-flex;align-items:center;gap:.45rem;padding:.25rem .55rem;border-radius:999px;border:1px solid var(--line);background:#111825;font-size:clamp(.72rem,2.1vmin,.95rem)}
+    .chip{width:1rem;height:1rem;border-radius:50%}
+    .chip.p{border:3px solid #34d399;box-shadow:0 0 8px rgba(52,211,153,.65),0 0 0 4px rgba(52,211,153,.15) inset}
+    .chip.a{background:linear-gradient(180deg,#ff8d8d,#d44);clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%)/*diamond*/}
+    button{padding:.55rem .9rem;border-radius:10px;border:1px solid var(--line);background:#141b29;color:var(--txt);cursor:pointer;font-size:clamp(.85rem,2.4vmin,1rem)}
+    button[disabled]{opacity:.5;cursor:not-allowed}
+    .accent{border-color:transparent;background:linear-gradient(180deg,#6aa5ff,#4e8beb);color:#061222}
+    .danger{border-color:#7f2a2a;background:linear-gradient(180deg,#ff6b6b,#e04a4a);color:#160b0b}
+
+    #message{min-height:1.3rem;color:var(--muted)}
+
+    @media (max-width:480px){
+      header{padding:.7rem .8rem}
+      .panel{gap:.4rem}
+      button{padding:.5rem .75rem}
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Seal‑Escape+ 9×9</h1>
+      <div class="badges">
+        <span class="badge"><span class="dot" style="background:var(--accent)"></span> 모바일 최적화</span>
+        <span class="badge"><span class="dot" style="background:var(--ok)"></span> 템포 유지, 플레이타임 ↑</span>
+        <span class="badge"><span class="dot" style="background:var(--accent-2)"></span> 신규 요소</span>
+      </div>
+    </header>
+
+    <div class="info">
+      <div class="stats">
+        <div class="pill">턴 <b id="turnNum">0</b></div>
+        <div class="pill">봉인 해제까지 <b id="turnsLeft">5</b></div>
+        <div class="pill">에너지 <b id="energy">1</b>/5</div>
+        <div class="pill">키 <b id="keys">0</b>/3</div>
+      </div>
+      <div class="panel" id="controls">
+        <button id="startBtn" class="accent">게임시작</button>
+        <button id="restartBtn" style="display:none">다시시작</button>
+      </div>
+    </div>
+
+    <div class="legend">
+      <span class="lg"><span class="chip p"></span>플레이어</span>
+      <span class="lg"><span class="chip a"></span>AI</span>
+      <span class="lg">🔑 키</span>
+      <span class="lg">🚪 게이트</span>
+      <span class="lg">⚠ 함정</span>
+      <span class="lg">✕ 봉인 / ⛬ 강봉인</span>
+    </div>
+
+    <div id="board"></div>
+
+    <div id="message"></div>
+
+    <div class="panel" id="actions" style="display:none">
+      <button data-act="seal">봉인(기본)</button>
+      <button data-act="trap">함정 설치(‑2E)</button>
+      <button data-act="rune">강봉인(‑1E)</button>
+    </div>
+  </div>
+
+<script>
+// ---- Seal‑Escape+ core (clean rebuild) ----
+(function(){
+  'use strict';
+  // ===== Constants =====
+  const SIZE = 9;
+  const UNSEAL_INTERVAL = 5;
+  const UNSEAL_COUNT = 2;
+  const TOTAL_KEYS = 3;
+  const MAX_ENERGY = 5;
+  const dirs = [[1,0],[-1,0],[0,1],[0,-1]];
+  function inBounds(r,c){ return r>=0 && r<SIZE && c>=0 && c<SIZE; }
+
+  // ===== State =====
+  let board, player, aiPieces, turnCnt, countdown, phase;
+  let energy, keysCollected, gatePos, selectedAction;
+
+  // ===== DOM =====
+  let boardEl = document.getElementById('board');
+  const msgEl = document.getElementById('message');
+  const turnEl = document.getElementById('turnNum');
+  const leftEl = document.getElementById('turnsLeft');
+  const energyEl = document.getElementById('energy');
+  const keysEl = document.getElementById('keys');
+  const startBtn = document.getElementById('startBtn');
+  const restartBtn = document.getElementById('restartBtn');
+  const actionsEl = document.getElementById('actions');
+
+  function ensureBoard(){
+    if(!boardEl){
+      var wrap = document.querySelector('.wrap') || document.body;
+      var el = document.createElement('div');
+      el.id='board';
+      wrap.appendChild(el);
+      boardEl = el;
+    }
+    return boardEl;
+  }
+
+  window.addEventListener('error', function(e){ if(msgEl){ msgEl.textContent='에러: '+(e.message || ''); } });
+
+  // ===== Helpers =====
+  function cellEl(r,c){ return boardEl.children[r*SIZE + c]; }
+  function randInner(){ return Math.floor(Math.random()*(SIZE-2)) + 1; }
+  function randomOf(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+  function allCells(){ var a=[]; for(var r=0;r<SIZE;r++) for(var c=0;c<SIZE;c++) a.push({r:r,c:c}); return a; }
+
+  function isWalkableFor(tag, v){
+    // Player can step on empty/key/gate/trap. AI can only step on empty/trap.
+    if(tag==='player') return (v==='empty' || v==='key' || v==='gate' || v==='trap');
+    if(tag==='ai') return (v==='empty' || v==='trap');
+    return false;
+  }
+
+  function legalMoves(ent, tag){
+    return dirs.map(function(d){ return {r:ent.r+d[0], c:ent.c+d[1]}; })
+               .filter(function(p){ return inBounds(p.r,p.c) && isWalkableFor(tag, board[p.r][p.c]); });
+  }
+
+  function flood(sr,sc){
+    var seen=Array.from({length:SIZE},function(){return Array(SIZE).fill(false)});
+    var q=[[sr,sc]], n=0; seen[sr][sc]=true;
+    while(q.length){
+      var cur=q.pop(); var r=cur[0], c=cur[1]; n++;
+      for(var i=0;i<dirs.length;i++){
+        var dr=dirs[i][0], dc=dirs[i][1]; var nr=r+dr, nc=c+dc;
+        if(inBounds(nr,nc) && !seen[nr][nc] && isWalkableFor('ai', board[nr][nc])){
+          seen[nr][nc]=true; q.push([nr,nc]);
+        }
+      }
+    }
+    return n;
+  }
+
+  function randomEmpty(){
+    var a=[]; for(var r=0;r<SIZE;r++) for(var c=0;c<SIZE;c++) if(board[r][c]==='empty') a.push({r:r,c:c});
+    return a.length? randomOf(a) : null;
+  }
+
+  function edgeEmpties(){
+    var a=[];
+    for(var i=0;i<SIZE;i++){
+      var coords=[[0,i],[SIZE-1,i],[i,0],[i,SIZE-1]];
+      for(var k=0;k<coords.length;k++){
+        var r=coords[k][0], c=coords[k][1];
+        if(board[r][c]==='empty') a.push({r:r,c:c});
+      }
+    }
+    return a;
+  }
+
+  function updateHUD(){
+    turnEl.textContent = String(turnCnt);
+    leftEl.textContent = String(countdown);
+    energyEl.textContent = String(energy);
+    keysEl.textContent = String(keysCollected);
+  }
+
+  function clearHL(){ var list = boardEl.querySelectorAll('.highlight'); for(var i=0;i<list.length;i++) list[i].classList.remove('highlight'); }
+  function hlTargets(predicate){
+    clearHL();
+    for(var r=0;r<SIZE;r++) for(var c=0;c<SIZE;c++) if(predicate(r,c)) cellEl(r,c).classList.add('highlight');
+  }
+
+  // ===== Build & Placement =====
+  function buildBoard(){
+    var el = ensureBoard();
+    board = Array.from({length:SIZE}, function(){ return Array(SIZE).fill('empty'); });
+    el.innerHTML='';
+    el.style.gridTemplateColumns = 'repeat('+SIZE+',1fr)';
+    el.style.gridTemplateRows = 'repeat('+SIZE+',1fr)';
+    for(var r=0;r<SIZE;r++) for(var c=0;c<SIZE;c++){
+      var d=document.createElement('div');
+      d.className='cell'; d.dataset.row=String(r); d.dataset.col=String(c);
+      d.addEventListener('click', onCell);
+      el.appendChild(d);
+    }
+  }
+
+  function placePieces(){
+    var pr,pc,ar1,ac1,ar2,ac2;
+    do{ pr=randInner(); pc=randInner(); ar1=randInner(); ac1=randInner(); ar2=randInner(); ac2=randInner(); }
+    while((pr===ar1&&pc===ac1)||(pr===ar2&&pc===ac2)||(ar1===ar2&&ac1===ac2));
+    player={r:pr,c:pc};
+    aiPieces=[{r:ar1,c:ac1,alive:true},{r:ar2,c:ac2,alive:true}];
+    board[pr][pc]='player'; board[ar1][ac1]='ai'; board[ar2][ac2]='ai';
+  }
+
+  function placeKeys(){
+    keysCollected=0; gatePos=null; var placed=0;
+    while(placed<TOTAL_KEYS){
+      var p=randomEmpty(); if(!p) break;
+      if(p.r===0||p.r===SIZE-1||p.c===0||p.c===SIZE-1) continue;
+      if(board[p.r][p.c]==='empty'){ board[p.r][p.c]='key'; placed++; }
+    }
+  }
+
+  function spawnGate(){
+    // pick any border cell that is not AI/tomb; overwrite whatever else (including sealed/rune)
+    var edges=[];
+    for(var i=0;i<SIZE;i++){
+      var list=[[0,i],[SIZE-1,i],[i,0],[i,SIZE-1]];
+      for(var j=0;j<list.length;j++){
+        var r=list[j][0], c=list[j][1];
+        var v=board[r][c];
+        if(v!=='ai' && v!=='tomb') edges.push({r:r,c:c});
+      }
+    }
+    if(!edges.length) return;
+    gatePos = randomOf(edges);
+    board[gatePos.r][gatePos.c] = 'gate';
+    draw();
+  }
+
+  // ===== Rendering =====
+  function draw(){
+    for(var r=0;r<SIZE;r++) for(var c=0;c<SIZE;c++){
+      var el = cellEl(r,c);
+      el.className='cell';
+      var v = board[r][c];
+      if(v==='player') el.classList.add('player');
+      else if(v==='ai') el.classList.add('ai');
+      else if(v==='sealed') el.classList.add('sealed');
+      else if(v==='rune') el.classList.add('rune');
+      else if(v==='tomb') el.classList.add('tomb');
+      else if(v==='key') el.classList.add('key');
+      else if(v==='gate') el.classList.add('gate');
+      else if(v==='trap') el.classList.add('trap');
+    }
+  }
+
+  function move(ent,r,c,tag){ board[ent.r][ent.c]='empty'; ent.r=r; ent.c=c; board[r][c]=tag; }
+  function seal(r,c){ board[r][c]='sealed'; }
+  function trap(r,c){ board[r][c]='trap'; }
+  function reinforce(r,c){ board[r][c]='rune'; }
+
+  function unseal(k){
+    var s=[]; for(var r=0;r<SIZE;r++) for(var c=0;c<SIZE;c++) if(board[r][c]==='sealed') s.push({r:r,c:c});
+    for(var i=0;i<k && s.length;i++){
+      var idx=Math.floor(Math.random()*s.length);
+      var rc = s.splice(idx,1)[0];
+      board[rc.r][rc.c]='empty';
+    }
+    draw();
+  }
+
+  function declare(w){
+    clearHL(); msgEl.textContent=w+' 승리!';
+    restartBtn.style.display='inline-block';
+    actionsEl.style.display='none';
+  }
+
+  function checkWin(){
+    if(!legalMoves(player,'player').length){ declare('AI'); return true; }
+    if(gatePos && player.r===gatePos.r && player.c===gatePos.c && keysCollected===TOTAL_KEYS){ declare('플레이어'); return true; }
+    return false;
+  }
+
+  function advance(){
+    turnCnt++; countdown--; energy = Math.min(MAX_ENERGY, energy+1); updateHUD();
+    if(countdown===0){
+      unseal(UNSEAL_COUNT);
+      countdown=UNSEAL_INTERVAL; msgEl.textContent='5턴 경과! 봉인 2칸 해제.';
+      var aliveCount = aiPieces.filter(function(p){return p.alive;}).length;
+      if(aliveCount<3){
+        // spawn new AI at an empty edge if any
+        var spots=edgeEmpties(); if(spots.length){
+          var s=randomOf(spots); aiPieces.push({r:s.r,c:s.c,alive:true}); board[s.r][s.c]='ai'; draw();
+          msgEl.textContent += ' 신규 AI가 나타났어.';
+        }
+      }
+    }
+  }
+
+  function aiTurn(){
+    for(var i=0;i<aiPieces.length;i++){
+      var p=aiPieces[i]; if(!p.alive) continue;
+      var moves = legalMoves(p,'ai');
+      if(!moves.length){ board[p.r][p.c]='tomb'; p.alive=false; continue; }
+      var best = moves[0], bestS = -1;
+      for(var j=0;j<moves.length;j++){
+        var m=moves[j]; var s=flood(m.r,m.c); if(s>bestS){ bestS=s; best=m; }
+      }
+      if(board[best.r][best.c]==='trap'){
+        board[p.r][p.c]='empty'; p.r=best.r; p.c=best.c; board[p.r][p.c]='tomb'; p.alive=false;
+      }else{
+        move(p,best.r,best.c,'ai');
+      }
+    }
+    draw(); if(checkWin()) return;
+    phase='playerMove'; hlTargets(function(r,c){ return legalMoves(player,'player').some(function(pp){return pp.r===r && pp.c===c;}); });
+    msgEl.textContent='플레이어 차례: 이동할 칸을 선택해.';
+  }
+
+  function afterPlayerMoved(){
+    draw();
+    phase='chooseAction'; selectedAction=null; actionsEl.style.display='flex';
+    updateActionsEnabled();
+    msgEl.textContent = '행동을 골라: 봉인 / 함정 / 강봉인';
+  }
+
+  function endPlayer(){
+    clearHL(); actionsEl.style.display='none';
+    advance(); if(checkWin()) return; aiTurn();
+  }
+
+  function onCell(e){
+    var r=+e.currentTarget.dataset.row, c=+e.currentTarget.dataset.col;
+    if(phase==='playerMove'){
+      if(!e.currentTarget.classList.contains('highlight')) return;
+      var destVal = board[r][c];
+      move(player,r,c,'player');
+      if(destVal==='key'){
+        keysCollected++; updateHUD();
+        if(keysCollected===TOTAL_KEYS && !gatePos){ spawnGate(); msgEl.textContent='모든 키를 모았어! 게이트가 열렸어.'; }
+      }
+      draw(); afterPlayerMoved();
+    } else if(phase==='targetSelect'){
+      if(!e.currentTarget.classList.contains('highlight')) return;
+      if(selectedAction==='seal'){
+        seal(r,c); draw(); endPlayer();
+      } else if(selectedAction==='trap'){
+        if(energy<2) return; trap(r,c); energy-=2; updateHUD(); draw(); endPlayer();
+      } else if(selectedAction==='rune'){
+        if(energy<1) return; reinforce(r,c); energy-=1; updateHUD(); draw(); endPlayer();
+      }
+    }
+  }
+
+  function updateActionsEnabled(){
+    var btns = actionsEl.querySelectorAll('button');
+    for(var i=0;i<btns.length;i++) btns[i].disabled=false;
+    var trapBtn = actionsEl.querySelector('[data-act="trap"]');
+    var runeBtn = actionsEl.querySelector('[data-act="rune"]');
+    if(energy<2) trapBtn.setAttribute('disabled',''); else trapBtn.removeAttribute('disabled');
+    if(energy<1) runeBtn.setAttribute('disabled',''); else runeBtn.removeAttribute('disabled');
+  }
+
+  actionsEl.addEventListener('click', function(e){
+    if(e.target.tagName!=='BUTTON') return;
+    var act = e.target.getAttribute('data-act'); selectedAction=act;
+    if(act==='seal' || act==='trap'){
+      hlTargets(function(r,c){ return board[r][c]==='empty'; }); phase='targetSelect';
+      msgEl.textContent = (act==='seal'?'봉인할':'함정 설치할')+' 칸을 골라.';
+    } else if(act==='rune'){
+      hlTargets(function(r,c){ return board[r][c]==='sealed'; }); phase='targetSelect';
+      msgEl.textContent = '강봉인할 칸을 골라.';
+    }
+  });
+
+  // ===== Start / Restart =====
+  function start(){
+    buildBoard(); placePieces(); placeKeys();
+    turnCnt=0; countdown=UNSEAL_INTERVAL; energy=1; gatePos=null; phase='playerMove';
+    updateHUD(); draw(); actionsEl.style.display='none'; restartBtn.style.display='none'; startBtn.style.display='none';
+    hlTargets(function(r,c){ return legalMoves(player,'player').some(function(p){return p.r===r && p.c===c;}); });
+    msgEl.textContent='플레이어 차례: 이동할 칸을 선택해.';
+  }
+
+  function safeStart(){ try{ start(); msgEl.textContent='게임을 시작했어.'; } catch(err){ msgEl.textContent='시작 오류: '+(err && err.message ? err.message : String(err)); console.error(err); } }
+
+  if(startBtn) startBtn.addEventListener('click', function(){ msgEl.textContent='시작 버튼 눌렀어…'; safeStart(); });
+  if(restartBtn) restartBtn.addEventListener('click', safeStart);
+
+  document.addEventListener('DOMContentLoaded', function(){ if(msgEl) msgEl.textContent='준비됐어. 게임시작을 눌러줘.'; });
+})();
+</script>
+</body>
+</html>
