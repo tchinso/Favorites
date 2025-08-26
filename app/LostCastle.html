@@ -3,13 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
-<title>Lost Castle – Mobile+ Edition (Fix)</title>
+<title>Lost Castle – Mobile+ Edition (No-Overlap & Panel Guard)</title>
 <style>
   :root{
     --cell: 64px;            /* JS에서 보드 크기에 맞춰 갱신 */
     --gap: 6px;
     --radius: 14px;
     --sheetH: 0px;           /* 하단 조작패널 실제 높이, JS로 갱신 */
+    --headerH: 0px;          /* 헤더 높이, JS로 갱신 */
     --bg: radial-gradient(1200px 600px at 10% 0%, #1f2633 0%, #0e1320 50%, #0a0d17 100%);
     --panel: rgba(255,255,255,0.06);
     --panel-2: rgba(255,255,255,0.1);
@@ -23,6 +24,8 @@
     margin:0; padding:0; color:var(--ink); font-family: ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Apple Color Emoji,Noto Color Emoji;
     background: var(--bg);
     display:flex; flex-direction:column; gap:10px;
+    /* 하단 패널이 fixed라 본문이 가려지지 않게 바닥 여백 확보 */
+    padding-bottom: calc(var(--sheetH) + env(safe-area-inset-bottom, 0px) + 12px);
   }
   /* Top bar */
   header{
@@ -49,8 +52,7 @@
 
   /* Layout */
   main{display:grid; grid-template-columns: 1fr; gap:12px; align-items:start;
-       /* 하단 패널이 가리지 않도록 바닥에 여백을 자동 확보 */
-       padding-bottom: calc(var(--sheetH) + env(safe-area-inset-bottom, 0px) + 12px);
+       min-height: calc(100vh - var(--headerH) - var(--sheetH) - env(safe-area-inset-bottom, 0px) - 16px);
   }
   @media(min-width:900px){ main{ grid-template-columns: minmax(280px, 360px) 1fr; } }
 
@@ -89,8 +91,9 @@
   .tiny{ position:absolute; bottom:2px; right:4px; font-size:10px; opacity:.9 }
 
   /* Bottom action sheet */
-  .sheet{ position:fixed; left:0; right:0; bottom:0; z-index:10; padding:10px; padding-bottom: calc(10px + env(safe-area-inset-bottom)); display:flex; justify-content:center; }
+  .sheet{ position:fixed; left:0; right:0; bottom:0; z-index:10; padding:10px; padding-bottom: calc(10px + env(safe-area-inset-bottom)); display:flex; flex-direction:column; align-items:center; gap:8px; }
   .sheetInner{ width:min(980px, 100%); display:flex; flex-wrap:wrap; gap:8px; padding:10px; border-radius:16px; background:rgba(10,14,25,.75); border:1px solid rgba(255,255,255,0.08); backdrop-filter: blur(10px); }
+  .sheetMini{ width:min(980px, 100%); display:none; }
   .action{ flex:1 1 80px; min-width:80px; padding:10px 8px; border-radius:12px; border:1px solid rgba(255,255,255,0.1); background:linear-gradient(180deg,#0f1628,#0a0f1d); color:var(--ink); font-weight:700; cursor:pointer }
   .action:disabled{ opacity:.45; filter:grayscale(1); cursor:not-allowed }
   .action.big{ min-width:120px }
@@ -180,8 +183,15 @@
     <button class="action big" data-act="⚔">강공</button>
     <button class="action big" data-act="⚡">돌진</button>
     <button class="action big" data-act="✚">회복</button>
+    <button class="action" id="btnCollapse" title="패널 접기">접기 ⌄</button>
+  </div>
+  <div class="sheetMini" id="sheetMini" style="display:none">
+    <button class="action big" id="btnExpand">조작 펼치기 ⌃</button>
   </div>
 </div>
+
+<!-- 레이아웃 안전 여유 공간 (JS가 높이를 동기화) -->
+<div id="bottomSpacer" style="height: calc(var(--sheetH) + env(safe-area-inset-bottom, 0px));"></div>
 
 <div class="toast" id="toast" style="display:none"></div>
 
@@ -223,6 +233,10 @@ const turnInfoEl = $('#turnInfo');
 const actionBar = $('#actionBar');
 const toastEl = $('#toast');
 const sheetEl = $('#sheet');
+const sheetMini = $('#sheetMini');
+const btnCollapse = document.getElementById('btnCollapse');
+const btnExpand = document.getElementById('btnExpand');
+const bottomSpacer = document.getElementById('bottomSpacer');
 
 /******************
  * INIT & UI
@@ -244,8 +258,10 @@ function viewportHeight(){
 
 function measureUI(){
   const headerH = (document.querySelector('header')?.offsetHeight)||0;
-  const sheetH = (sheetEl?.offsetHeight)||0; // actionBar 표시 여부 포함한 실제 높이
+  const sheetH = (sheetEl?.offsetHeight)||0; // actionBar/mini 표시 여부 포함한 실제 높이
   document.documentElement.style.setProperty('--sheetH', sheetH+'px');
+  document.documentElement.style.setProperty('--headerH', headerH+'px');
+  if(bottomSpacer) bottomSpacer.style.height = `calc(${sheetH}px + env(safe-area-inset-bottom, 0px))`;
   return { headerH, sheetH };
 }
 
@@ -275,10 +291,19 @@ function setupListeners(){
   $('#btnStart').onclick=()=>{ $('#settings').open=false; startNew(); };
   $('#btnRestart').onclick=()=>{ startNew(); };
   actionBar.querySelectorAll('.action').forEach(btn=>{
+    if(btn.id==='btnCollapse') return;
     btn.onclick = ()=>{ if(!running) return; const act = btn.dataset.act; const p = currentPiece();
       if(p.team!=='player') return; handleAction(p, act);
     };
   });
+  btnCollapse.onclick = ()=> setSheetMode(false);
+  btnExpand.onclick = ()=> setSheetMode(true);
+}
+
+function setSheetMode(expanded){
+  if(expanded){ actionBar.style.display='flex'; sheetMini.style.display='none'; }
+  else { actionBar.style.display='none'; sheetMini.style.display='flex'; }
+  requestAnimationFrame(()=> computeCellSize());
 }
 
 /******************
@@ -291,15 +316,16 @@ function startNew(){
   boardCells = new Array(ROWS*COLS).fill(0).map(_=>({wall:false, item:null}));
   placeWalls();
   placeInitialItems();
-  // 말 생성 및 배치
+  // 말 생성 및 배치 (겹침 금지)
   spawnTeam('player', UNITS, 1);
   spawnTeam('ai', UNITS, -1);
   // 턴 순서: 단순히 pieces 배열 순회
   turnOrder = pieces.map((_,i)=>i);
-  // 먼저 패널을 보이게 해서 실제 높이를 반영
-  actionBarToggle(true);
+  // 패널을 기본 확장으로 두고 실제 높이 반영
+  setSheetMode(true);
   // 셀 크기/보드 레이아웃
   computeCellSize(); buildBoardDom();
+  assertUniquePositions();
   drawAll();
   turnInfoEl.textContent = `플레이어 차례 – 말 ${currentPiece().id}`;
 }
@@ -331,33 +357,20 @@ function placeRandomItem(){
 }
 
 function spawnTeam(team, n, side){
-  // side: 1=왼쪽, -1=오른쪽
   const baseLife = BASE_LIFE;
   let id=1;
   const cols = side===1 ? [0,1] : [COLS-1, COLS-2];
-  const rows = [...Array(ROWS).keys()];
-  rows.sort(()=>Math.random()-0.5);
+  const rows = [...Array(ROWS).keys()].sort(()=>Math.random()-0.5);
   while(id<=n){
-    const x = cols[id%2];
-    const y = rows[(id-1)%ROWS];
-    if(!isBlocked(x,y)){
-      const piece = {
-        id, team, x, y,
-        life: baseLife, maxLife: baseLife,
-        shield:0,
-        cdPower:0, cdDash:0, cdHeal:0
-      };
-      pieces.push(piece); id++;
-    }else{
-      // 빈 칸 찾기
-      const opts = startZoneCells(side);
-      const cand = opts.find(([cx,cy])=>!isBlocked(cx,cy));
-      if(!cand) break; else {
-        const [cx,cy]=cand;
-        const piece={ id, team, x:cx, y:cy, life:baseLife, maxLife:baseLife, shield:0, cdPower:0, cdDash:0, cdHeal:0 };
-        pieces.push(piece); id++;
-      }
+    let x = cols[id%2];
+    let y = rows[(id-1)%ROWS];
+    if(isBlocked(x,y)){
+      const opts = startZoneCells(side).filter(([cx,cy])=>!isBlocked(cx,cy));
+      if(!opts.length) break; const pick = opts[rndInt(0, opts.length-1)];
+      x = pick[0]; y = pick[1];
     }
+    const piece = { id, team, x, y, life: baseLife, maxLife: baseLife, shield:0, cdPower:0, cdDash:0, cdHeal:0 };
+    pieces.push(piece); id++;
   }
 }
 
@@ -380,7 +393,7 @@ function drawLife(){
     const dot = document.createElement('span'); dot.className='dot '+(team==='player'?'playerDot':'aiDot');
     t.appendChild(dot); t.appendChild(document.createTextNode(team==='player'?'플레이어':'AI'));
     group.appendChild(t);
-    pieces.filter(p=>p.team===team).forEach(p=>{
+    pieces.filter(p=>p.team===team && p.life>0).forEach(p=>{
       const pill = document.createElement('span'); pill.className='pill';
       pill.innerHTML = `#${p.id} <span class="hearts">${'❤'.repeat(p.life)}${'♡'.repeat(p.maxLife-p.life)}</span>`+
         ` <span class="cool">(${p.cdPower>0?'⚔'+p.cdPower+' ':''}${p.cdDash>0?'⚡'+p.cdDash+' ':''}${p.cdHeal>0?'✚'+p.cdHeal+' ':''})</span>`;
@@ -399,7 +412,6 @@ function drawBoard(){
       cell.className='cell'+(boardCells[idx].wall?' wall':'');
       if(attackTiles.some(t=>t.x===x&&t.y===y)) cell.classList.add(HIGHLIGHT_COLOR[attackTeam]);
 
-      // 아이템 표시
       const itm = boardCells[idx].item;
       if(itm){
         const g = document.createElement('div');
@@ -408,14 +420,15 @@ function drawBoard(){
         cell.appendChild(g);
       }
 
-      // 말 표시 (여러 개 가능)
-      pieces.filter(p=>p.x===x&&p.y===y&&p.life>0).forEach(p=>{
+      const ps = pieces.filter(p=>p.x===x&&p.y===y&&p.life>0);
+      if(ps[0]){
+        const p = ps[0];
         const d=document.createElement('div'); d.className = `piece ${TEAM_COLOR_CLASS[p.team]} ${p.shield>0?'shieldRing':''}`;
         d.textContent = p.id;
         const tiny=document.createElement('div'); tiny.className='tiny'; tiny.textContent = `${p.life}❤`;
         d.appendChild(tiny);
         cell.appendChild(d);
-      });
+      }
 
       boardEl.appendChild(cell);
     }
@@ -429,44 +442,35 @@ function currentPiece(){ return pieces[turnOrder[turnIndex]] }
 
 function nextTurn(){
   if(gameOver) return;
-  // 다음 활성 말 찾기
   let safety=0;
   while(safety++<pieces.length){
     turnIndex = (turnIndex+1) % turnOrder.length;
     const p = currentPiece();
     if(p && p.life>0){
-      // 쿨타임 감소
       p.cdPower = Math.max(0, p.cdPower-1);
       p.cdDash  = Math.max(0, p.cdDash-1);
       p.cdHeal  = Math.max(0, p.cdHeal-1);
-      if(p.shield>0) p.shield--; // 자기 턴에 방패 감소
+      if(p.shield>0) p.shield--;
       break;
     }
   }
+  assertUniquePositions();
   drawAll();
   const now = currentPiece();
   if(!now){ checkGameOver(); return; }
   turnInfoEl.textContent = `${now.team==='player'?'플레이어':'AI'} 차례 – 말 ${now.id}`;
-  if(now.team==='player'){ actionBarToggle(true); }
-  else { actionBarToggle(false); setTimeout(()=>aiAct(now), 350); }
-}
-
-function actionBarToggle(show){
-  actionBar.style.display = show?'flex':'none';
-  // 표시 상태 변화에 따라 시트 높이 반영 → 보드 재계산
-  requestAnimationFrame(()=>{ computeCellSize(); });
+  if(now.team==='player'){ setSheetMode(true); }
+  else { setSheetMode(false); setTimeout(()=>aiAct(now), 350); }
 }
 
 function handleAction(piece, act){
   if(!running || gameOver) return;
-  // 유효성 검사 (쿨타임 등)
   if(act==='⚔' && piece.cdPower>0) return showToast(`강공 쿨타임 ${piece.cdPower}턴…`);
   if(act==='⚡' && piece.cdDash>0)  return showToast(`돌진 쿨타임 ${piece.cdDash}턴…`);
   if(act==='✚' && piece.cdHeal>0)  return showToast(`회복 쿨타임 ${piece.cdHeal}턴…`);
 
-  // 실행
   performAction(piece, act);
-  // 종료 처리 및 다음 턴
+  assertUniquePositions();
   drawAll();
   if(checkGameOver()) return;
   nextTurn();
@@ -485,23 +489,29 @@ function performAction(p, act){
     case '⚡': dash(p); break;
     case '✚': healSelf(p); break;
   }
-  // 아이템 획득 체크
   pickupItemIfAny(p);
 }
 
 /******************
- * ACTIONS
+ * ACTIONS (겹침 방지 강화)
  *****************/
 function moveByBias(p, btn, steps){
   for(let s=0;s<steps;s++){
-    const set = DIRECTIONS[DIR_MAP[btn]]; 
-    let r=Math.random(), idx=0, sum=0;
-    for(let i=0;i<set.length;i++){ sum+=DIR_PROB[i]; if(r<sum){ idx=i; break; }}
-    const [dx,dy] = set[idx];
-    const nx = p.x+dx, ny = p.y+dy;
-    if(inBoard(nx,ny) && !isWall(nx,ny)) { p.x=nx; p.y=ny; }
-    else break; // 막히면 정지
+    const vecs = DIRECTIONS[DIR_MAP[btn]]; 
+    let idx = weightedIndex(DIR_PROB);
+    let tried=0, moved=false;
+    while(tried < vecs.length){
+      const [dx,dy] = vecs[idx];
+      const nx = p.x+dx, ny = p.y+dy;
+      if(inBoard(nx,ny) && !isBlocked(nx,ny)) { p.x=nx; p.y=ny; moved=true; break; }
+      idx = (idx+1) % vecs.length; tried++;
+    }
+    if(!moved) break;
   }
+}
+
+function weightedIndex(probs){
+  const r=Math.random(); let sum=0; for(let i=0;i<probs.length;i++){ sum+=probs[i]; if(r<sum) return i; } return probs.length-1;
 }
 
 function attackPattern(p, pattern){
@@ -521,7 +531,6 @@ function attackPattern(p, pattern){
 function defend(p){ p.shield = Math.max(p.shield, 2); }
 
 function powerStrike(p){
-  // + 와 X를 동시에 적용 (광역). 쿨 3
   p.cdPower = CD.POWER;
   const merged = [];
   for(const t of PLUSES) merged.push(t);
@@ -529,7 +538,7 @@ function powerStrike(p){
   attackPattern(p, merged);
 }
 
-function dash(p){ p.cdDash = CD.DASH; // 가장 가까운 적에게 다가가기
+function dash(p){ p.cdDash = CD.DASH;
   const foe = nearestEnemy(p); if(!foe){ return; }
   const dx = Math.sign(foe.x - p.x); const dy = Math.sign(foe.y - p.y);
   const pri = Math.abs(foe.x-p.x) >= Math.abs(foe.y-p.y) ? (dx<0?'←':'→') : (dy<0?'↑':'↓');
@@ -547,7 +556,6 @@ function pickupItemIfAny(p){
   if(itm.type==='heart'){ p.life = Math.min(p.maxLife, p.life+1); showToast(`말 ${p.id} 하트 +1`) }
   else if(itm.type==='shield'){ p.shield = Math.max(p.shield, 3); showToast(`말 ${p.id} 방패 전개`) }
   else if(itm.type==='bomb'){
-    // 주변 8칸 폭발 (아군 무시, 적만 타격)
     const area = [...PLUSES,...CROSSES].filter((v,i,a)=>a.findIndex(t=>t[0]===v[0]&&t[1]===v[1])===i);
     for(const [dx,dy] of area){ const tx=p.x+dx, ty=p.y+dy; if(!inBoard(tx,ty)) continue;
       for(const e of pieces){ if(e.team!==p.team && e.x===tx && e.y===ty && e.life>0 && e.shield===0) e.life--; }
@@ -555,9 +563,9 @@ function pickupItemIfAny(p){
     showToast('💥 폭탄 발동')
   }
   else if(itm.type==='portal'){
-    const free = emptyCells(); if(free.length){ const pick = free[rndInt(0, free.length-1)]; const [nx,ny]=fromIndex(pick); p.x=nx; p.y=ny; showToast('🌀 포탈 이동'); }
+    const [nx,ny] = findNearestFree(p.x,p.y) || [p.x,p.y];
+    p.x=nx; p.y=ny; showToast('🌀 포탈 이동');
   }
-  // 아이템 제거 & 낮은 확률로 재생성
   boardCells[idx].item=null; if(Math.random()<ITEM_DENSITY*0.65) placeRandomItem();
 }
 
@@ -565,10 +573,38 @@ function emptyCells(){
   const arr=[]; for(let i=0;i<ROWS*COLS;i++){
     if(boardCells[i].wall) continue;
     const [x,y] = fromIndex(i);
-    const occ = pieces.some(p=>p.life>0 && p.x===x && p.y===y);
-    if(!occ && !boardCells[i].item) arr.push(i);
+    if(occupied(x,y)) continue;
+    if(!boardCells[i].item) arr.push(i);
   }
   return arr;
+}
+
+/******************
+ * ANTI-OVERLAP HELPERS
+ *****************/
+function assertUniquePositions(){
+  const used = new Set();
+  for(const p of pieces.filter(p=>p.life>0)){
+    let key = p.x+','+p.y;
+    if(used.has(key)){
+      const spot = findNearestFree(p.x,p.y);
+      if(spot){ p.x=spot[0]; p.y=spot[1]; key = p.x+','+p.y; }
+    }
+    used.add(key);
+  }
+}
+
+function findNearestFree(sx,sy){
+  const q=[[sx,sy]]; const seen=new Set([sx+','+sy]);
+  while(q.length){
+    const [x,y]=q.shift();
+    for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
+      const nx=x+dx, ny=y+dy; const k=nx+','+ny; if(seen.has(k)) continue; seen.add(k);
+      if(inBoard(nx,ny) && !isWall(nx,ny) && !occupied(nx,ny)) return [nx,ny];
+      if(inBoard(nx,ny)) q.push([nx,ny]);
+    }
+  }
+  return null;
 }
 
 /******************
@@ -579,33 +615,27 @@ function aiAct(p){
   const enemies = pieces.filter(e=>e.team!==p.team && e.life>0);
   if(!enemies.length){ checkGameOver(); return; }
 
-  // 위험도 판단
-  const inThreat = enemies.some(e=> Math.abs(e.x-p.x)<=1 && Math.abs(e.y-p.y)<=1 );
   if(p.life<=1 && p.cdHeal===0){ performAction(p, '✚'); postAITurn(); return; }
   if(p.life<=1 && p.shield===0){ performAction(p, '◯'); postAITurn(); return; }
 
-  // 인접 적 수 카운트
   const adjCount = enemies.filter(e=> Math.abs(e.x-p.x)<=1 && Math.abs(e.y-p.y)<=1 ).length;
   if(adjCount>=2 && p.cdPower===0){ performAction(p,'⚔'); postAITurn(); return; }
 
-  // 인접 하나면 +/X 중 더 많이 맞출 수 있는 쪽 선택
   if(adjCount>=1){
     const plusHits = countHits(p, PLUSES);
     const crossHits = countHits(p, CROSSES);
     performAction(p, plusHits>=crossHits?'+':'╳'); postAITurn(); return;
   }
 
-  // 근처 아이템 우선 접근 (두 칸 이내)
   const itmTarget = nearestItem(p);
   if(itmTarget && dist(p, itmTarget)<=3 && p.cdDash===0){ performAction(p,'⚡'); postAITurn(); return; }
 
-  // 가장 약한 적에게 접근
   const target = enemies.sort((a,b)=>a.life-b.life)[0];
   const pri = primaryDirToward(p, target);
   performAction(p, pri); postAITurn();
 }
 
-function postAITurn(){ drawAll(); if(checkGameOver()) return; setTimeout(()=>nextTurn(), 300); }
+function postAITurn(){ assertUniquePositions(); drawAll(); if(checkGameOver()) return; setTimeout(()=>nextTurn(), 300); }
 
 function countHits(p, pattern){
   let hits=0; for(const [dx,dy] of pattern){ const tx=p.x+dx, ty=p.y+dy; if(!inBoard(tx,ty)) continue; if(pieces.some(e=>e.team!==p.team && e.x===tx && e.y===ty && e.life>0 && e.shield===0)) hits++; }
@@ -633,7 +663,8 @@ function toIndex(x,y){ return y*COLS + x }
 function fromIndex(i){ const y=Math.floor(i/COLS), x = i%COLS; return [x,y] }
 function inBoard(x,y){ return x>=0 && x<COLS && y>=0 && y<ROWS }
 function isWall(x,y){ return boardCells[toIndex(x,y)].wall }
-function isBlocked(x,y){ return isWall(x,y) }
+function occupied(x,y){ return pieces.some(p=>p.life>0 && p.x===x && p.y===y) }
+function isBlocked(x,y){ return isWall(x,y) || occupied(x,y) }
 function dist(a,b){ return Math.abs(a.x-b.x)+Math.abs(a.y-b.y) }
 function rndInt(a,b){ return (Math.random()* (b-a+1) | 0) + a }
 
@@ -642,7 +673,7 @@ function checkGameOver(){
   const aiAlive     = pieces.some(p=>p.team==='ai' && p.life>0);
   if(!playerAlive || !aiAlive){
     running=false; gameOver=true;
-    actionBarToggle(false);
+    setSheetMode(false);
     turnInfoEl.textContent = playerAlive? '플레이어 승리!':'AI 승리!';
     showToast(playerAlive?'승리! 🎉':'패배…');
     return true;
