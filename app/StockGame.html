@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>주식 게임 · 리디자인(안정화 v3)</title>
+  <!-- Chart.js + time adapter -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3"></script>
+  <style>
+    :root{
+      --bg:#0f1220; --card:#171a2b; --muted:#9aa4b2; --text:#e7ecf3;
+      --accent:#7c5cff; --accent-2:#2dd4bf; --danger:#ef4444; --success:#22c55e;
+      --ring: 0 0 0 3px rgba(124,92,255,.25); --radius:16px;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; padding:0;
+      background: radial-gradient(1200px 600px at 20% -10%, rgba(124,92,255,.12), transparent),
+                  radial-gradient(900px 500px at 120% 10%, rgba(45,212,191,.10), transparent),
+                  var(--bg);
+      color:var(--text);
+      font: 15px/1.5 system-ui, -apple-system, Segoe UI, Roboto, Apple SD Gothic Neo, Noto Sans KR, "Malgun Gothic", sans-serif;
+      letter-spacing:.2px;
+    }
+    header{ position:sticky; top:0; z-index:10; backdrop-filter: blur(8px);
+      background: rgba(15,18,32,.6); border-bottom: 1px solid rgba(255,255,255,.06); }
+    .wrap{max-width:1200px; margin:0 auto; padding:16px;}
+    h1{margin:0 0 8px 0; font-weight:800; letter-spacing:.2px; font-size: clamp(22px, 3vw, 28px);}
+    .sub{color:var(--muted); font-size:13px}
+    .toolbar{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:10px }
+    .toolbar .group{display:flex; gap:6px; padding:6px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.06); border-radius:999px}
+    button{ appearance:none; border:0; border-radius:999px; padding:10px 14px; font-weight:700; color:var(--text);
+      background:rgba(255,255,255,.06); cursor:pointer; transition:all .15s ease; }
+    button:hover{transform:translateY(-1px)} button:active{transform:translateY(0)}
+    .btn-acc{background: linear-gradient(180deg, rgba(124,92,255,.9), rgba(124,92,255,.7));}
+    .btn-acc[aria-pressed="true"]{box-shadow: var(--ring)}
+    .btn-outline{background:transparent; border:1px solid rgba(255,255,255,.12)}
+    .grid{ display:grid; gap:14px; margin:16px auto; grid-template-columns: repeat(12, 1fr); min-width:0; }
+    .col-12{grid-column: span 12; min-width:0}
+    .col-6 {grid-column: span 6;  min-width:0}
+    .col-4 {grid-column: span 4;  min-width:0}
+    .col-3 {grid-column: span 3;  min-width:0}
+    @media (max-width: 980px){
+      .col-6{grid-column: span 12}
+      .col-4{grid-column: span 12}
+      .col-3{grid-column: span 6}
+    }
+    .card{
+      background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+      border:1px solid rgba(255,255,255,.08);
+      border-radius: var(--radius);
+      padding:14px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.25);
+      min-width:0; overflow:hidden;
+    }
+    .summary{ display:flex; gap:18px; flex-wrap:wrap; align-items:center; justify-content:space-between; }
+    .kpis{display:flex; gap:12px; flex-wrap:wrap}
+    .kpi{ background: rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.08);
+      border-radius: 12px; padding:12px 14px; min-width:140px }
+    .kpi .label{font-size:12px; color:var(--muted)}
+    .kpi .value{font-size:22px; font-weight:900; letter-spacing:.2px}
+    .stocks{ display:grid; gap:12px; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+    .stock{ padding:12px; border-radius:14px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08);
+      display:flex; flex-direction:column; gap:8px }
+    .stock .row{display:flex; justify-content:space-between; align-items:center; gap:8px}
+    .stock .name{font-weight:800}
+    .price-up{color:var(--success)} .price-down{color:#f87171}
+    .qty{ display:flex; gap:6px; align-items:center }
+    .qty input{ width:64px; border-radius:999px; padding:8px 10px; border:1px solid rgba(255,255,255,.14);
+      background:rgba(255,255,255,.03); color:var(--text); text-align:center; font-weight:700; }
+    .actions{display:flex; gap:8px; margin-top:4px}
+    .buy{background:linear-gradient(180deg, rgba(34,197,94,.9), rgba(34,197,94,.6));}
+    .sell{background:linear-gradient(180deg, rgba(239,68,68,.9), rgba(239,68,68,.6));}
+    .chartbox{position:relative; width:100%; height:220px;}
+    .sparkbox{position:relative; width:100%; height:120px;}
+    .footnote{color:var(--muted); font-size:12px; margin-top:6px}
+    .pie-legend{display:flex; gap:10px; flex-wrap:wrap; margin-top:6px}
+    .legend-item{display:flex; align-items:center; gap:6px; font-size:12px}
+    .dot{width:10px;height:10px;border-radius:50%}
+    .message{margin-top:8px; color:#fde68a; font-weight:700}
+    /* canvas will take attribute size; no responsive auto calc */
+    canvas{display:block;}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <h1>주식 게임</h1>
+      <div class="sub">모바일·데스크톱 모두 편하게. 5초 기본 주가 갱신, 속도 가변, 실시간 그래프까지.</div>
+      <div class="toolbar">
+        <div class="group" role="group" aria-label="속도">
+          <button class="btn-acc" data-speed="1" aria-pressed="true">1×</button>
+          <button class="btn-acc" data-speed="2">2×</button>
+          <button class="btn-acc" data-speed="4">4×</button>
+          <button class="btn-acc" data-speed="8">8×</button>
+          <button class="btn-acc" data-speed="16">16×</button>
+        </div>
+        <div class="group">
+          <button id="pauseBtn" class="btn-outline">일시정지</button>
+          <button id="resetBtn" class="btn-outline">초기화</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="card summary">
+      <div class="kpis">
+        <div class="kpi">
+          <div class="label">현금</div>
+          <div class="value">$<span id="cash">1000</span></div>
+        </div>
+        <div class="kpi">
+          <div class="label">총 자산</div>
+          <div class="value">$<span id="total">1000</span></div>
+        </div>
+      </div>
+      <div class="message" id="message"></div>
+    </section>
+
+    <section class="grid">
+      <div class="card col-6">
+        <h3 style="margin:0 0 8px 0">최근 10분 자산평가액</h3>
+        <div class="chartbox"><canvas id="assetChart"></canvas></div>
+        <div class="footnote">안정화: 고정 래퍼 + 비반응형 차트 + ResizeObserver로 사이즈 동기화.</div>
+      </div>
+      <div class="card col-6">
+        <h3 style="margin:0 0 8px 0">자산 비중</h3>
+        <div class="chartbox"><canvas id="pieChart"></canvas></div>
+        <div class="pie-legend" id="pieLegend"></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h3 style="margin:0 0 8px 0">종목</h3>
+      <div id="stocks" class="stocks"></div>
+    </section>
+  </main>
+
+  <template id="stock-card-tpl">
+    <div class="stock">
+      <div class="row">
+        <div class="name"></div>
+        <div class="price"></div>
+      </div>
+      <div class="row">
+        <div class="hold"></div>
+        <div class="qty">
+          <span>수량</span>
+          <button class="btn-outline dec">−</button>
+          <input type="number" class="qinput" value="1" min="1" step="1" />
+          <button class="btn-outline inc">＋</button>
+        </div>
+      </div>
+      <div class="sparkbox"><canvas class="spark"></canvas></div>
+      <div class="actions">
+        <button class="buy">매수</button>
+        <button class="sell">매도</button>
+      </div>
+    </div>
+  </template>
+
+  <script>
+    // ---- 공통 유틸 ----
+    const $ = sel => document.querySelector(sel);
+    const fmt = n => Number(n).toLocaleString();
+    const now = () => Date.now();
+    const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
+    const randUniform = (min, max) => Math.random() * (max-min) + min;
+
+    // ---- 상태 ----
+    let cash = 1000;
+    const portfolio = {};
+    const BASE_INTERVAL = 5000; // 5초
+    let speed = 1;
+    let timer = null;
+    let paused = false;
+
+    const stocks = [
+      { name: "테크노",     price: 100, volatility: 0.04 },
+      { name: "바이오젠",   price: 200, volatility: 0.06 },
+      { name: "에너지코",   price: 150, volatility: 0.05 },
+      { name: "푸드마켓",   price:  80, volatility: 0.03 },
+      { name: "패션트렌드", price: 120, volatility: 0.04 },
+      { name: "건설왕",     price: 300, volatility: 0.07 },
+      { name: "소프트랩",   price: 250, volatility: 0.05 },
+      { name: "헬스케어",   price: 180, volatility: 0.04 },
+      { name: "게임스",     price:  90, volatility: 0.06 },
+      { name: "미디어킹",   price: 110, volatility: 0.04 },
+      { name: "로보틱스",   price: 400, volatility: 0.08 },
+      { name: "그린에너지", price: 220, volatility: 0.05 },
+      { name: "트랜스포",   price: 130, volatility: 0.04 },
+      { name: "스마트카",   price: 270, volatility: 0.07 },
+      { name: "클라우드",   price: 190, volatility: 0.05 },
+      { name: "핀테크",     price: 160, volatility: 0.04 },
+      { name: "리테일",     price: 140, volatility: 0.03 },
+      { name: "드론텍",     price: 350, volatility: 0.08 },
+      { name: "VR월드",     price: 210, volatility: 0.06 },
+      { name: "스페이스",   price: 500, volatility: 0.09 }
+    ].map(s=>({ ...s, prev: s.price, history: [] }));
+
+    const STOCK_WINDOW_MS = 30_000;
+    const ASSET_WINDOW_MS = 10 * 60_000;
+    const assetHistory = []; // {t, v}
+    let lastAssetRecordTs = 0; // 1초 샘플링
+
+    function pruneHistory(arr, windowMs){
+      const cutoff = now() - windowMs;
+      while(arr.length && arr[0].t < cutoff) arr.shift();
+    }
+    function stepPrice(stock){
+      stock.prev = stock.price;
+      const changePct = randUniform(-stock.volatility, stock.volatility);
+      stock.price = Math.round(clamp(stock.price * (1 + changePct), 5, 10_000));
+      const t = now();
+      stock.history.push({t, p: stock.price});
+      pruneHistory(stock.history, STOCK_WINDOW_MS);
+    }
+    function calcTotal(){
+      let total = cash;
+      for(const s of stocks){
+        total += s.price * (portfolio[s.name] || 0);
+      }
+      return Math.round(total);
+    }
+    function recordAsset(){
+      const t = now();
+      if (t - lastAssetRecordTs < 1000) return;
+      lastAssetRecordTs = t;
+      assetHistory.push({t, v: calcTotal()});
+      pruneHistory(assetHistory, ASSET_WINDOW_MS);
+    }
+
+    function updateTopline(){
+      $("#cash").textContent = fmt(Math.round(cash));
+      $("#total").textContent = fmt(calcTotal());
+    }
+
+    // ---- 차트 사이즈 제어(비반응형) ----
+    function fitCanvasToBox(canvas, box){
+      const w = Math.max(10, box.clientWidth);
+      const h = Math.max(10, box.clientHeight);
+      canvas.width = w;
+      canvas.height = h;
+      return {w, h};
+    }
+    function observeBox(box, chart, canvas){
+      if (!('ResizeObserver' in window)) {
+        window.addEventListener('resize', ()=>{
+          const {w,h} = fitCanvasToBox(canvas, box);
+          chart.resize(w, h);
+        });
+        return;
+      }
+      const ro = new ResizeObserver(()=>{
+        const {w,h} = fitCanvasToBox(canvas, box);
+        chart.resize(w, h);
+      });
+      ro.observe(box);
+    }
+
+    // ---- 종목 카드 ----
+    const stockContainer = $("#stocks");
+    const stockCardTpl = $("#stock-card-tpl");
+    const sparkCharts = new Map(); // name -> {chart, canvas, box}
+
+    function createStockCard(stock){
+      const node = stockCardTpl.content.firstElementChild.cloneNode(true);
+      const nameEl = node.querySelector(".name");
+      const priceEl = node.querySelector(".price");
+      const holdEl = node.querySelector(".hold");
+      const decBtn = node.querySelector(".dec");
+      const incBtn = node.querySelector(".inc");
+      const qtyInput = node.querySelector(".qinput");
+      const buyBtn = node.querySelector(".buy");
+      const sellBtn = node.querySelector(".sell");
+
+      nameEl.textContent = stock.name;
+      holdEl.textContent = `보유: ${portfolio[stock.name] || 0}주`;
+
+      function renderPrice(){
+        const cls = stock.price > stock.prev ? 'price-up' : (stock.price < stock.prev ? 'price-down' : '');
+        priceEl.className = 'price ' + cls;
+        priceEl.textContent = `가격: $${fmt(stock.price)}`;
+      }
+      renderPrice();
+
+      decBtn.addEventListener("click", ()=>{ qtyInput.value = Math.max(1, (parseInt(qtyInput.value)||1) - 1); });
+      incBtn.addEventListener("click", ()=>{ qtyInput.value = Math.min(9999, (parseInt(qtyInput.value)||1) + 1); });
+
+      buyBtn.addEventListener("click", ()=>{
+        const qty = clamp(parseInt(qtyInput.value)||1, 1, 9999);
+        const cost = stock.price * qty;
+        if(cash >= cost){
+          cash -= cost;
+          portfolio[stock.name] = (portfolio[stock.name]||0) + qty;
+          $("#message").textContent = `${stock.name} ${qty}주 매수했어!`;
+          holdEl.textContent = `보유: ${portfolio[stock.name]}주`;
+          updateTopline();
+          updatePie();
+          recordAsset(); refreshAssetChart();
+        }else{
+          $("#message").textContent = '현금이 부족해…';
+        }
+      });
+
+      sellBtn.addEventListener("click", ()=>{
+        const qty = clamp(parseInt(qtyInput.value)||1, 1, 9999);
+        const have = portfolio[stock.name]||0;
+        if(have > 0){
+          const sQty = Math.min(qty, have);
+          cash += stock.price * sQty;
+          portfolio[stock.name] = have - sQty;
+          if(portfolio[stock.name] <= 0) delete portfolio[stock.name];
+          $("#message").textContent = `${stock.name} ${sQty}주 매도했어!`;
+          holdEl.textContent = `보유: ${portfolio[stock.name]||0}주`;
+          updateTopline();
+          updatePie();
+          recordAsset(); refreshAssetChart();
+        }else{
+          $("#message").textContent = '보유한 주식이 없어…';
+        }
+      });
+
+      // 먼저 DOM에 붙인 후 차트 생성 (ownerDocument.defaultView 안정화)
+      stockContainer.appendChild(node);
+
+      // 스파크라인 차트 생성 (비반응형 + 명시적 사이즈)
+      const box = node.querySelector(".sparkbox");
+      const canvas = box.querySelector("canvas");
+      fitCanvasToBox(canvas, box);
+      const spark = new Chart(canvas.getContext("2d"), {
+        type: 'line',
+        data: { datasets: [{ data: [], borderColor: '#9aa4ff', borderWidth: 2, pointRadius: 0, tension: .25 }] },
+        options: {
+          animation: false, responsive: false, maintainAspectRatio: false,
+          plugins: { legend: { display:false } },
+          scales: { x: { display:false }, y: { display:false } }
+        }
+      });
+      observeBox(box, spark, canvas);
+      sparkCharts.set(stock.name, { chart: spark, canvas, box });
+
+      node.update = ()=>{
+        renderPrice();
+        const hist = stock.history;
+        spark.data.datasets[0].data = hist.map(h => ({x:h.t, y:h.p}));
+        spark.update('none');
+      };
+
+      return node;
+    }
+
+    const cardByName = new Map();
+    function renderStocksInitial(){
+      stockContainer.innerHTML = '';
+      for(const s of stocks){
+        const card = createStockCard(s);
+        cardByName.set(s.name, card);
+      }
+    }
+
+    // ---- 상단 차트(비반응형 + 관찰자) ----
+    const assetBox = document.querySelector('#assetChart').parentElement;
+    const assetCanvas = document.getElementById("assetChart");
+    fitCanvasToBox(assetCanvas, assetBox);
+    const assetChart = new Chart(assetCanvas.getContext("2d"), {
+      type: 'line',
+      data: { datasets:[{
+        label: '자산',
+        data: [],
+        borderColor: '#7c5cff', borderWidth: 2, pointRadius: 0, tension:.25,
+        fill: true, backgroundColor: 'rgba(124,92,255,.15)'
+      }]},
+      options:{
+        animation:false, responsive:false, maintainAspectRatio:false,
+        plugins:{ legend:{ display:false }, decimation:{ enabled:true, algorithm:'lttb' } },
+        scales:{
+          x:{
+            type:'timeseries',
+            time:{ unit:'minute', displayFormats:{ second:'HH:mm:ss', minute:'HH:mm' } },
+            ticks:{ color:'#9aa4b2', maxTicksLimit:8 },
+            grid:{ color:'rgba(255,255,255,.05)' }
+          },
+          y:{
+            ticks:{ color:'#9aa4b2' },
+            grid:{ color:'rgba(255,255,255,.05)' }
+          }
+        }
+      }
+    });
+    observeBox(assetBox, assetChart, assetCanvas);
+    function refreshAssetChart(){
+      assetChart.data.datasets[0].data = assetHistory.map(h => ({ x: h.t, y: h.v }));
+      assetChart.update('none');
+    }
+
+    const pieBox = document.querySelector('#pieChart').parentElement;
+    const pieCanvas = document.getElementById("pieChart");
+    fitCanvasToBox(pieCanvas, pieBox);
+    const pieChart = new Chart(pieCanvas.getContext("2d"), {
+      type: 'doughnut',
+      data: { labels:[], datasets:[{ data: [], backgroundColor: [], borderWidth:0 }]},
+      options:{ responsive:false, maintainAspectRatio:false, plugins:{ legend:{ display:false } }, cutout:'60%' }
+    });
+    observeBox(pieBox, pieChart, pieCanvas);
+    function colorFor(i){
+      const base = ['#7c5cff','#2dd4bf','#60a5fa','#f472b6','#f59e0b','#34d399','#fb7185','#a78bfa','#22c55e','#f97316',
+                    '#06b6d4','#eab308','#ef4444','#10b981','#8b5cf6','#14b8a6','#3b82f6','#e879f9','#84cc16','#0ea5e9'];
+      return base[i % base.length];
+    }
+    function updatePie(){
+      const labels = ['현금']; const data = [cash]; const colors = [colorFor(0)];
+      let i = 1;
+      for(const s of stocks){
+        const qty = portfolio[s.name] || 0;
+        if(qty > 0){ labels.push(s.name); data.push(qty * s.price); colors.push(colorFor(i++)); }
+      }
+      pieChart.data.labels = labels;
+      pieChart.data.datasets[0].data = data;
+      pieChart.data.datasets[0].backgroundColor = colors;
+      pieChart.update('none');
+
+      const legend = $("#pieLegend"); legend.innerHTML = '';
+      const sum = data.reduce((a,b)=>a+b,0) || 1;
+      labels.forEach((lb, idx)=>{
+        const el = document.createElement('div'); el.className = 'legend-item';
+        const dot = document.createElement('span'); dot.className = 'dot'; dot.style.backgroundColor = colors[idx];
+        const txt = document.createElement('span'); const pct = Math.round(data[idx] / sum * 100);
+        txt.textContent = `${lb} · ${pct}%`;
+        el.appendChild(dot); el.appendChild(txt); legend.appendChild(el);
+      });
+    }
+
+    // ---- 틱 루프 ----
+    function tick(){
+      for(const s of stocks) stepPrice(s);
+      updateTopline();
+      for(const s of stocks){
+        const card = cardByName.get(s.name);
+        if(card && card.update) card.update();
+      }
+      recordAsset();
+      refreshAssetChart();
+      updatePie();
+    }
+
+    function updateSpeed(newSpeed){
+      speed = newSpeed;
+      document.querySelectorAll('[data-speed]').forEach(b=>{
+        b.setAttribute('aria-pressed', b.dataset.speed == String(speed));
+      });
+      if(timer) clearInterval(timer);
+      if(!paused){
+        const interval = Math.max(100, Math.round(BASE_INTERVAL / speed));
+        timer = setInterval(tick, interval);
+      }
+    }
+
+    // ---- 초기화 ----
+    renderStocksInitial();
+    updateTopline();
+    const t0 = now();
+    stocks.forEach(s => s.history.push({t:t0, p:s.price}));
+    recordAsset(); refreshAssetChart(); updatePie();
+
+    document.querySelectorAll('[data-speed]').forEach(btn=> btn.addEventListener('click', ()=> updateSpeed(parseInt(btn.dataset.speed))));
+    $("#pauseBtn").addEventListener('click', ()=>{ paused = !paused; $("#pauseBtn").textContent = paused ? '재개' : '일시정지'; updateSpeed(speed); });
+    $("#resetBtn").addEventListener('click', ()=>{
+      cash = 1000; for(const k in portfolio) delete portfolio[k];
+      stocks.forEach(s=>{ s.price = s.prev = Math.round(randUniform(80, 300)); s.history.length = 0; s.history.push({t:now(), p:s.price}); });
+      updateTopline();
+      for(const s of stocks){ const card = cardByName.get(s.name); if(card && card.update) card.update(); }
+      assetHistory.length = 0; lastAssetRecordTs = 0; recordAsset(); refreshAssetChart(); updatePie();
+      $("#message").textContent = '초기화됐어.';
+    });
+
+    updateSpeed(1); // 루프 시작
+  </script>
+</body>
+</html>
