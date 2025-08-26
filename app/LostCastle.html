@@ -3,12 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
-<title>Lost Castle – Mobile+ Edition</title>
+<title>Lost Castle – Mobile+ Edition (Fix)</title>
 <style>
   :root{
     --cell: 64px;            /* JS에서 보드 크기에 맞춰 갱신 */
-    --gap: 4px;
+    --gap: 6px;
     --radius: 14px;
+    --sheetH: 0px;           /* 하단 조작패널 실제 높이, JS로 갱신 */
     --bg: radial-gradient(1200px 600px at 10% 0%, #1f2633 0%, #0e1320 50%, #0a0d17 100%);
     --panel: rgba(255,255,255,0.06);
     --panel-2: rgba(255,255,255,0.1);
@@ -47,7 +48,10 @@
   .hint{font-size:12px; color:var(--ink-dim)}
 
   /* Layout */
-  main{display:grid; grid-template-columns: 1fr; gap:12px; align-items:start}
+  main{display:grid; grid-template-columns: 1fr; gap:12px; align-items:start;
+       /* 하단 패널이 가리지 않도록 바닥에 여백을 자동 확보 */
+       padding-bottom: calc(var(--sheetH) + env(safe-area-inset-bottom, 0px) + 12px);
+  }
   @media(min-width:900px){ main{ grid-template-columns: minmax(280px, 360px) 1fr; } }
 
   /* Side panel */
@@ -85,7 +89,7 @@
   .tiny{ position:absolute; bottom:2px; right:4px; font-size:10px; opacity:.9 }
 
   /* Bottom action sheet */
-  .sheet{ position:fixed; left:0; right:0; bottom:0; z-index:10; padding:10px; display:flex; justify-content:center; }
+  .sheet{ position:fixed; left:0; right:0; bottom:0; z-index:10; padding:10px; padding-bottom: calc(10px + env(safe-area-inset-bottom)); display:flex; justify-content:center; }
   .sheetInner{ width:min(980px, 100%); display:flex; flex-wrap:wrap; gap:8px; padding:10px; border-radius:16px; background:rgba(10,14,25,.75); border:1px solid rgba(255,255,255,0.08); backdrop-filter: blur(10px); }
   .action{ flex:1 1 80px; min-width:80px; padding:10px 8px; border-radius:12px; border:1px solid rgba(255,255,255,0.1); background:linear-gradient(180deg,#0f1628,#0a0f1d); color:var(--ink); font-weight:700; cursor:pointer }
   .action:disabled{ opacity:.45; filter:grayscale(1); cursor:not-allowed }
@@ -164,7 +168,7 @@
 </main>
 
 <!-- bottom action sheet -->
-<div class="sheet">
+<div class="sheet" id="sheet">
   <div class="sheetInner" id="actionBar" style="display:none">
     <button class="action" data-act="←">←</button>
     <button class="action" data-act="→">→</button>
@@ -218,6 +222,7 @@ const lifeEl = $('#lifeBar');
 const turnInfoEl = $('#turnInfo');
 const actionBar = $('#actionBar');
 const toastEl = $('#toast');
+const sheetEl = $('#sheet');
 
 /******************
  * INIT & UI
@@ -233,13 +238,24 @@ function readSettings(){
 function intVal(sel){ return parseInt($(sel).value,10) || 0 }
 function clamp(n,a,b){ return Math.max(a, Math.min(b, n)) }
 
+function viewportHeight(){
+  return (window.visualViewport && window.visualViewport.height) ? window.visualViewport.height : window.innerHeight;
+}
+
+function measureUI(){
+  const headerH = (document.querySelector('header')?.offsetHeight)||0;
+  const sheetH = (sheetEl?.offsetHeight)||0; // actionBar 표시 여부 포함한 실제 높이
+  document.documentElement.style.setProperty('--sheetH', sheetH+'px');
+  return { headerH, sheetH };
+}
+
 function computeCellSize(){
-  // 보드가 화면에 자연스럽게 맞도록 셀 크기 계산
-  const availW = Math.min(window.innerWidth-24, 1200);
-  const availH = Math.max(300, window.innerHeight - 280); // 상단/하단 패널 고려
-  const boardW = Math.min(availW*0.98, availH*0.98);
-  const cell = Math.floor((boardW - (COLS+1)* (getGap())) / COLS);
-  document.documentElement.style.setProperty('--cell', cell+'px');
+  const {headerH, sheetH} = measureUI();
+  const availW = Math.min(document.documentElement.clientWidth - 24, 1200);
+  const availH = Math.max(280, viewportHeight() - headerH - sheetH - 24);
+  const boardSide = Math.min(availW*0.98, availH*0.98);
+  const cell = Math.floor((boardSide - (COLS+1)* (getGap())) / COLS);
+  document.documentElement.style.setProperty('--cell', Math.max(28, cell)+'px');
 }
 function getGap(){ return 6 }
 
@@ -251,7 +267,11 @@ function buildBoardDom(){
 function showToast(msg, ms=1200){ toastEl.textContent=msg; toastEl.style.display='block'; setTimeout(()=>toastEl.style.display='none', ms) }
 
 function setupListeners(){
-  window.addEventListener('resize', ()=>{ computeCellSize(); drawBoard();});
+  const recalc = ()=>{ computeCellSize(); drawBoard(); };
+  window.addEventListener('resize', recalc);
+  if(window.visualViewport){ visualViewport.addEventListener('resize', recalc); visualViewport.addEventListener('scroll', recalc); }
+  window.addEventListener('orientationchange', ()=> setTimeout(recalc, 50));
+
   $('#btnStart').onclick=()=>{ $('#settings').open=false; startNew(); };
   $('#btnRestart').onclick=()=>{ startNew(); };
   actionBar.querySelectorAll('.action').forEach(btn=>{
@@ -276,11 +296,12 @@ function startNew(){
   spawnTeam('ai', UNITS, -1);
   // 턴 순서: 단순히 pieces 배열 순회
   turnOrder = pieces.map((_,i)=>i);
+  // 먼저 패널을 보이게 해서 실제 높이를 반영
+  actionBarToggle(true);
   // 셀 크기/보드 레이아웃
   computeCellSize(); buildBoardDom();
   drawAll();
   turnInfoEl.textContent = `플레이어 차례 – 말 ${currentPiece().id}`;
-  actionBar.style.display='flex';
 }
 
 function placeWalls(){
@@ -430,7 +451,11 @@ function nextTurn(){
   else { actionBarToggle(false); setTimeout(()=>aiAct(now), 350); }
 }
 
-function actionBarToggle(show){ actionBar.style.display = show?'flex':'none'; }
+function actionBarToggle(show){
+  actionBar.style.display = show?'flex':'none';
+  // 표시 상태 변화에 따라 시트 높이 반영 → 보드 재계산
+  requestAnimationFrame(()=>{ computeCellSize(); });
+}
 
 function handleAction(piece, act){
   if(!running || gameOver) return;
@@ -504,10 +529,8 @@ function powerStrike(p){
   attackPattern(p, merged);
 }
 
-function dash(p){ p.cdDash = CD.DASH; moveByBias(p, '→←↑↓'[0], 0); /* no-op to keep highlight clear */
-  // 돌진: 마지막으로 선택한 방향 개념이 없으니, 가장 가까운 적에게 다가가는 성향으로 설정
+function dash(p){ p.cdDash = CD.DASH; // 가장 가까운 적에게 다가가기
   const foe = nearestEnemy(p); if(!foe){ return; }
-  // x/y 축 우선 방향 결정
   const dx = Math.sign(foe.x - p.x); const dy = Math.sign(foe.y - p.y);
   const pri = Math.abs(foe.x-p.x) >= Math.abs(foe.y-p.y) ? (dx<0?'←':'→') : (dy<0?'↑':'↓');
   moveByBias(p, pri, 2);
@@ -553,7 +576,6 @@ function emptyCells(){
  *****************/
 function aiAct(p){
   if(!running||gameOver||p.life<=0) return;
-  // 우선순위: 마감 위기 → 방어/힐 → 인접 적 다수면 강공 → 인접이면 기본 공격 → 아이템 먹기 위해 돌진 → 접근 이동
   const enemies = pieces.filter(e=>e.team!==p.team && e.life>0);
   if(!enemies.length){ checkGameOver(); return; }
 
