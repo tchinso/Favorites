@@ -221,6 +221,15 @@
     return m;
   }
 
+  // 오버레이 히트테스트 (스크린 좌표 → 베이스 → 오버레이 로컬)
+  function isPointOnOverlay(sx, sy){
+    const o = state.overlay; if(!o.loaded || o.locked) return false;
+    const pBase = screenToBase(sx, sy);
+    const invO = inv(overlayMatrix());
+    const p = apply(invO, pBase);
+    return (p.x >= 0 && p.y >= 0 && p.x <= o.w && p.y <= o.h);
+  }
+
   // ---- 캔버스 ----
   function resizeCanvas(){
     const rect = stage.getBoundingClientRect();
@@ -273,23 +282,23 @@
   // ---- 이미지 로드 ----
   async function loadImageFromFile(file){
     if(!file) return null;
-    const name=(file.name||'').toLowerCase(); const type=(file.type||'').toLowerCase();
-    if(type.includes('heic')||type.includes('heif')||name.endsWith('.heic')||name.endsWith('.heif')){
-      throw new Error('HEIC/HEIF는 브라우저에서 바로 열리지 않을 수 있어요. JPG/PNG/WEBP로 변환해서 사용해줘.');
-    }
-    // FileReader → DataURL 경로 (모바일 안정성 높음)
-    const dataUrl = await new Promise((res, rej)=>{ const fr=new FileReader(); fr.onload=()=>res(fr.result); fr.onerror=()=>rej(new Error('파일 읽기 실패')); fr.readAsDataURL(file); });
-    // createImageBitmap 우선 시도
+    // 1) 가장 안정적인 경로: createImageBitmap(file)
     if('createImageBitmap' in window){
       try{
-        const blob = await (await fetch(dataUrl)).blob();
-        const bmp = await createImageBitmap(blob, { imageOrientation:'from-image' });
+        const bmp = await createImageBitmap(file, { imageOrientation:'from-image' });
         return { source:bmp, w:bmp.width, h:bmp.height };
-      }catch{}
+      }catch(e){ /* fallback */ }
     }
-    const img = await new Promise((res, rej)=>{ const im=new Image(); im.decoding='async'; im.onload=()=>res(im); im.onerror=()=>rej(new Error('이미지 디코드 실패')); im.src=dataUrl; });
-    const w=img.naturalWidth||img.width, h=img.naturalHeight||img.height; if(!w||!h) throw new Error('이미지 크기 오류');
-    return { source:img, w, h };
+    // 2) ObjectURL + <img>
+    const url = URL.createObjectURL(file);
+    try{
+      const img = await new Promise((res, rej)=>{ const im=new Image(); im.onload=()=>res(im); im.onerror=()=>rej(new Error('이미지 디코드 실패')); im.src=url; });
+      const w = img.naturalWidth||img.width, h=img.naturalHeight||img.height; if(!w||!h) throw new Error('이미지 크기 오류');
+      return { source:img, w, h };
+    } finally {
+      // 일부 단말에서 즉시 revoke 시 페인트 지연 이슈 → 지연 해제
+      setTimeout(()=>{ try{ URL.revokeObjectURL(url); }catch{} }, 10000);
+    }
   }
 
   baseInput.addEventListener('change', async (e)=>{
