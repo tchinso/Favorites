@@ -182,6 +182,10 @@
   const help = document.getElementById('help');
   const toast = document.getElementById('toast');
 
+  // ObjectURL 보관소 (모바일에서 로드 지연 이슈 회피: 즉시 revoke 하지 않음)
+  const urlPool = new Set();
+  window.addEventListener('unload', () => { for (const u of urlPool) { try { URL.revokeObjectURL(u); } catch {} } });
+
   function showToast(msg, ms = 1400) {
     toast.textContent = msg;
     toast.classList.add('show');
@@ -330,14 +334,31 @@
   async function loadImageFromFile(file){
     if(!file) return null;
     const url = URL.createObjectURL(file);
-    try {
-      // iOS Safari 호환을 위해 Image 객체 사용
+    urlPool.add(url);
+    // 1) 우선 createImageBitmap 시도 (EXIF 회전 자동 적용 가능)
+    if('createImageBitmap' in window){
+      try{
+        const bmp = await createImageBitmap(file, { imageOrientation: 'from-image', premultiplyAlpha: 'default' });
+        return { source: bmp, w: bmp.width, h: bmp.height, url };
+      }catch(err){ /* fallback to <img> */ }
+    }
+    // 2) <img> 로드 (광범위 호환)
+    try{
       const img = await new Promise((res, rej) => {
         const im = new Image();
+        im.decoding = 'async';
         im.onload = () => res(im);
         im.onerror = (e) => rej(e);
         im.src = url;
       });
+      const w = img.naturalWidth || img.width;
+      const h = img.naturalHeight || img.height;
+      if(!w || !h) throw new Error('Invalid image dims');
+      return { source: img, w, h, url };
+    }catch(e){
+      return null;
+    }
+  });
       return img;
     } finally {
       // decode 후 즉시 revoke하면 일부 브라우저에서 문제될 수 있어 draw 후에 정리
@@ -348,7 +369,17 @@
   baseInput.addEventListener('change', async (e) => {
     const file = e.target.files && e.target.files[0];
     if(!file) return;
-    const img = await loadImageFromFile(file).catch(() => null);
+    const loaded = await loadImageFromFile(file).catch(() => null);
+    if(!loaded){ showToast('이미지 로드 실패/미지원 형식'); return; }
+
+    state.base.img = loaded.source; state.base.w = loaded.w; state.base.h = loaded.h; state.base.loaded = true;
+    status.textContent = `베이스: ${file.name} (${state.base.w}×${state.base.h})`;
+    resizeCanvas();
+    fitIfNeeded();
+    draw();
+
+    if(state.overlay.loaded){ resetOverlayPlacement(); draw(); }
+  });
     if(!img){ showToast('이미지 로드 실패'); return; }
 
     state.base.img = img; state.base.w = img.naturalWidth; state.base.h = img.naturalHeight; state.base.loaded = true;
@@ -363,7 +394,13 @@
   overlayInput.addEventListener('change', async (e) => {
     const file = e.target.files && e.target.files[0];
     if(!file) return;
-    const img = await loadImageFromFile(file).catch(() => null);
+    const loaded = await loadImageFromFile(file).catch(() => null);
+    if(!loaded){ showToast('이미지 로드 실패/미지원 형식'); return; }
+    state.overlay.img = loaded.source; state.overlay.w = loaded.w; state.overlay.h = loaded.h; state.overlay.loaded = true;
+    status.textContent = `오버레이: ${file.name} (${state.overlay.w}×${state.overlay.h})`;
+    resetOverlayPlacement();
+    draw();
+  });
     if(!img){ showToast('이미지 로드 실패'); return; }
     state.overlay.img = img; state.overlay.w = img.naturalWidth; state.overlay.h = img.naturalHeight; state.overlay.loaded = true;
     status.textContent = `오버레이: ${file.name} (${state.overlay.w}×${state.overlay.h})`;
