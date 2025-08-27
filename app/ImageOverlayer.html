@@ -1,0 +1,562 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no" />
+  <title>모바일 이미지 오버레이 에디터</title>
+  <style>
+    :root {
+      --bg: #0b0c10;
+      --panel: rgba(22,24,28,0.7);
+      --panel-solid: #16181c;
+      --text: #e5e7eb;
+      --muted: #9aa3af;
+      --accent: #4f46e5;
+      --accent-2: #22c55e;
+      --danger: #ef4444;
+      --shadow: 0 10px 30px rgba(0,0,0,0.35);
+    }
+    html, body { height: 100%; }
+    body {
+      margin: 0; color: var(--text); background: var(--bg);
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Noto Sans, Helvetica, Apple SD Gothic Neo, "Apple SD 산돌고딕 Neo", Arial, "맑은 고딕", Malgun Gothic, "Noto Sans KR", sans-serif;
+      -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+    }
+    /* 안전 영역과 전체 레이아웃 */
+    .app { position: fixed; inset: 0; display: flex; flex-direction: column; }
+
+    /* 체크무늬 배경 (투명 확인용) */
+    .checker {
+      position: absolute; inset: 0;
+      background:
+        linear-gradient(45deg, #111 25%, transparent 25%) -10px 0/20px 20px,
+        linear-gradient(-45deg, #111 25%, transparent 25%) -10px 0/20px 20px,
+        linear-gradient(45deg, transparent 75%, #111 75%) -10px 0/20px 20px,
+        linear-gradient(-45deg, transparent 75%, #111 75%) -10px 0/20px 20px,
+        #0e1014;
+      filter: saturate(0.9) brightness(0.9);
+    }
+
+    /* 캔버스 영역 */
+    .stage {
+      position: relative; flex: 1; overflow: hidden; touch-action: none; /* 제스처를 페이지가 가로채지 않게 */
+      background: #0e1014;
+    }
+    canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+
+    /* 하단 컨트롤 바 */
+    .toolbar {
+      position: relative; z-index: 10; padding: env(safe-area-inset-bottom, 0);
+      background: linear-gradient(180deg, transparent, rgba(0,0,0,0.35) 40%, rgba(0,0,0,0.6));
+    }
+    .bar {
+      display: grid; gap: 10px; grid-template-columns: repeat(6, 1fr);
+      padding: 12px 12px calc(12px + env(safe-area-inset-bottom));
+      backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    }
+    .btn, .file-btn, .toggle {
+      -webkit-tap-highlight-color: transparent;
+      appearance: none; border: none; outline: none; border-radius: 14px;
+      padding: 12px 10px; background: var(--panel); color: var(--text);
+      text-align: center; font-weight: 600; font-size: 12px; box-shadow: var(--shadow);
+    }
+    .btn:active, .file-btn:active, .toggle:active { transform: translateY(1px); }
+    .btn.primary { background: linear-gradient(180deg, #6366f1, #4f46e5); }
+    .btn.success { background: linear-gradient(180deg, #34d399, #22c55e); }
+    .btn.danger { background: linear-gradient(180deg, #f87171, #ef4444); }
+    .file-btn { position: relative; overflow: hidden; }
+    .file-btn input { position: absolute; inset: 0; opacity: 0; }
+
+    .row { display: flex; align-items: center; gap: 10px; }
+    .slider-wrap { grid-column: span 6; display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: var(--panel); border-radius: 14px; box-shadow: var(--shadow); }
+    .slider-wrap label { font-size: 12px; color: var(--muted); white-space: nowrap; }
+    input[type="range"] { width: 100%; height: 28px; -webkit-appearance: none; background: transparent; }
+    input[type="range"]::-webkit-slider-runnable-track { height: 6px; background: #2a2f37; border-radius: 999px; }
+    input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; border-radius: 50%; background: #a5b4fc; margin-top: -8px; box-shadow: 0 2px 8px rgba(0,0,0,0.35); }
+    input[type="range"]:active::-webkit-slider-thumb { transform: scale(0.98); }
+
+    .pill { font-size: 11px; padding: 6px 10px; border-radius: 999px; background: var(--panel); color: var(--muted); }
+
+    .topbar { position: absolute; inset: env(safe-area-inset-top) 0 auto 0; display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 12px; z-index: 11; }
+    .chip { background: var(--panel); border-radius: 12px; padding: 6px 10px; box-shadow: var(--shadow); font-size: 12px; }
+
+    .help { position: absolute; right: 12px; top: calc(12px + env(safe-area-inset-top)); z-index: 12; }
+    .help-panel { position: absolute; right: 0; top: 40px; width: min(92vw, 380px); background: var(--panel-solid); border-radius: 16px; padding: 14px; box-shadow: var(--shadow); display: none; }
+    .help.open + .help-panel { display: block; }
+    .help-toggle { padding: 10px 14px; border-radius: 12px; background: var(--panel); }
+    .help-panel h3 { margin: 0 0 8px; font-size: 14px; }
+    .help-panel p, .help-panel li { color: var(--muted); font-size: 13px; line-height: 1.5; }
+    .help-panel ul { margin: 8px 0 0 16px; padding: 0; }
+
+    .toast { position: absolute; left: 50%; bottom: 120px; transform: translateX(-50%); background: rgba(15,18,25,0.9); color: #e5e7eb; padding: 10px 14px; border-radius: 999px; box-shadow: var(--shadow); font-size: 12px; display: none; }
+    .toast.show { display: inline-block; }
+
+    .hidden { display: none !important; }
+    .lock { filter: saturate(0.6); }
+
+    /* iOS에서 주소창 오버레이로 인한 높이 변화 대응 */
+    @supports (height: 100dvh) {
+      .app { height: 100dvh; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="topbar">
+      <div class="chip" id="status">베이스 이미지 없음</div>
+      <div class="row">
+        <span class="pill" id="mode-pill">제스처: 자동</span>
+        <button id="helpToggle" class="help-toggle">도움말 ❓</button>
+      </div>
+    </div>
+
+    <div class="help" id="help">
+      <div class="help-panel">
+        <h3>사용법</h3>
+        <ul>
+          <li><b>베이스</b> 파일을 먼저 불러오고, <b>오버레이</b> 파일을 불러와 겹쳐요.</li>
+          <li><b>한 손가락</b>:
+            <ul>
+              <li>오버레이 위에서 드래그 → 오버레이 이동</li>
+              <li>오버레이 밖에서 드래그 → 베이스 패닝</li>
+            </ul>
+          </li>
+          <li><b>두 손가락</b> 핀치:
+            <ul>
+              <li>오버레이 위 핀치 → 오버레이 <b>크기 조정 + 회전</b></li>
+              <li>오버레이 밖 핀치 → 베이스 <b>확대/축소</b></li>
+            </ul>
+          </li>
+          <li>오버레이 불투명도는 슬라이더로 조절.</li>
+          <li><b>PNG</b>로 내보내기는 하단의 [PNG 저장] 버튼.</li>
+          <li>애니 GIF/WEBP는 현재 <em>첫 프레임</em>만 사용돼요.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="stage" id="stage">
+      <div class="checker"></div>
+      <canvas id="canvas" aria-label="편집 캔버스"></canvas>
+      <div class="toast" id="toast"></div>
+    </div>
+
+    <div class="toolbar">
+      <div class="bar">
+        <label class="file-btn" title="베이스 이미지 불러오기">베이스
+          <input id="baseInput" type="file" accept="image/*" />
+        </label>
+        <label class="file-btn" title="오버레이 이미지 불러오기">오버레이
+          <input id="overlayInput" type="file" accept="image/*" />
+        </label>
+        <button class="btn" id="resetView" title="뷰 재설정">리셋</button>
+        <button class="btn toggle" id="lockBtn" title="오버레이 잠금/해제">잠금 🔒</button>
+        <button class="btn danger" id="clearOverlay" title="오버레이 제거">지우기</button>
+        <button class="btn success" id="exportBtn" title="PNG로 저장">PNG 저장</button>
+        <div class="slider-wrap">
+          <label for="opacity">오버레이 불투명도</label>
+          <input id="opacity" type="range" min="0" max="1" step="0.01" value="1" />
+          <span class="pill" id="opacityVal">100%</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d', { alpha: true, desynchronized: true });
+  const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+  const stage = document.getElementById('stage');
+
+  const baseInput = document.getElementById('baseInput');
+  const overlayInput = document.getElementById('overlayInput');
+  const exportBtn = document.getElementById('exportBtn');
+  const resetViewBtn = document.getElementById('resetView');
+  const lockBtn = document.getElementById('lockBtn');
+  const clearOverlayBtn = document.getElementById('clearOverlay');
+  const opacitySlider = document.getElementById('opacity');
+  const opacityVal = document.getElementById('opacityVal');
+  const status = document.getElementById('status');
+  const modePill = document.getElementById('mode-pill');
+  const helpToggle = document.getElementById('helpToggle');
+  const help = document.getElementById('help');
+  const toast = document.getElementById('toast');
+
+  function showToast(msg, ms = 1400) {
+    toast.textContent = msg;
+    toast.classList.add('show');
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(() => toast.classList.remove('show'), ms);
+  }
+
+  // 상태
+  const state = {
+    view: { x: 0, y: 0, scale: 1, initScale: 1 }, // 뷰(스크린 공간)
+    base: { img: null, w: 0, h: 0, loaded: false },
+    overlay: {
+      img: null, w: 0, h: 0, loaded: false,
+      x: 0, y: 0, scale: 1, rot: 0, opacity: 1, anchorX: 0.5, anchorY: 0.5,
+      locked: false
+    },
+    pointers: new Map(),
+    gesture: null, // { target: 'base'|'overlay', mode: 'drag'|'pinch', ... }
+    lastTap: { t: 0, x: 0, y: 0 },
+    wasPinching: false,
+  };
+  };
+
+  // 매트릭스 도우미 (2D affine)
+  function mat(a=1,b=0,c=0,d=1,e=0,f=0){return {a,b,c,d,e,f};}
+  function mul(m, n){return { a:m.a*n.a + m.c*n.b, b:m.b*n.a + m.d*n.b, c:m.a*n.c + m.c*n.d, d:m.b*n.c + m.d*n.d, e:m.a*n.e + m.c*n.f + m.e, f:m.b*n.e + m.d*n.f + m.f } }
+  function inv(m){ const det = m.a*m.d - m.b*m.c; if(!det) return mat(); const id=1/det; return { a: m.d*id, b: -m.b*id, c: -m.c*id, d: m.a*id, e: (m.c*m.f - m.d*m.e)*id, f: (m.b*m.e - m.a*m.f)*id } }
+  function apply(m, p){ return { x: m.a*p.x + m.c*p.y + m.e, y: m.b*p.x + m.d*p.y + m.f } }
+  const M = {
+    translate(x,y){ return mat(1,0,0,1,x,y); },
+    scale(s){ return mat(s,0,0,s,0,0); },
+    rotate(rad){ const cs=Math.cos(rad), sn=Math.sin(rad); return mat(cs,sn,-sn,cs,0,0); },
+  };
+
+  // 좌표 변환: 스크린→베이스, 베이스→스크린
+  function screenToBase(x, y){
+    const { view } = state; // view.x/y는 CSS px 기준
+    return { x: (x - view.x) / view.scale, y: (y - view.y) / view.scale };
+  }
+  function baseToScreen(x, y){
+    const { view } = state;
+    return { x: x * view.scale + view.x, y: y * view.scale + view.y };
+  }
+
+  function overlayMatrix(){
+    const o = state.overlay;
+    const ax = o.w * o.anchorX, ay = o.h * o.anchorY;
+    // 베이스 좌표계에서의 오버레이 변환
+    let m = M.translate(o.x, o.y);
+    m = mul(m, M.rotate(o.rot));
+    m = mul(m, M.scale(o.scale));
+    m = mul(m, M.translate(-ax, -ay));
+    return m;
+  }
+
+  function viewMatrix(){
+    const v = state.view;
+    let m = M.translate(v.x, v.y);
+    m = mul(m, M.scale(v.scale));
+    return m;
+  }
+
+  function isPointOnOverlay(sx, sy){
+    const o = state.overlay; if(!o.loaded) return false; if(o.locked) return false;
+    // 스크린→베이스
+    const pBase = screenToBase(sx, sy);
+    // 오버레이 역변환
+    const invO = inv(overlayMatrix());
+    const pLocal = apply(invO, pBase);
+    return (pLocal.x >= 0 && pLocal.y >= 0 && pLocal.x <= o.w && pLocal.y <= o.h);
+  }
+
+  function resizeCanvas(){
+    const rect = stage.getBoundingClientRect();
+    canvas.width = Math.max(1, Math.floor(rect.width * dpr));
+    canvas.height = Math.max(1, Math.floor(rect.height * dpr));
+    // CSS 크기는 100%
+    draw();
+  }
+  window.addEventListener('resize', () => { resizeCanvas(); fitIfNeeded(); });
+
+  function fitIfNeeded(){
+    const { base, view } = state; if(!base.loaded) return;
+    // 베이스를 화면에 맞춤 (최초/리셋 시)
+    const rect = stage.getBoundingClientRect();
+    const fitScale = Math.min(rect.width / base.w, rect.height / base.h);
+    view.scale = Math.max(fitScale, 0.05);
+    view.initScale = view.scale;
+    const screenCenter = { x: rect.width/2, y: rect.height/2 };
+    const contentSize = { w: base.w * view.scale, h: base.h * view.scale };
+    view.x = screenCenter.x - contentSize.w/2;
+    view.y = screenCenter.y - contentSize.h/2;
+  }
+
+  function resetOverlayPlacement(){
+    const { base, overlay } = state; if(!base.loaded || !overlay.loaded) return;
+    overlay.scale = Math.min(1, Math.max( (Math.min(base.w, base.h) * 0.4) / Math.max(overlay.w, overlay.h), 0.05 ));
+    overlay.rot = 0;
+    overlay.x = base.w * 0.5;
+    overlay.y = base.h * 0.5;
+  }
+
+  function draw(){
+    const { base, overlay, view } = state;
+    // 고해상도 스케일 적용
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    ctx.clearRect(0,0,canvas.width, canvas.height);
+
+    if(!base.loaded){
+      // 안내 텍스트
+      ctx.save();
+      ctx.fillStyle = 'rgba(255,255,255,0.08)';
+      ctx.font = '600 18px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('베이스 이미지를 불러오세요', canvas.width/(2*dpr), canvas.height/(2*dpr));
+      ctx.restore();
+      return;
+    }
+
+    // 뷰 변환 적용
+    ctx.save();
+    ctx.translate(view.x, view.y);
+    ctx.scale(view.scale, view.scale);
+
+    // 베이스
+    ctx.drawImage(base.img, 0, 0, base.w, base.h);
+
+    // 오버레이
+    if(overlay.loaded){
+      ctx.save();
+      const ax = overlay.w * overlay.anchorX, ay = overlay.h * overlay.anchorY;
+      ctx.translate(overlay.x, overlay.y);
+      ctx.rotate(overlay.rot);
+      ctx.scale(overlay.scale, overlay.scale);
+      ctx.translate(-ax, -ay);
+      ctx.globalAlpha = overlay.opacity;
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(overlay.img, 0, 0, overlay.w, overlay.h);
+      ctx.restore();
+    }
+
+    ctx.restore();
+  }
+
+  async function loadImageFromFile(file){
+    if(!file) return null;
+    const url = URL.createObjectURL(file);
+    try {
+      // iOS Safari 호환을 위해 Image 객체 사용
+      const img = await new Promise((res, rej) => {
+        const im = new Image();
+        im.onload = () => res(im);
+        im.onerror = (e) => rej(e);
+        im.src = url;
+      });
+      return img;
+    } finally {
+      // decode 후 즉시 revoke하면 일부 브라우저에서 문제될 수 있어 draw 후에 정리
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+    }
+  }
+
+  baseInput.addEventListener('change', async (e) => {
+    const file = e.target.files && e.target.files[0];
+    if(!file) return;
+    const img = await loadImageFromFile(file).catch(() => null);
+    if(!img){ showToast('이미지 로드 실패'); return; }
+
+    state.base.img = img; state.base.w = img.naturalWidth; state.base.h = img.naturalHeight; state.base.loaded = true;
+    status.textContent = `베이스: ${file.name} (${state.base.w}×${state.base.h})`;
+    fitIfNeeded();
+    draw();
+
+    // 오버레이가 있고 아직 위치가 없다면 중앙 배치
+    if(state.overlay.loaded){ resetOverlayPlacement(); draw(); }
+  });
+
+  overlayInput.addEventListener('change', async (e) => {
+    const file = e.target.files && e.target.files[0];
+    if(!file) return;
+    const img = await loadImageFromFile(file).catch(() => null);
+    if(!img){ showToast('이미지 로드 실패'); return; }
+    state.overlay.img = img; state.overlay.w = img.naturalWidth; state.overlay.h = img.naturalHeight; state.overlay.loaded = true;
+    status.textContent = `오버레이: ${file.name} (${state.overlay.w}×${state.overlay.h})`;
+    resetOverlayPlacement();
+    draw();
+  });
+
+  opacitySlider.addEventListener('input', (e) => {
+    state.overlay.opacity = parseFloat(e.target.value || '1');
+    opacityVal.textContent = Math.round(state.overlay.opacity * 100) + '%';
+    draw();
+  });
+
+  resetViewBtn.addEventListener('click', () => { fitIfNeeded(); if(state.overlay.loaded) resetOverlayPlacement(); draw(); showToast('뷰/오버레이 재설정'); });
+
+  lockBtn.addEventListener('click', () => {
+    state.overlay.locked = !state.overlay.locked;
+    lockBtn.textContent = state.overlay.locked ? '잠금 🔒' : '잠금 🔓';
+    lockBtn.classList.toggle('lock', state.overlay.locked);
+    showToast(state.overlay.locked ? '오버레이 잠금' : '오버레이 해제');
+  });
+
+  clearOverlayBtn.addEventListener('click', () => {
+    state.overlay = { img:null, w:0, h:0, loaded:false, x:0, y:0, scale:1, rot:0, opacity: state.overlay.opacity, anchorX:0.5, anchorY:0.5, locked:false };
+    draw(); showToast('오버레이 제거');
+  });
+
+  exportBtn.addEventListener('click', () => {
+    if(!state.base.loaded){ showToast('베이스 이미지가 필요해요'); return; }
+    // 현재 뷰 크기 그대로 PNG로 내보냄
+    const url = canvas.toDataURL('image/png');
+    // 모바일 저장: 새 탭 열기 + 다운로드 링크
+    const a = document.createElement('a');
+    a.href = url; a.download = 'overlayed.png';
+    document.body.appendChild(a); a.click(); a.remove();
+    try { window.open(url, '_blank'); } catch {}
+    showToast('PNG로 내보냈어요');
+  });
+
+  // 도움말 토글
+  helpToggle.addEventListener('click', () => { help.classList.toggle('open'); });
+
+  // 제스처 처리 (Pointer Events)
+  canvas.addEventListener('pointerdown', onPointerDown, { passive: false });
+  canvas.addEventListener('pointermove', onPointerMove, { passive: false });
+  canvas.addEventListener('pointerup', onPointerUp, { passive: false });
+  canvas.addEventListener('pointercancel', onPointerUp, { passive: false });
+  canvas.addEventListener('gesturestart', e => e.preventDefault()); // iOS 사파리 고유 제스처 방지
+  canvas.addEventListener('gesturechange', e => e.preventDefault());
+  canvas.addEventListener('gestureend', e => e.preventDefault());
+
+  function onPointerDown(e){
+    e.preventDefault();
+    try { e.target.setPointerCapture && e.target.setPointerCapture(e.pointerId); } catch(_) { /* ignore */ }
+    state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    const pts = Array.from(state.pointers.values());
+    if(pts.length === 1){
+      // 싱글 터치 → 어디서 시작했는지에 따라 타깃 결정
+      const target = isPointOnOverlay(e.clientX, e.clientY) ? 'overlay' : 'base';
+      modePill.textContent = `제스처: ${target === 'overlay' ? '오버레이' : '베이스'}`;
+
+      if(target === 'overlay'){
+        // 드래그 시작을 위해 기준 저장 (베이스 좌표로 계산)
+        const basePt = screenToBase(e.clientX, e.clientY);
+        state.gesture = {
+          target, mode: 'drag', start: { basePt, x: state.overlay.x, y: state.overlay.y }
+        };
+      } else {
+        state.gesture = {
+          target, mode: 'drag', start: { x: state.view.x, y: state.view.y, last: { x: e.clientX, y: e.clientY } }
+        };
+      }
+    } else if(pts.length === 2){
+      state.wasPinching = true;
+      // 핀치 시작
+      const p1 = pts[0], p2 = pts[1];
+      const mid = { x: (p1.x + p2.x)/2, y: (p1.y + p2.y)/2 };
+      const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+      const ang = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+      const target = isPointOnOverlay(mid.x, mid.y) ? 'overlay' : 'base';
+      modePill.textContent = `제스처: ${target === 'overlay' ? '오버레이' : '베이스'}`;
+
+      if(target === 'overlay'){
+        const baseMid = screenToBase(mid.x, mid.y);
+        state.gesture = {
+          target, mode: 'pinch',
+          start: {
+            midScreen: mid,
+            baseMid,
+            dist, ang,
+            x: state.overlay.x, y: state.overlay.y,
+            scale: state.overlay.scale, rot: state.overlay.rot
+          }
+        };
+      } else {
+        // 베이스 핀치 → 줌 중심 고정
+        const v = state.view;
+        // 핀치 중심의 월드 좌표(베이스 좌표) 저장
+        const world = screenToBase(mid.x, mid.y);
+        state.gesture = {
+          target, mode: 'pinch',
+          start: { mid, dist, world, scale: v.scale, x: v.x, y: v.y }
+        };
+      }
+    }
+  }
+
+  function onPointerMove(e){
+    if(!state.pointers.has(e.pointerId)) return;
+    e.preventDefault();
+    state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    const g = state.gesture; if(!g) return;
+
+    const pts = Array.from(state.pointers.values());
+    if(g.mode === 'drag' && pts.length === 1){
+      if(g.target === 'overlay'){
+        const basePt = screenToBase(e.clientX, e.clientY);
+        const dx = basePt.x - g.start.basePt.x;
+        const dy = basePt.y - g.start.basePt.y;
+        state.overlay.x = g.start.x + dx;
+        state.overlay.y = g.start.y + dy;
+      } else {
+        const last = g.start.last;
+        const dx = e.clientX - last.x;
+        const dy = e.clientY - last.y;
+        state.view.x = g.start.x + dx;
+        state.view.y = g.start.y + dy;
+      }
+      draw();
+    }
+
+    if(pts.length === 2 && g.mode === 'pinch'){
+      const p1 = pts[0], p2 = pts[1];
+      const mid = { x: (p1.x + p2.x)/2, y: (p1.y + p2.y)/2 };
+      const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+      const ang = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+
+      if(g.target === 'overlay'){
+        // 스케일/회전 + 중심 이동 (베이스 좌표 기준)
+        const scaleFactor = Math.max(0.02, dist / g.start.dist);
+        state.overlay.scale = Math.max(0.02, Math.min(100, g.start.scale * scaleFactor));
+        state.overlay.rot = g.start.rot + (ang - g.start.ang);
+
+        // 핀치 중심 이동만큼 따라가게 (베이스 좌표)
+        const baseMid = screenToBase(mid.x, mid.y);
+        state.overlay.x = g.start.x + (baseMid.x - g.start.baseMid.x);
+        state.overlay.y = g.start.y + (baseMid.y - g.start.baseMid.y);
+      } else {
+        // 베이스 줌: 핀치 중심 world 고정
+        const scale = clamp(g.start.scale * (dist / g.start.dist), 0.02, 50);
+        state.view.scale = scale;
+        // view.x,y 재계산: screen = world*scale + view
+        state.view.x = g.start.mid.x - g.start.world.x * scale;
+        state.view.y = g.start.mid.y - g.start.world.y * scale;
+      }
+      draw();
+    }
+  }
+
+  function onPointerUp(e){
+    e.preventDefault();
+    state.pointers.delete(e.pointerId);
+    if(state.pointers.size < 2) state.gesture = null;
+
+    // 핀치 이후에는 더블탭 처리 금지 (두 손가락 해제의 잔여 이벤트가 겹침)
+    if(state.wasPinching){
+      if(state.pointers.size === 0){
+        // 약간의 지연 후 해제하여 다음 제스처에 영향 없게
+        setTimeout(() => { state.wasPinching = false; }, 0);
+      }
+      return;
+    }
+
+    const now = performance.now();
+    if(false && now - state.lastTap.t < 300){
+      const { x, y } = state.lastTap;
+      if(isPointOnOverlay(x, y)){
+        state.overlay.rot = 0; draw(); showToast('오버레이 회전 리셋');
+      }
+      state.lastTap.t = 0;
+    } else {
+      state.lastTap = { t: now, x: e.clientX, y: e.clientY };
+    }
+  }
+
+  function clamp(v, a, b){ return Math.max(a, Math.min(b, v)); }
+
+  // 초기화
+  resizeCanvas();
+  showToast('베이스를 불러오세요');
+})();
+</script>
+</body>
+</html>
