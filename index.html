@@ -2,56 +2,229 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>My Web Apps</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>@NyanKatX3 • Web Apps</title>
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="NyanKatX3의 Web Apps & Games 모음" />
   <style>
+    :root {
+      --bg: #f7f9f9;          /* 전체 배경 (트위터 밝은 회색) */
+      --card: #ffffff;         /* 카드 배경 */
+      --text: #0f1419;         /* 기본 텍스트(트위터 기본) */
+      --muted: #536471;        /* 보조 텍스트 */
+      --line: #eff3f4;         /* 구분선 */
+      --brand: #1da1f2;        /* 트위터 블루 */
+      --ring: #1da1f233;       /* 포커스 하이라이트 */
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #15202b;
+        --card: #1e2732;
+        --text: #e6e9ea;
+        --muted: #8b98a5;
+        --line: #2f3a43;
+        --ring: #1da1f24d;
+      }
+    }
+
+    html, body { height: 100%; }
     body {
-      font-family: 'Segoe UI', sans-serif;
-      background-color: #fdfdfd;
-      color: #333;
-      text-align: center;
-      padding: 3em 1em;
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Noto Sans, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
     }
-    h1 {
-      font-size: 2em;
-      margin-bottom: 0.5em;
+
+    .wrap { max-width: 740px; margin: 0 auto; padding: 16px; }
+
+    /* 상단 프로필(트위터 느낌) */
+    header.profile {
+      position: sticky;
+      top: 0; z-index: 2;
+      background: var(--bg);
+      backdrop-filter: saturate(180%) blur(8px);
+      border-bottom: 1px solid var(--line);
     }
-    ul {
-      list-style: none;
-      padding: 0;
-    }
-    li {
-      margin: 1em 0;
-    }
-    a {
-      text-decoration: none;
-      color: #0077cc;
-      font-size: 1.2em;
-      transition: color 0.2s ease;
-    }
-    a:hover {
-      color: #005499;
+    .profile-inner { display: grid; grid-template-columns: 56px 1fr; gap: 12px; align-items: center; padding: 12px 8px; }
+    .avatar { width: 48px; height: 48px; border-radius: 50%; display:grid; place-items:center; background: #e8f5fd; font-size: 24px; border: 1px solid var(--line); }
+    .titles h1 { font-size: 20px; margin: 0; line-height: 1.2; }
+    .handle { margin: 2px 0 0; color: var(--muted); font-size: 14px; }
+
+    /* 섹션 헤더 */
+    .section { margin: 18px 0 8px; }
+    .section h2 { font-size: 15px; color: var(--muted); font-weight: 700; margin: 0; padding: 10px 8px; border-bottom: 1px solid var(--line); }
+
+    /* 타임라인(카드 리스트) */
+    ul.timeline { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+
+    /* 카드 == 트윗 스타일 */
+    a.item { display: grid; grid-template-columns: 48px 1fr; gap: 12px; align-items: start; text-decoration: none; color: inherit; background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 12px 14px; box-shadow: 0 1px 2px rgba(0,0,0,.04); transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease, background-color .12s ease; }
+    a.item:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(0,0,0,.08); border-color: var(--ring); }
+    a.item:focus-visible { outline: 3px solid var(--ring); outline-offset: 2px; }
+
+    .icon { width: 40px; height: 40px; border-radius: 50%; display:grid; place-items:center; font-size: 22px; background: #e8f5fd; border: 1px solid var(--line); }
+
+    .content strong { display: inline-block; font-size: 16px; font-weight: 800; line-height: 1.3; }
+    .content em { display: block; margin-top: 3px; font-style: normal; font-size: 13px; color: var(--muted); }
+
+    /* 푸터 */
+    footer { color: var(--muted); font-size: 12px; text-align: center; padding: 24px 0 40px; }
+
+    /* 모바일 여백 조정 */
+    @media (max-width: 520px) {
+      .profile-inner { grid-template-columns: 44px 1fr; }
+      .avatar { width: 40px; height: 40px; font-size: 20px; }
+      a.item { grid-template-columns: 40px 1fr; border-radius: 14px; padding: 11px 12px; }
+      .icon { width: 36px; height: 36px; font-size: 20px; }
     }
   </style>
 </head>
 <body>
-  <h1>🌟NyanKatX3's Web App🌟</h1>
-  <ul>
-    <li><a href="app/ImageTool.html">🖼️ 냥캣식 이미지 도구</a></li>
-    <li><a href="app/KanaWriter.html">✍️ 가나 입력기</a></li>
-    <li><a href="app/MouseTester.html">🖱️ 마우스 테스트</a></li>
-    <li><a href="app/CharaCounter.html">⌨️ 글자 수 세기</a></li>
-    <li><a href="app/NyankatCipher.html">🐾 냥캣식 암호기</a></li>
-    <li><a href="app/SearchBuilder.html">🔍 검색창 빌더</a></li>
-    <li><a href="SWFonlinedecompiler.html"></a>🔎SWF 디컴파일러</li> 
+  <!--
+    ✨ 편집 가이드 (메모장 친화적)
+    1) 아래 Apps / Games 리스트에서 <li>…</li> 블록을 복사해서 붙여넣기
+    2) href, 아이콘, 제목(<strong>), 설명(<em>)만 바꾸면 끝
+    3) 설명(<em>)은 생략 가능
+
+    템플릿 예시:
+    <li>
+      <a class="item" href="app/YourApp.html">
+        <span class="icon">🧩</span>
+        <span class="content">
+          <strong>앱 이름</strong>
+          <em>간단 설명(선택)</em>
+        </span>
+      </a>
+    </li>
+  -->
+
+  <header class="profile">
+    <div class="wrap profile-inner">
+      <div class="avatar">🐾</div>
+      <div class="titles">
+        <h1>NyanKatX3</h1>
+        <p class="handle">@nyankatx3 • Web Apps & Games</p>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="section" aria-labelledby="apps-title">
+      <h2 id="apps-title">Apps</h2>
+      <ul class="timeline">
+        <li>
+          <a class="item" href="app/ImageTool.html">
+            <span class="icon">🖼️</span>
+            <span class="content">
+              <strong>냥캣식 이미지 도구</strong>
+              <em>간단한 이미지 변환·편집 툴</em>
+            </span>
+          </a>
+        </li>
+        <li>
+          <a class="item" href="app/KanaWriter.html">
+            <span class="icon">✍️</span>
+            <span class="content">
+              <strong>가나 입력기</strong>
+              <em>히라가나·가타카나 빠른 입력</em>
+            </span>
+          </a>
+        </li>
+        <li>
+          <a class="item" href="app/MouseTester.html">
+            <span class="icon">🖱️</span>
+            <span class="content">
+              <strong>마우스 테스트</strong>
+              <em>클릭/휠/폴링 확인</em>
+            </span>
+          </a>
+        </li>
+        <li>
+          <a class="item" href="app/CharaCounter.html">
+            <span class="icon">⌨️</span>
+            <span class="content">
+              <strong>글자 수 세기</strong>
+              <em>트윗/본문 글자 카운트</em>
+            </span>
+          </a>
+        </li>
+        <li>
+          <a class="item" href="app/NyankatCipher.html">
+            <span class="icon">🐾</span>
+            <span class="content">
+              <strong>냥캣식 암호기</strong>
+              <em>간단 치환 암호/복호</em>
+            </span>
+          </a>
+        </li>
+        <li>
+          <a class="item" href="app/SearchBuilder.html">
+            <span class="icon">🔍</span>
+            <span class="content">
+              <strong>검색창 빌더</strong>
+              <em>멀티 검색 프리셋 생성</em>
+            </span>
+          </a>
+        </li>
+        <li>
+          <a class="item" href="SWFonlinedecompiler.html">
+            <span class="icon">🔎</span>
+            <span class="content">
+              <strong>SWF 디컴파일러</strong>
+              <em>Ruffle 사이트용 헬퍼 링크</em>
+            </span>
+          </a>
+        </li>
       </ul>
-    <h1>🌟NyanKatX3's Web Game🌟</h1>
-    <ul>
-    <li><a href="app/CardBattle.html">🃏 냥캣식 카드게임</a><li>
-    <li><a href="app/LostCastle.html">🏁 냥캣식 보드게임</a><li>
-    <li><a href="app/Checkmater.html">♟️ 체크메이터</a></li>
-    <li><a href="app/PokerGame.html">🃏 냥캣식 포커</a></li>
-    <li><a href="app/StockGame.html">📈 주식 게임</a></li>
-  </ul>
+    </section>
+
+    <section class="section" aria-labelledby="games-title">
+      <h2 id="games-title">Games</h2>
+      <ul class="timeline">
+        <li>
+          <a class="item" href="app/LostCastle.html">
+            <span class="icon">🏁</span>
+            <span class="content">
+              <strong>로스트캐슬</strong>
+              <em>이누야샤 카드게임 비슷한 게임</em>
+            </span>
+          </a>
+        </li>
+        <li>
+          <a class="item" href="app/Checkmater.html">
+            <span class="icon">♟️</span>
+            <span class="content">
+              <strong>체크메이터</strong>
+              <em>열쇠를 찾아 문으로 가는 게임</em>
+            </span>
+          </a>
+        </li>
+        <li>
+          <a class="item" href="app/StockGame.html">
+            <span class="icon">📈</span>
+            <span class="content">
+              <strong>주식 게임</strong>
+              <em>자산 그래프 시뮬레이터</em>
+            </span>
+          </a>
+        </li>
+        <li>
+          <a class="item" href="app/PokerGame.html">
+            <span class="icon">🃏</span>
+            <span class="content">
+              <strong>냥캣식 포커</strong>
+              <em>확률 감각 키우기</em>
+            </span>
+          </a>
+        </li>
+      </ul>
+    </section>
+
+    <footer>
+      Made with ♥ by NyanKatX3 · GitHub Pages
+    </footer>
+  </main>
 </body>
 </html>
