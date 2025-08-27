@@ -35,6 +35,7 @@
         linear-gradient(-45deg, transparent 75%, #111 75%) -10px 0/20px 20px,
         #0e1014;
       filter: saturate(0.9) brightness(0.9);
+      pointer-events: none; /* 제스처 차단 방지 */
     }
 
     /* 캔버스 영역 */
@@ -88,7 +89,7 @@
     .help-panel p, .help-panel li { color: var(--muted); font-size: 13px; line-height: 1.5; }
     .help-panel ul { margin: 8px 0 0 16px; padding: 0; }
 
-    .toast { position: absolute; left: 50%; bottom: 120px; transform: translateX(-50%); background: rgba(15,18,25,0.9); color: #e5e7eb; padding: 10px 14px; border-radius: 999px; box-shadow: var(--shadow); font-size: 12px; display: none; }
+    .toast { position: absolute; left: 50%; bottom: 120px; transform: translateX(-50%); background: rgba(15,18,25,0.9); color: #e5e7eb; padding: 10px 14px; border-radius: 999px; box-shadow: var(--shadow); font-size: 12px; display: none; pointer-events: none; }
     .toast.show { display: inline-block; }
 
     .hidden { display: none !important; }
@@ -162,12 +163,19 @@
   </div>
 
 <script>
+"use strict";
 (()=>{
+  // ====== 안전 진단(런타임 에러 표시) ======
+  const toast = document.getElementById('toast');
+  function showToast(msg, ms = 1600){ if(!toast) return; toast.textContent = msg; toast.classList.add('show'); clearTimeout(showToast._t); showToast._t = setTimeout(()=>toast.classList.remove('show'), ms); }
+  window.onerror = (m, s, l, c, e)=>{ console.error(e||m); showToast(String(m||e)); };
+  window.onunhandledrejection = (ev)=>{ console.error(ev.reason); showToast('오류: '+(ev.reason?.message||ev.reason)); };
+
+  // ====== DOM ======
   const canvas = document.getElementById('canvas');
   const ctx = canvas.getContext('2d', { alpha: true, desynchronized: true });
   const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
   const stage = document.getElementById('stage');
-
   const baseInput = document.getElementById('baseInput');
   const overlayInput = document.getElementById('overlayInput');
   const exportBtn = document.getElementById('exportBtn');
@@ -180,232 +188,69 @@
   const modePill = document.getElementById('mode-pill');
   const helpToggle = document.getElementById('helpToggle');
   const help = document.getElementById('help');
-  const toast = document.getElementById('toast');
 
-  function showToast(msg, ms = 1400) {
-    toast.textContent = msg;
-    toast.classList.add('show');
-    clearTimeout(showToast._t);
-    showToast._t = setTimeout(() => toast.classList.remove('show'), ms);
-  }
-
-  // ---- 상태 ----
+  // ====== 상태 ======
   const state = {
     view: { x: 0, y: 0, scale: 1, initScale: 1 },
     base: { img: null, w: 0, h: 0, loaded: false },
-    overlay: { img: null, w: 0, h: 0, loaded: false, x: 0, y: 0, scale: 1, rot: 0, opacity: 1, anchorX: .5, anchorY: .5, locked: false },
+    overlay: { img: null, w: 0, h: 0, loaded: false, x:0, y:0, scale:1, rot:0, opacity:1, anchorX:.5, anchorY:.5, locked:false },
     pointers: new Map(),
     gesture: null,
-    lastTap: { t: 0, x: 0, y: 0 },
     wasPinching: false,
   };
 
-  // ---- 수학 도우미 ----
+  // ====== 수학 도우미 ======
   function mat(a=1,b=0,c=0,d=1,e=0,f=0){return {a,b,c,d,e,f};}
   function mul(m, n){return { a:m.a*n.a + m.c*n.b, b:m.b*n.a + m.d*n.b, c:m.a*n.c + m.c*n.d, d:m.b*n.c + m.d*n.d, e:m.a*n.e + m.c*n.f + m.e, f:m.b*n.e + m.d*n.f + m.f } }
-  function inv(m){ const det = m.a*m.d - m.b*m.c; if(!det) return mat(); const id=1/det; return { a: m.d*id, b: -m.b*id, c: -m.c*id, d: m.a*id, e: (m.c*m.f - m.d*m.e)*id, f: (m.b*m.e - m.a*m.f)*id } }
-  function apply(m, p){ return { x: m.a*p.x + m.c*p.y + m.e, y: m.b*p.x + m.d*p.y + m.f } }
-  const M = {
-    translate(x,y){ return mat(1,0,0,1,x,y); },
-    scale(s){ return mat(s,0,0,s,0,0); },
-    rotate(rad){ const cs=Math.cos(rad), sn=Math.sin(rad); return mat(cs,sn,-sn,cs,0,0); },
-  };
-
-  // ---- 좌표 변환 ----
+  function inv(m){ const det=m.a*m.d - m.b*m.c; if(!det) return mat(); const id=1/det; return { a:m.d*id, b:-m.b*id, c:-m.c*id, d:m.a*id, e:(m.c*m.f - m.d*m.e)*id, f:(m.b*m.e - m.a*m.f)*id } }
+  const M = { translate:(x,y)=>mat(1,0,0,1,x,y), scale:(s)=>mat(s,0,0,s,0,0), rotate:(r)=>{const c=Math.cos(r), s=Math.sin(r); return mat(c,s,-s,c,0,0);} };
   function screenToBase(x, y){ const v=state.view; return { x:(x - v.x)/v.scale, y:(y - v.y)/v.scale }; }
-  function baseToScreen(x, y){ const v=state.view; return { x:x*v.scale + v.x, y:y*v.scale + v.y }; }
+  function overlayMatrix(){ const o=state.overlay, ax=o.w*o.anchorX, ay=o.h*o.anchorY; let m=M.translate(o.x,o.y); m=mul(m,M.rotate(o.rot)); m=mul(m,M.scale(o.scale)); m=mul(m,M.translate(-ax,-ay)); return m; }
+  function isPointOnOverlay(sx, sy){ const o=state.overlay; if(!o.loaded || o.locked) return false; const pBase=screenToBase(sx,sy); const invO=inv(overlayMatrix()); const x=invO.a*pBase.x+invO.c*pBase.y+invO.e, y=invO.b*pBase.x+invO.d*pBase.y+invO.f; return x>=0&&y>=0&&x<=o.w&&y<=o.h; }
+  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 
-  function overlayMatrix(){
-    const o = state.overlay; const ax=o.w*o.anchorX, ay=o.h*o.anchorY;
-    let m = M.translate(o.x, o.y); m = mul(m, M.rotate(o.rot)); m = mul(m, M.scale(o.scale)); m = mul(m, M.translate(-ax, -ay));
-    return m;
-  }
+  // ====== 캔버스 ======
+  function resizeCanvas(){ const r=stage.getBoundingClientRect(); canvas.width=Math.max(1,Math.floor(r.width*dpr)); canvas.height=Math.max(1,Math.floor(r.height*dpr)); draw(); }
+  window.addEventListener('resize', ()=>{ resizeCanvas(); fitIfNeeded(); });
+  function fitIfNeeded(){ const {base,view}=state; if(!base.loaded) return; const r=stage.getBoundingClientRect(); const s=Math.min(r.width/base.w, r.height/base.h); view.scale=Math.max(s,0.05); view.initScale=view.scale; const cx=r.width/2, cy=r.height/2; view.x=cx - base.w*view.scale/2; view.y=cy - base.h*view.scale/2; }
+  function resetOverlayPlacement(){ const {base,overlay}=state; if(!base.loaded||!overlay.loaded) return; overlay.scale=Math.min(1, Math.max((Math.min(base.w,base.h)*0.4)/Math.max(overlay.w,overlay.h), 0.05)); overlay.rot=0; overlay.x=base.w*0.5; overlay.y=base.h*0.5; }
+  function draw(){ const {base,overlay,view}=state; ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,canvas.width,canvas.height); if(!base.loaded){ ctx.save(); ctx.fillStyle='rgba(255,255,255,0.08)'; ctx.font='600 18px system-ui,-apple-system,Segoe UI,Roboto,sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('베이스 이미지를 불러오세요', canvas.width/(2*dpr), canvas.height/(2*dpr)); ctx.restore(); return; } ctx.save(); ctx.translate(state.view.x,state.view.y); ctx.scale(state.view.scale,state.view.scale); ctx.drawImage(base.img,0,0,base.w,base.h); if(overlay.loaded){ ctx.save(); const o=state.overlay, ax=o.w*o.anchorX, ay=o.h*o.anchorY; ctx.translate(o.x,o.y); ctx.rotate(o.rot); ctx.scale(o.scale,o.scale); ctx.translate(-ax,-ay); ctx.globalAlpha=o.opacity; ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high'; ctx.drawImage(o.img,0,0,o.w,o.h); ctx.restore(); } ctx.restore(); }
 
-  // 오버레이 히트테스트 (스크린 좌표 → 베이스 → 오버레이 로컬)
-  function isPointOnOverlay(sx, sy){
-    const o = state.overlay; if(!o.loaded || o.locked) return false;
-    const pBase = screenToBase(sx, sy);
-    const invO = inv(overlayMatrix());
-    const p = apply(invO, pBase);
-    return (p.x >= 0 && p.y >= 0 && p.x <= o.w && p.y <= o.h);
-  }
+  // ====== 이미지 로더 ======
+  async function loadImageFromFile(file){ if(!file) return null; if('createImageBitmap' in window){ try{ const bmp=await createImageBitmap(file,{imageOrientation:'from-image'}); return {source:bmp, w:bmp.width, h:bmp.height}; }catch{} } const url=URL.createObjectURL(file); try{ const img=await new Promise((res,rej)=>{ const im=new Image(); im.onload=()=>res(im); im.onerror=()=>rej(new Error('이미지 디코드 실패')); im.src=url;}); const w=img.naturalWidth||img.width, h=img.naturalHeight||img.height; if(!w||!h) throw new Error('이미지 크기 오류'); return {source:img, w, h}; } finally { setTimeout(()=>{ try{ URL.revokeObjectURL(url);}catch{} }, 10000); } }
 
-  // ---- 캔버스 ----
-  function resizeCanvas(){
-    const rect = stage.getBoundingClientRect();
-    canvas.width = Math.max(1, Math.floor(rect.width * dpr));
-    canvas.height = Math.max(1, Math.floor(rect.height * dpr));
-    draw();
-  }
-  window.addEventListener('resize', () => { resizeCanvas(); fitIfNeeded(); });
+  baseInput.addEventListener('change', async (e)=>{ const f=e.target.files&&e.target.files[0]; if(!f) return; const L=await loadImageFromFile(f).catch(err=>{ showToast(err.message||'이미지 로드 실패'); return null; }); if(!L) return; state.base={img:L.source,w:L.w,h:L.h,loaded:true}; status.textContent=`베이스: ${f.name} (${L.w}×${L.h})`; resizeCanvas(); fitIfNeeded(); draw(); if(state.overlay.loaded){ resetOverlayPlacement(); draw(); } });
+  overlayInput.addEventListener('change', async (e)=>{ const f=e.target.files&&e.target.files[0]; if(!f) return; const L=await loadImageFromFile(f).catch(err=>{ showToast(err.message||'이미지 로드 실패'); return null; }); if(!L) return; state.overlay={...state.overlay,img:L.source,w:L.w,h:L.h,loaded:true}; status.textContent=`오버레이: ${f.name} (${L.w}×${L.h})`; resetOverlayPlacement(); draw(); });
 
-  function fitIfNeeded(){
-    const { base, view } = state; if(!base.loaded) return;
-    const rect = stage.getBoundingClientRect();
-    const fitScale = Math.min(rect.width / base.w, rect.height / base.h);
-    view.scale = Math.max(fitScale, 0.05);
-    view.initScale = view.scale;
-    const screenCenter = { x: rect.width/2, y: rect.height/2 };
-    const contentSize = { w: base.w * view.scale, h: base.h * view.scale };
-    view.x = screenCenter.x - contentSize.w/2;
-    view.y = screenCenter.y - contentSize.h/2;
-  }
-
-  function resetOverlayPlacement(){
-    const { base, overlay } = state; if(!base.loaded || !overlay.loaded) return;
-    overlay.scale = Math.min(1, Math.max((Math.min(base.w, base.h) * 0.4) / Math.max(overlay.w, overlay.h), 0.05));
-    overlay.rot = 0; overlay.x = base.w*0.5; overlay.y = base.h*0.5;
-  }
-
-  function draw(){
-    const { base, overlay, view } = state;
-    ctx.setTransform(dpr,0,0,dpr,0,0);
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-
-    if(!base.loaded){
-      ctx.save(); ctx.fillStyle='rgba(255,255,255,0.08)'; ctx.font='600 18px system-ui,-apple-system,Segoe UI,Roboto,sans-serif';
-      ctx.textAlign='center'; ctx.textBaseline='middle';
-      ctx.fillText('베이스 이미지를 불러오세요', canvas.width/(2*dpr), canvas.height/(2*dpr)); ctx.restore(); return;
-    }
-
-    ctx.save(); ctx.translate(view.x, view.y); ctx.scale(view.scale, view.scale);
-    ctx.drawImage(base.img, 0, 0, base.w, base.h);
-    if(overlay.loaded){
-      ctx.save(); const ax=overlay.w*overlay.anchorX, ay=overlay.h*overlay.anchorY;
-      ctx.translate(overlay.x, overlay.y); ctx.rotate(overlay.rot); ctx.scale(overlay.scale, overlay.scale); ctx.translate(-ax,-ay);
-      ctx.globalAlpha = overlay.opacity; ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality='high';
-      ctx.drawImage(overlay.img, 0, 0, overlay.w, overlay.h); ctx.restore();
-    }
-    ctx.restore();
-  }
-
-  // ---- 이미지 로드 ----
-  async function loadImageFromFile(file){
-    if(!file) return null;
-    // 1) 가장 안정적인 경로: createImageBitmap(file)
-    if('createImageBitmap' in window){
-      try{
-        const bmp = await createImageBitmap(file, { imageOrientation:'from-image' });
-        return { source:bmp, w:bmp.width, h:bmp.height };
-      }catch(e){ /* fallback */ }
-    }
-    // 2) ObjectURL + <img>
-    const url = URL.createObjectURL(file);
-    try{
-      const img = await new Promise((res, rej)=>{ const im=new Image(); im.onload=()=>res(im); im.onerror=()=>rej(new Error('이미지 디코드 실패')); im.src=url; });
-      const w = img.naturalWidth||img.width, h=img.naturalHeight||img.height; if(!w||!h) throw new Error('이미지 크기 오류');
-      return { source:img, w, h };
-    } finally {
-      // 일부 단말에서 즉시 revoke 시 페인트 지연 이슈 → 지연 해제
-      setTimeout(()=>{ try{ URL.revokeObjectURL(url); }catch{} }, 10000);
-    }
-  }
-
-  baseInput.addEventListener('change', async (e)=>{
-    const file = e.target.files && e.target.files[0]; if(!file) return;
-    let loaded=null; try{ loaded=await loadImageFromFile(file); }catch(err){ showToast(err.message||'이미지 로드 실패'); }
-    if(!loaded) { showToast('이미지 로드 실패/미지원 형식'); return; }
-    state.base = { img:loaded.source, w:loaded.w, h:loaded.h, loaded:true };
-    status.textContent = `베이스: ${file.name} (${state.base.w}×${state.base.h})`;
-    resizeCanvas(); fitIfNeeded(); draw(); if(state.overlay.loaded){ resetOverlayPlacement(); draw(); }
-  });
-
-  overlayInput.addEventListener('change', async (e)=>{
-    const file = e.target.files && e.target.files[0]; if(!file) return;
-    let loaded=null; try{ loaded=await loadImageFromFile(file); }catch(err){ showToast(err.message||'이미지 로드 실패'); }
-    if(!loaded) { showToast('이미지 로드 실패/미지원 형식'); return; }
-    state.overlay = { ...state.overlay, img:loaded.source, w:loaded.w, h:loaded.h, loaded:true };
-    status.textContent = `오버레이: ${file.name} (${state.overlay.w}×${state.overlay.h})`;
-    resetOverlayPlacement(); draw();
-  });
-
-  opacitySlider.addEventListener('input', (e)=>{ state.overlay.opacity=parseFloat(e.target.value||'1'); opacityVal.textContent=Math.round(state.overlay.opacity*100)+'%'; draw(); });
-
+  opacitySlider.addEventListener('input', e=>{ state.overlay.opacity=parseFloat(e.target.value||'1'); opacityVal.textContent=Math.round(state.overlay.opacity*100)+'%'; draw(); });
   resetViewBtn.addEventListener('click', ()=>{ fitIfNeeded(); if(state.overlay.loaded) resetOverlayPlacement(); draw(); showToast('뷰/오버레이 재설정'); });
-
   lockBtn.addEventListener('click', ()=>{ state.overlay.locked=!state.overlay.locked; lockBtn.textContent= state.overlay.locked? '잠금 🔒':'잠금 🔓'; lockBtn.classList.toggle('lock', state.overlay.locked); showToast(state.overlay.locked?'오버레이 잠금':'오버레이 해제'); });
-
-  clearOverlayBtn.addEventListener('click', ()=>{ const keepOpacity=state.overlay.opacity; state.overlay={ img:null,w:0,h:0,loaded:false,x:0,y:0,scale:1,rot:0,opacity:keepOpacity,anchorX:.5,anchorY:.5,locked:false}; draw(); showToast('오버레이 제거'); });
-
-  exportBtn.addEventListener('click', ()=>{ if(!state.base.loaded){ showToast('베이스 이미지가 필요해요'); return; } const url=canvas.toDataURL('image/png'); const a=document.createElement('a'); a.href=url; a.download='overlayed.png'; document.body.appendChild(a); a.click(); a.remove(); try{ window.open(url,'_blank'); }catch{} showToast('PNG로 내보냈어요'); });
-
+  clearOverlayBtn.addEventListener('click', ()=>{ const keep=state.overlay.opacity; state.overlay={ img:null,w:0,h:0,loaded:false,x:0,y:0,scale:1,rot:0,opacity:keep,anchorX:.5,anchorY:.5,locked:false}; draw(); showToast('오버레이 제거'); });
+  exportBtn.addEventListener('click', ()=>{ if(!state.base.loaded){ showToast('베이스 이미지가 필요해'); return; } const url=canvas.toDataURL('image/png'); const a=document.createElement('a'); a.href=url; a.download='overlayed.png'; document.body.appendChild(a); a.click(); a.remove(); try{ window.open(url,'_blank'); }catch{} showToast('PNG 저장 완료'); });
   helpToggle.addEventListener('click', ()=> help.classList.toggle('open'));
 
-  // ---- 제스처 (Pointer Events) ----
-  canvas.addEventListener('pointerdown', onPointerDown, {passive:false});
-  canvas.addEventListener('pointermove', onPointerMove, {passive:false});
-  canvas.addEventListener('pointerup', onPointerUp, {passive:false});
-  canvas.addEventListener('pointercancel', onPointerUp, {passive:false});
-  canvas.addEventListener('gesturestart', e=>e.preventDefault());
-  canvas.addEventListener('gesturechange', e=>e.preventDefault());
-  canvas.addEventListener('gestureend', e=>e.preventDefault());
+  // ====== 입력 파이프라인 (중복 차단: 포인터 우선, 없으면 터치 폴백) ======
+  function attachInput(){ const opts={passive:false}; const supportsPointer= !!(window.PointerEvent && 'onpointerdown' in window); if(supportsPointer){ canvas.addEventListener('pointerdown', onPointerDown, opts); canvas.addEventListener('pointermove', onPointerMove, opts); canvas.addEventListener('pointerup', onPointerUp, opts); canvas.addEventListener('pointercancel', onPointerUp, opts); } else { canvas.addEventListener('touchstart', tStart, opts); canvas.addEventListener('touchmove', tMove, opts); canvas.addEventListener('touchend', tEnd, opts); canvas.addEventListener('touchcancel', tEnd, opts); }
+    // iOS만 의미 있는 제스처 이벤트이지만, 다른 브라우저에도 무해
+    canvas.addEventListener('gesturestart', e=>e.preventDefault()); canvas.addEventListener('gesturechange', e=>e.preventDefault()); canvas.addEventListener('gestureend', e=>e.preventDefault()); }
 
-  function onPointerDown(e){
-    e.preventDefault(); try{ e.target.setPointerCapture && e.target.setPointerCapture(e.pointerId);}catch{}
-    state.pointers.set(e.pointerId, { x:e.clientX, y:e.clientY });
-    const pts=[...state.pointers.values()];
-    if(pts.length===1){
-      const target = isPointOnOverlay(e.clientX,e.clientY) ? 'overlay':'base';
-      modePill.textContent = `제스처: ${target==='overlay'?'오버레이':'베이스'}`;
-      if(target==='overlay'){
-        const basePt=screenToBase(e.clientX,e.clientY);
-        state.gesture={ target, mode:'drag', start:{ basePt, x:state.overlay.x, y:state.overlay.y } };
-      } else {
-        state.gesture={ target, mode:'drag', start:{ x:state.view.x, y:state.view.y, last:{ x:e.clientX, y:e.clientY } } };
-      }
-    } else if(pts.length===2){
-      state.wasPinching=true;
-      const p1=pts[0], p2=pts[1];
-      const mid={ x:(p1.x+p2.x)/2, y:(p1.y+p2.y)/2 }; const dist=Math.hypot(p2.x-p1.x,p2.y-p1.y); const ang=Math.atan2(p2.y-p1.y,p2.x-p1.x);
-      const target = isPointOnOverlay(mid.x, mid.y) ? 'overlay':'base';
-      modePill.textContent = `제스처: ${target==='overlay'?'오버레이':'베이스'}`;
-      if(target==='overlay'){
-        const baseMid=screenToBase(mid.x,mid.y);
-        state.gesture={ target, mode:'pinch', start:{ midScreen:mid, baseMid, dist, ang, x:state.overlay.x, y:state.overlay.y, scale:state.overlay.scale, rot:state.overlay.rot } };
-      } else {
-        const v=state.view; const world=screenToBase(mid.x,mid.y);
-        state.gesture={ target, mode:'pinch', start:{ mid, dist, world, scale:v.scale, x:v.x, y:v.y } };
-      }
-    }
+  function tStart(e){ e.preventDefault(); for(const t of e.changedTouches){ onPointerDown({ pointerId:1000+t.identifier, clientX:t.clientX, clientY:t.clientY, target:canvas, preventDefault:()=>e.preventDefault() }); } }
+  function tMove(e){ e.preventDefault(); for(const t of e.changedTouches){ onPointerMove({ pointerId:1000+t.identifier, clientX:t.clientX, clientY:t.clientY, target:canvas, preventDefault:()=>e.preventDefault() }); } }
+  function tEnd(e){ e.preventDefault(); for(const t of e.changedTouches){ onPointerUp({ pointerId:1000+t.identifier, clientX:t.clientX, clientY:t.clientY, target:canvas, preventDefault:()=>e.preventDefault() }); } }
+
+  function onPointerDown(e){ e.preventDefault(); if(state.pointers.size>=2) return; try{ e.target.setPointerCapture && e.target.setPointerCapture(e.pointerId);}catch{} state.pointers.set(e.pointerId,{x:e.clientX,y:e.clientY}); const pts=[...state.pointers.values()]; if(pts.length===1){ const target=isPointOnOverlay(e.clientX,e.clientY)?'overlay':'base'; modePill.textContent=`제스처: ${target==='overlay'?'오버레이':'베이스'}`; if(target==='overlay'){ const bp=screenToBase(e.clientX,e.clientY); state.gesture={ target, mode:'drag', start:{ basePt:bp, x:state.overlay.x, y:state.overlay.y } }; } else { state.gesture={ target, mode:'drag', start:{ x:state.view.x, y:state.view.y, last:{x:e.clientX,y:e.clientY} } }; } } else if(pts.length===2){ state.wasPinching=true; const p1=pts[0], p2=pts[1]; const mid={x:(p1.x+p2.x)/2, y:(p1.y+p2.y)/2}, dist=Math.hypot(p2.x-p1.x,p2.y-p1.y), ang=Math.atan2(p2.y-p1.y,p2.x-p1.x); const target=isPointOnOverlay(mid.x,mid.y)?'overlay':'base'; modePill.textContent=`제스처: ${target==='overlay'?'오버레이':'베이스'}`; if(target==='overlay'){ const baseMid=screenToBase(mid.x,mid.y); state.gesture={ target, mode:'pinch', start:{ midScreen:mid, baseMid, dist, ang, x:state.overlay.x, y:state.overlay.y, scale:state.overlay.scale, rot:state.overlay.rot } }; } else { const v=state.view, world=screenToBase(mid.x,mid.y); state.gesture={ target, mode:'pinch', start:{ mid, dist, world, scale:v.scale, x:v.x, y:v.y } }; } } }
+
+  function onPointerMove(e){ if(!state.pointers.has(e.pointerId)) return; e.preventDefault(); state.pointers.set(e.pointerId,{x:e.clientX,y:e.clientY}); const g=state.gesture; if(!g) return; const pts=[...state.pointers.values()]; if(g.mode==='drag' && pts.length===1){ if(g.target==='overlay'){ const bp=screenToBase(e.clientX,e.clientY); state.overlay.x=g.start.x+(bp.x-g.start.basePt.x); state.overlay.y=g.start.y+(bp.y-g.start.basePt.y); } else { const last=g.start.last; state.view.x=g.start.x+(e.clientX-last.x); state.view.y=g.start.y+(e.clientY-last.y); } draw(); }
+    if(pts.length===2 && g.mode==='pinch'){ const p1=pts[0], p2=pts[1]; const mid={x:(p1.x+p2.x)/2, y:(p1.y+p2.y)/2}, dist=Math.hypot(p2.x-p1.x,p2.y-p1.y), ang=Math.atan2(p2.y-p1.y,p2.x-p1.x); if(g.target==='overlay'){ const sf=clamp(dist/g.start.dist, 0.02, 100); state.overlay.scale=clamp(g.start.scale*sf, 0.02, 100); state.overlay.rot=g.start.rot+(ang-g.start.ang); const baseMid=screenToBase(mid.x,mid.y); state.overlay.x=g.start.x+(baseMid.x-g.start.baseMid.x); state.overlay.y=g.start.y+(baseMid.y-g.start.baseMid.y); } else { const scale=clamp(g.start.scale*(dist/g.start.dist), 0.02, 50); state.view.scale=scale; state.view.x=g.start.mid.x - g.start.world.x*scale; state.view.y=g.start.mid.y - g.start.world.y*scale; } draw(); }
   }
 
-  function onPointerMove(e){
-    if(!state.pointers.has(e.pointerId)) return; e.preventDefault();
-    state.pointers.set(e.pointerId, { x:e.clientX, y:e.clientY });
-    const g=state.gesture; if(!g) return; const pts=[...state.pointers.values()];
-    if(g.mode==='drag' && pts.length===1){
-      if(g.target==='overlay'){
-        const basePt=screenToBase(e.clientX,e.clientY); const dx=basePt.x-g.start.basePt.x, dy=basePt.y-g.start.basePt.y;
-        state.overlay.x=g.start.x+dx; state.overlay.y=g.start.y+dy;
-      } else {
-        const last=g.start.last; const dx=e.clientX-last.x, dy=e.clientY-last.y; state.view.x=g.start.x+dx; state.view.y=g.start.y+dy;
-      }
-      draw();
-    }
-    if(pts.length===2 && g.mode==='pinch'){
-      const p1=pts[0], p2=pts[1]; const mid={ x:(p1.x+p2.x)/2, y:(p1.y+p2.y)/2 }; const dist=Math.hypot(p2.x-p1.x,p2.y-p1.y); const ang=Math.atan2(p2.y-p1.y,p2.x-p1.x);
-      if(g.target==='overlay'){
-        const scaleFactor=Math.max(0.02, dist/g.start.dist); state.overlay.scale=Math.max(0.02, Math.min(100, g.start.scale*scaleFactor));
-        state.overlay.rot=g.start.rot+(ang-g.start.ang);
-        const baseMid=screenToBase(mid.x,mid.y); state.overlay.x=g.start.x+(baseMid.x-g.start.baseMid.x); state.overlay.y=g.start.y+(baseMid.y-g.start.baseMid.y);
-      } else {
-        const scale = clamp(g.start.scale * (dist / g.start.dist), 0.02, 50); state.view.scale=scale; state.view.x=g.start.mid.x - g.start.world.x*scale; state.view.y=g.start.mid.y - g.start.world.y*scale;
-      }
-      draw();
-    }
+  function onPointerUp(e){ e.preventDefault(); state.pointers.delete(e.pointerId); if(state.pointers.size<2) state.gesture=null; if(state.wasPinching){ if(state.pointers.size===0){ state.wasPinching=false; } state.gesture=null; }
   }
 
-  function onPointerUp(e){
-    e.preventDefault(); state.pointers.delete(e.pointerId); if(state.pointers.size<2) state.gesture=null;
-    if(state.wasPinching){ if(state.pointers.size===0){ setTimeout(()=>{ state.wasPinching=false; },0); } return; }
-    // 더블탭 리셋 비활성화 (사용자 요청)
-    const now=performance.now(); if(false && now-state.lastTap.t<300){ /* disabled */ } else { state.lastTap={ t:now, x:e.clientX, y:e.clientY }; }
-  }
-
-  function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
-
-  // ---- 초기화 ----
-  resizeCanvas(); showToast('베이스를 불러오세요');
+  // ====== 초기화 ======
+  // 안전: 일부 단말에서 스타일 캐시로 touch-action이 무시될 수 있으니 속성 재보강
+  canvas.style.touchAction = 'none'; stage.style.touchAction = 'none';
+  attachInput(); resizeCanvas(); showToast('베이스를 불러오세요');
 })();
 </script>
 </body>
