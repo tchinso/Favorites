@@ -2,370 +2,348 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>마우스 상태 점검 (샌드박스 격리판)</title>
+  <title>마우스 상태 점검</title>
   <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
-    html,body{height:100%;margin:0}
-    /* 바깥 문서는 오로지 프레임만 꽉 채워 표시 */
-    #app-frame{
-      width:100%; height:100%; border:0; display:block;
-      background:#0b0f14;
+    :root{
+      --bg: #0b0f14;
+      --panel: rgba(255,255,255,0.06);
+      --panel-2: rgba(255,255,255,0.10);
+      --text: #e8edf2;
+      --muted: #96a2b1;
+      --accent: #46a5ff;
+      --danger:#ff5a6b;
+      --radius: 16px;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family: ui-sans-serif, -apple-system, Segoe UI, Roboto, "Noto Sans KR", Apple SD Gothic Neo, Helvetica, Arial, sans-serif;
+      color:var(--text);
+      background:
+        radial-gradient(1200px 800px at 10% 0%, #12202f 0%, transparent 60%),
+        radial-gradient(1200px 800px at 90% 100%, #101a2b 0%, transparent 60%),
+        linear-gradient(180deg, #0a0e13, #0b0f14 35%, #0b0f14 100%);
+      overflow:hidden; /* 데스크톱 전용 */
+      user-select:none;
+    }
+
+    header{ padding:24px 28px 10px; }
+    h1{
+      margin:0 0 12px; font-size:24px; letter-spacing:.2px; font-weight:700;
+    }
+    .sub{ color:var(--muted); font-size:14px; }
+
+    /* 탭 버튼 */
+    #controls{ display:flex; gap:10px; padding:14px 28px 0; }
+    #controls button{
+      appearance:none; border:none; background:var(--panel); color:var(--text);
+      padding:12px 16px; border-radius:12px; font-size:15px; letter-spacing:.2px;
+      cursor:pointer; transition:.2s ease; backdrop-filter: blur(6px);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.08);
+    }
+    #controls button:hover{ background:var(--panel-2) }
+    #controls button.is-active{
+      background: linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,.06));
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.18), 0 6px 18px rgba(0,0,0,.25);
+    }
+
+    /* 스테이지 레이아웃: 화면 거의 전부 */
+    .sections{ position:relative; padding:18px 28px 28px; height: calc(100vh - 126px); }
+    .section{ position:absolute; inset:18px 28px 28px; display:none; }
+    .section.active{ display:block }
+    .stage{
+      position:absolute; inset:0; border-radius:var(--radius);
+      background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.03));
+      box-shadow: 0 10px 30px rgba(0,0,0,.35), inset 0 0 0 1px rgba(255,255,255,.08);
+      overflow:hidden;
+    }
+
+    /* HUD/힌트는 클릭 차단 */
+    .hud, .hint{ pointer-events:none; }
+    .hud{ position:absolute; top:16px; left:16px; display:flex; gap:8px; flex-wrap:wrap; z-index:5; }
+    .pill{
+      padding:8px 12px; border-radius:999px; background:rgba(0,0,0,.35);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.08);
+      font-size:13px; color:#cfe3ff;
+    }
+    .pill b{ color:#fff }
+    .hint{
+      position:absolute; bottom:18px; left:18px; color:var(--muted); font-size:14px;
+      background:rgba(0,0,0,.35); padding:8px 12px; border-radius:10px;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.06); z-index:5;
+    }
+
+    /* 더블클릭 */
+    #doubleStage{ display:grid; place-items:center; cursor:pointer; }
+    .big-label{ font-size:32px; font-weight:800; letter-spacing:.3px; text-align:center; text-shadow:0 2px 14px rgba(0,0,0,.45); }
+    .warn{
+      position:absolute; right:16px; top:16px; background:rgba(255,90,107,.16); color:#ffd5da;
+      border-radius:12px; padding:10px 12px; font-weight:700; font-size:13px; letter-spacing:.2px;
+      opacity:0; transform:translateY(-6px); transition:.25s ease;
+      box-shadow: inset 0 0 0 1px rgba(255,90,107,.35);
+    }
+    .warn.show{ opacity:1; transform:none }
+    .flash{ animation: flash .22s ease; }
+    @keyframes flash{
+      0%{ box-shadow: inset 0 0 0 9999px rgba(255,90,107,.25) }
+      100%{ box-shadow: inset 0 0 0 0 rgba(255,90,107,0) }
+    }
+
+    /* 드래그 */
+    #dragStage{ display:flex; }
+    #draw{
+      flex:1; width:100%; height:100%; display:block;
+      background:
+        repeating-conic-gradient(from 0deg, rgba(255,255,255,.02) 0 25%, transparent 0 50%) 0/28px 28px,
+        linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.01));
+      cursor: crosshair;
+      touch-action: none; /* 제스처 해제 */
+    }
+    .float-controls{
+      position:absolute; right:16px; bottom:16px; z-index:6; display:flex; gap:8px;
+      pointer-events:auto;
+    }
+    .btn{
+      appearance:none; border:none; cursor:pointer;
+      padding:10px 14px; border-radius:12px; background:rgba(0,0,0,.35);
+      color:#fff; font-size:14px; letter-spacing:.2px;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.08); transition:.2s ease;
+    }
+    .btn:hover{ background:rgba(255,255,255,.12) }
+
+    /* 휠 */
+    .wheel-wrap{ position:absolute; inset:0; display:flex; flex-direction:column; gap:14px; padding:18px; }
+    #wheel{
+      flex:1; min-height:180px; border-radius:12px; background:rgba(0,0,0,.25);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.08);
+      width:100%; height:100%; display:block;
+      touch-action: none;
     }
   </style>
 </head>
 <body>
-  <!-- 핵심: 샌드박스 iframe. 외부 확장/유저스크립트 간섭 최소화 -->
-  <iframe id="app-frame"
-          title="Mouse Tester"
-          sandbox="allow-scripts allow-pointer-lock"
-          referrerpolicy="no-referrer"></iframe>
+  <header>
+    <h1>마우스 상태 점검</h1>
+    <div class="sub">더블클릭, 드래그, 휠을 화면 가득— 시원하게 테스트해봐… 히요리가 옆에서 조심스레 지켜볼게…</div>
+  </header>
 
+  <div id="controls">
+    <button data-target="double" class="is-active">더블클릭 테스트</button>
+    <button data-target="drag">드래그 테스트</button>
+    <button data-target="wheel">휠 테스트</button>
+  </div>
+
+  <div class="sections">
+    <section id="double" class="section active">
+      <div id="doubleStage" class="stage">
+        <div class="hud">
+          <div class="pill">전체 클릭 <b id="totalClicks">0</b></div>
+          <div class="pill">빠른 더블클릭 <b id="doubleCount">0</b></div>
+        </div>
+        <div class="warn" id="doubleWarn">⚠ 빠른 더블클릭 감지</div>
+        <div class="big-label">여기를 빠르게 두 번 클릭… 톡—톡…</div>
+        <div class="hint">임계 100ms 기준으로 감지해줄게…</div>
+      </div>
+    </section>
+
+    <section id="drag" class="section">
+      <div id="dragStage" class="stage">
+        <canvas id="draw"></canvas>
+        <div class="hud">
+          <div class="pill">선 두께 <b id="lw">2px</b></div>
+          <div class="pill">해상도 보정 <b id="dprView">1×</b></div>
+        </div>
+        <div class="float-controls">
+          <button id="reset" class="btn">리셋</button>
+          <button id="smooth" class="btn">부드러움 ON</button>
+        </div>
+        <div class="hint">화면 가득 캔버스야. 이제는 이벤트를 붙잡아서 선이 꼭 생길 거야…</div>
+      </div>
+    </section>
+
+    <section id="wheel" class="section">
+      <div class="stage wheel-wrap">
+        <div class="hud">
+          <div class="pill">표시 구간 <b>최근 1분</b></div>
+          <div class="pill">위로 스크롤은 상단, 아래로는 하단 막대</div>
+        </div>
+        <canvas id="wheel"></canvas>
+        <div class="hint">이 구역 안에서 휠을 굴려줘… 기록은 실시간으로 쌓여…</div>
+      </div>
+    </section>
+  </div>
+
+  <!-- 스크립트: 아이프레임/템플릿 문자열 없음 (차단 회피 오해 방지) -->
   <script>
-  // 내부 앱을 srcdoc으로 주입 (외부 JS와 완전 분리)
-  const src = `<!DOCTYPE html>
-  <html lang="ko">
-  <head>
-    <meta charset="UTF-8" />
-    <title>마우스 상태 점검</title>
-    <style>
-      :root{
-        --bg: #0b0f14;
-        --panel: rgba(255,255,255,0.06);
-        --panel-2: rgba(255,255,255,0.10);
-        --text: #e8edf2;
-        --muted: #96a2b1;
-        --accent: #46a5ff;
-        --danger:#ff5a6b;
-        --radius: 16px;
-      }
-      *{box-sizing:border-box}
-      html,body{height:100%}
-      body{
-        margin:0; color:var(--text);
-        font-family: ui-sans-serif, -apple-system, Segoe UI, Roboto, "Noto Sans KR", Apple SD Gothic Neo, Helvetica, Arial, sans-serif;
-        background:
-          radial-gradient(1200px 800px at 10% 0%, #12202f 0%, transparent 60%),
-          radial-gradient(1200px 800px at 90% 100%, #101a2b 0%, transparent 60%),
-          linear-gradient(180deg, #0a0e13, #0b0f14 35%, #0b0f14 100%);
-        overflow:hidden;
-        user-select:none;
-      }
-      header{ padding:24px 28px 10px; }
-      h1{ margin:0 0 12px; font-size:24px; letter-spacing:.2px; font-weight:700; }
-      .sub{ color:var(--muted); font-size:14px; }
-
-      /* 탭 */
-      #controls{ display:flex; gap:10px; padding:14px 28px 0; }
-      #controls button{
-        appearance:none; border:none; cursor:pointer;
-        background:var(--panel); color:var(--text);
-        padding:12px 16px; border-radius:12px; font-size:15px; letter-spacing:.2px;
-        transition:.2s ease; backdrop-filter: blur(6px);
-        box-shadow: inset 0 0 0 1px rgba(255,255,255,.08);
-      }
-      #controls button:hover{ background:var(--panel-2) }
-      #controls button.is-active{
-        background: linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,.06));
-        box-shadow: inset 0 0 0 1px rgba(255,255,255,.18), 0 6px 18px rgba(0,0,0,.25);
-      }
-
-      .sections{ position:relative; padding:18px 28px 28px; height: calc(100vh - 126px); }
-      .section{ position:absolute; inset:18px 28px 28px; display:none; }
-      .section.active{ display:block }
-
-      .stage{
-        position:absolute; inset:0; border-radius:var(--radius);
-        background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.03));
-        box-shadow: 0 10px 30px rgba(0,0,0,.35), inset 0 0 0 1px rgba(255,255,255,.08);
-        overflow:hidden;
-      }
-
-      /* HUD는 이벤트 간섭 막기 위해 기본적으로 클릭차단 */
-      .hud, .hint{ pointer-events:none; }
-      .hud{ position:absolute; top:16px; left:16px; display:flex; gap:8px; flex-wrap:wrap; z-index:5; }
-      .pill{
-        padding:8px 12px; border-radius:999px; background:rgba(0,0,0,.35);
-        box-shadow: inset 0 0 0 1px rgba(255,255,255,.08);
-        font-size:13px; color:#cfe3ff;
-      }
-      .pill b{ color:#fff }
-      .hint{
-        position:absolute; bottom:18px; left:18px; color:var(--muted); font-size:14px;
-        background:rgba(0,0,0,.35); padding:8px 12px; border-radius:10px;
-        box-shadow: inset 0 0 0 1px rgba(255,255,255,.06); z-index:5;
-      }
-
-      /* 더블클릭 */
-      #doubleStage{ display:grid; place-items:center; cursor:pointer; }
-      .big-label{ font-size:32px; font-weight:800; letter-spacing:.3px; text-align:center; text-shadow:0 2px 14px rgba(0,0,0,.45); }
-      .warn{
-        position:absolute; right:16px; top:16px; background:rgba(255,90,107,.16); color:#ffd5da;
-        border-radius:12px; padding:10px 12px; font-weight:700; font-size:13px; letter-spacing:.2px;
-        opacity:0; transform:translateY(-6px); transition:.25s ease;
-        box-shadow: inset 0 0 0 1px rgba(255,90,107,.35);
-      }
-      .warn.show{ opacity:1; transform:none }
-      .flash{ animation: flash .22s ease; }
-      @keyframes flash{
-        0%{ box-shadow: inset 0 0 0 9999px rgba(255,90,107,.25) }
-        100%{ box-shadow: inset 0 0 0 0 rgba(255,90,107,0) }
-      }
-
-      /* 드래그 */
-      #dragStage{ display:flex; }
-      #dragCanvas{
-        flex:1; width:100%; height:100%; display:block; background:
-          repeating-conic-gradient(from 0deg, rgba(255,255,255,.02) 0 25%, transparent 0 50%) 0/28px 28px,
-          linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.01));
-        cursor: crosshair;
-        /* 핵심: 터치/제스처 끄기 + 포인터 이벤트 확실히 받기 */
-        touch-action: none;
-      }
-      .float-controls{
-        position:absolute; right:16px; bottom:16px; z-index:6; display:flex; gap:8px;
-        /* 버튼만 클릭되게 */
-        pointer-events:auto;
-      }
-      .btn{
-        appearance:none; border:none; cursor:pointer;
-        padding:10px 14px; border-radius:12px; background:rgba(0,0,0,.35);
-        color:#fff; font-size:14px; letter-spacing:.2px;
-        box-shadow: inset 0 0 0 1px rgba(255,255,255,.08); transition:.2s ease;
-      }
-      .btn:hover{ background:rgba(255,255,255,.12) }
-
-      /* 휠 */
-      .wheel-wrap{ position:absolute; inset:0; display:flex; flex-direction:column; gap:14px; padding:18px; }
-      #wheelCanvas{
-        flex:1; min-height:180px; border-radius:12px; background:rgba(0,0,0,.25);
-        box-shadow: inset 0 0 0 1px rgba(255,255,255,.08);
-        width:100%; height:100%; display:block;
-        touch-action: none;
-      }
-    </style>
-  </head>
-  <body>
-    <header>
-      <h1>마우스 상태 점검</h1>
-      <div class="sub">더블클릭, 드래그, 휠을 화면 가득— 시원하게 테스트해봐… 히요리는 옆에서 조심스레 지켜볼게…</div>
-    </header>
-
-    <div id="controls">
-      <button data-target="double" class="is-active">더블클릭 테스트</button>
-      <button data-target="drag">드래그 테스트</button>
-      <button data-target="wheel">휠 테스트</button>
-    </div>
-
-    <div class="sections">
-      <section id="double" class="section active">
-        <div id="doubleStage" class="stage">
-          <div class="hud">
-            <div class="pill">전체 클릭 <b id="totalClicks">0</b></div>
-            <div class="pill">빠른 더블클릭 <b id="doubleCount">0</b></div>
-          </div>
-          <div class="warn" id="doubleWarn">⚠ 빠른 더블클릭 감지</div>
-          <div class="big-label">여기를 빠르게 두 번 클릭… 톡—톡…</div>
-          <div class="hint">임계 100ms 기준으로 감지해줄게…</div>
-        </div>
-      </section>
-
-      <section id="drag" class="section">
-        <div id="dragStage" class="stage">
-          <canvas id="dragCanvas"></canvas>
-          <div class="hud">
-            <div class="pill">선 두께 <b id="lw">2px</b></div>
-            <div class="pill">해상도 보정 <b id="dprView">1×</b></div>
-          </div>
-          <div class="float-controls">
-            <button id="dragReset" class="btn">리셋</button>
-            <button id="toggleSmooth" class="btn">부드러움 ON</button>
-          </div>
-          <div class="hint">화면을 가득 쓰는 캔버스야. 선이 안 그려지면… 이제는 그럴 리 없게 잡았어…</div>
-        </div>
-      </section>
-
-      <section id="wheel" class="section">
-        <div class="stage wheel-wrap">
-          <div class="hud">
-            <div class="pill">표시 구간 <b>최근 1분</b></div>
-            <div class="pill">위로 스크롤은 상단, 아래로는 하단 막대</div>
-          </div>
-          <canvas id="wheelCanvas"></canvas>
-          <div class="hint">이 구역 안에서 휠을 굴려줘… 기록은 실시간으로 쌓여…</div>
-        </div>
-      </section>
-    </div>
-
-    <script>
-      // 탭 전환
-      (function(){
-        const btns = document.querySelectorAll('#controls button');
-        const secs = document.querySelectorAll('.section');
-        btns.forEach(btn=>{
-          btn.addEventListener('click', ()=>{
-            btns.forEach(b=>b.classList.remove('is-active'));
-            btn.classList.add('is-active');
-            const t = btn.dataset.target;
-            secs.forEach(s=>s.classList.toggle('active', s.id===t));
-            // 사이즈 갱신이 필요한 캔버스들 재적용
-            if(t==='drag'){ window.dispatchEvent(new Event('resize')); }
-            if(t==='wheel'){ window.dispatchEvent(new Event('resize')); }
-          });
-        });
-      })();
-
-      // 더블클릭
-      (function(){
-        const stage = document.getElementById('doubleStage');
-        const warn  = document.getElementById('doubleWarn');
-        const totalSpan  = document.getElementById('totalClicks');
-        const doubleSpan = document.getElementById('doubleCount');
-        let last = 0, total=0, fast=0;
-        const TH=100;
-        stage.addEventListener('click', ()=>{
-          const now = performance.now();
-          total++; totalSpan.textContent = total;
-          if(now-last<=TH){
-            fast++; doubleSpan.textContent = fast;
-            stage.classList.remove('flash'); void stage.offsetWidth; stage.classList.add('flash');
-            warn.classList.add('show'); clearTimeout(warn._t);
-            warn._t=setTimeout(()=>warn.classList.remove('show'),1400);
-          }
-          last = now;
-        }, {capture:true}); // 캡처로 더 빨리 받아
-      })();
-
-      // 드래그 (Pointer Events + pointer capture)
-      (function(){
-        const stage  = document.getElementById('dragStage');
-        const canvas = document.getElementById('dragCanvas');
-        const ctx = canvas.getContext('2d');
-        const lwView = document.getElementById('lw');
-        const dprView= document.getElementById('dprView');
-        const btnReset = document.getElementById('dragReset');
-        const btnSmooth= document.getElementById('toggleSmooth');
-
-        let drawing=false, prev=null, smooth=true, dpr=1;
-
-        function fit(){
-          dpr = Math.max(1, window.devicePixelRatio||1);
-          const r = stage.getBoundingClientRect();
-          canvas.style.width = r.width+'px';
-          canvas.style.height= r.height+'px';
-          canvas.width  = Math.max(1, Math.floor(r.width  * dpr));
-          canvas.height = Math.max(1, Math.floor(r.height * dpr));
-          ctx.setTransform(dpr,0,0,dpr,0,0);
-          ctx.lineCap='round'; ctx.lineJoin='round';
-          ctx.strokeStyle='#9ad1ff';
-          ctx.shadowColor='rgba(70,165,255,.35)'; ctx.shadowBlur=4;
-          setLW();
-          dprView.textContent = dpr.toFixed(1)+'×';
+    // 탭 전환
+    (function(){
+      var btns = document.querySelectorAll('#controls button');
+      var secs = document.querySelectorAll('.section');
+      function show(id){
+        for(var i=0;i<secs.length;i++){
+          secs[i].classList.toggle('active', secs[i].id===id);
         }
-        function setLW(){
-          const base=2;
-          ctx.lineWidth = base*(smooth?1.4:1.0);
-          lwView.textContent = Math.round(ctx.lineWidth)+'px';
+        for(var j=0;j<btns.length;j++){
+          btns[j].classList.toggle('is-active', btns[j].dataset.target===id);
         }
-        function p(e){
-          const r = canvas.getBoundingClientRect();
-          return {x: e.clientX - r.left, y: e.clientY - r.top};
+        if(id==='drag' || id==='wheel'){
+          // 크기 재계산
+          window.dispatchEvent(new Event('resize'));
         }
-        function down(e){
-          // 프레임 안에서 캡처로 우리가 이벤트를 '붙잡아'
-          try{ canvas.setPointerCapture(e.pointerId); }catch(_){}
-          drawing = true; prev = p(e);
-          ctx.beginPath(); ctx.moveTo(prev.x, prev.y);
-          e.stopPropagation();
+      }
+      for(var k=0;k<btns.length;k++){
+        btns[k].addEventListener('click', function(e){ show(e.currentTarget.dataset.target); });
+      }
+    })();
+
+    // 더블클릭
+    (function(){
+      var stage = document.getElementById('doubleStage');
+      var warn  = document.getElementById('doubleWarn');
+      var totalSpan  = document.getElementById('totalClicks');
+      var doubleSpan = document.getElementById('doubleCount');
+      var last = 0, total=0, fast=0, TH=100;
+
+      stage.addEventListener('click', function(){
+        var now = performance.now();
+        total++; totalSpan.textContent = String(total);
+        if(now - last <= TH){
+          fast++; doubleSpan.textContent = String(fast);
+          stage.classList.remove('flash'); void stage.offsetWidth; stage.classList.add('flash');
+          warn.classList.add('show'); clearTimeout(warn._t);
+          warn._t = setTimeout(function(){ warn.classList.remove('show'); }, 1400);
         }
-        function move(e){
-          if(!drawing) return;
-          const cur = p(e);
-          if(smooth && prev){
-            const mx=(prev.x+cur.x)/2, my=(prev.y+cur.y)/2;
-            ctx.quadraticCurveTo(prev.x, prev.y, mx, my);
-          }else{
-            ctx.lineTo(cur.x, cur.y);
-          }
-          ctx.stroke(); prev = cur;
-          e.stopPropagation();
+        last = now;
+      }, true); // capture 선점
+    })();
+
+    // 드래그 (Pointer Events + pointer capture)
+    (function(){
+      var box  = document.getElementById('dragStage');
+      var cvs  = document.getElementById('draw');
+      var ctx  = cvs.getContext('2d');
+      var lwView = document.getElementById('lw');
+      var dprView= document.getElementById('dprView');
+      var btnReset = document.getElementById('reset');
+      var btnSmooth= document.getElementById('smooth');
+
+      var drawing=false, prev=null, smooth=true, dpr=1;
+
+      function fit(){
+        dpr = Math.max(1, window.devicePixelRatio || 1);
+        var r = box.getBoundingClientRect();
+        cvs.style.width  = r.width + 'px';
+        cvs.style.height = r.height + 'px';
+        cvs.width  = Math.max(1, Math.floor(r.width  * dpr));
+        cvs.height = Math.max(1, Math.floor(r.height * dpr));
+        ctx.setTransform(dpr,0,0,dpr,0,0);
+        ctx.lineCap='round'; ctx.lineJoin='round';
+        ctx.strokeStyle='#9ad1ff';
+        ctx.shadowColor='rgba(70,165,255,.35)'; ctx.shadowBlur=4;
+        setLW();
+        dprView.textContent = dpr.toFixed(1) + '×';
+      }
+      function setLW(){
+        var base=2;
+        ctx.lineWidth = base * (smooth ? 1.4 : 1.0);
+        lwView.textContent = Math.round(ctx.lineWidth) + 'px';
+      }
+      function pos(e){
+        var r = cvs.getBoundingClientRect();
+        return { x: e.clientX - r.left, y: e.clientY - r.top };
+      }
+      function down(e){
+        try{ cvs.setPointerCapture(e.pointerId); }catch(_){}
+        drawing = true; prev = pos(e);
+        ctx.beginPath(); ctx.moveTo(prev.x, prev.y);
+        e.stopPropagation();
+      }
+      function move(e){
+        if(!drawing) return;
+        var p = pos(e);
+        if(smooth && prev){
+          var mx = (prev.x + p.x)/2;
+          var my = (prev.y + p.y)/2;
+          ctx.quadraticCurveTo(prev.x, prev.y, mx, my);
+        }else{
+          ctx.lineTo(p.x, p.y);
         }
-        function up(){ drawing=false; prev=null }
+        ctx.stroke();
+        prev = p;
+        e.stopPropagation();
+      }
+      function up(){ drawing=false; prev=null; }
 
-        window.addEventListener('resize', fit);
-        fit();
+      window.addEventListener('resize', fit);
+      fit();
 
-        canvas.addEventListener('pointerdown', down, {capture:true});
-        canvas.addEventListener('pointermove', move, {capture:true});
-        window.addEventListener('pointerup',   up,   {capture:true});
-        window.addEventListener('pointercancel', up, {capture:true});
+      cvs.addEventListener('pointerdown', down, true);
+      cvs.addEventListener('pointermove', move,  true);
+      window.addEventListener('pointerup',   up,  true);
+      window.addEventListener('pointercancel', up, true);
 
-        btnReset.addEventListener('click', ()=>ctx.clearRect(0,0,canvas.width,canvas.height));
-        btnSmooth.addEventListener('click', ()=>{ smooth=!smooth; btnSmooth.textContent='부드러움 '+(smooth?'ON':'OFF'); setLW(); });
-      })();
+      btnReset.addEventListener('click', function(){ ctx.clearRect(0,0,cvs.width,cvs.height); });
+      btnSmooth.addEventListener('click', function(){
+        smooth = !smooth;
+        btnSmooth.textContent = '부드러움 ' + (smooth ? 'ON' : 'OFF');
+        setLW();
+      });
+    })();
 
-      // 휠 (캡처 단계 + passive:false, 그리고 폭/높이 정확계산)
-      (function(){
-        const canvas = document.getElementById('wheelCanvas');
-        const ctx = canvas.getContext('2d');
-        let dpr=1; const events=[];
+    // 휠 (capture + passive:false + 좌표 보정)
+    (function(){
+      var cvs = document.getElementById('wheel');
+      var ctx = cvs.getContext('2d');
+      var dpr=1, events=[];
 
-        function fit(){
-          dpr = Math.max(1, window.devicePixelRatio||1);
-          const r = canvas.getBoundingClientRect();
-          canvas.style.width = r.width+'px';
-          canvas.style.height= r.height+'px';
-          canvas.width  = Math.max(1, Math.floor(r.width  * dpr));
-          canvas.height = Math.max(1, Math.floor(r.height * dpr));
-          ctx.setTransform(dpr,0,0,dpr,0,0);
+      function fit(){
+        dpr = Math.max(1, window.devicePixelRatio || 1);
+        var r = cvs.getBoundingClientRect();
+        cvs.style.width  = r.width + 'px';
+        cvs.style.height = r.height + 'px';
+        cvs.width  = Math.max(1, Math.floor(r.width  * dpr));
+        cvs.height = Math.max(1, Math.floor(r.height * dpr));
+        ctx.setTransform(dpr,0,0,dpr,0,0);
+      }
+      window.addEventListener('resize', fit);
+      fit();
+
+      function within(e){
+        var r = cvs.getBoundingClientRect();
+        return e.clientX>=r.left && e.clientX<=r.right && e.clientY>=r.top && e.clientY<=r.bottom;
+      }
+      function onWheel(e){
+        if(!within(e)) return;
+        try{ e.preventDefault(); }catch(_){}
+        events.push({time: performance.now(), up: e.deltaY < 0});
+      }
+      cvs.addEventListener('wheel', onWheel, {passive:false, capture:true});
+      window.addEventListener('wheel', onWheel, {passive:false, capture:true});
+
+      function draw(){
+        var W = cvs.width  / dpr;
+        var H = cvs.height / dpr;
+        var now = performance.now(), span=60000, start = now - span;
+        while(events.length && events[0].time < start){ events.shift(); }
+
+        ctx.clearRect(0,0,W,H);
+        ctx.strokeStyle='rgba(255,255,255,.35)'; ctx.lineWidth=1;
+        ctx.beginPath(); ctx.moveTo(0,H/2); ctx.lineTo(W,H/2); ctx.stroke();
+
+        var barW=4, h=(H/2)*0.88;
+        for(var i=0;i<events.length;i++){
+          var ev = events[i];
+          var x = ( (ev.time - start) / span ) * W;
+          ctx.fillStyle = ev.up ? 'rgba(255,110,130,.9)' : 'rgba(70,165,255,.95)';
+          if(ev.up) ctx.fillRect(x, H/2 - h, barW, h);
+          else      ctx.fillRect(x, H/2,      barW, h);
         }
-        window.addEventListener('resize', fit);
-        fit();
-
-        function withinCanvas(e){
-          const r = canvas.getBoundingClientRect();
-          return e.clientX>=r.left && e.clientX<=r.right && e.clientY>=r.top && e.clientY<=r.bottom;
-        }
-
-        function onWheel(e){
-          if(!withinCanvas(e)) return;
-          // 일부 환경은 휠의 기본 스크롤을 막아야 끊김 없이 기록됨
-          try{ e.preventDefault(); }catch(_){}
-          events.push({ time: performance.now(), up: e.deltaY < 0 });
-        }
-
-        // 타깃과 윈도우 모두에 걸어 중복 백업, 캡처 단계 선점
-        canvas.addEventListener('wheel', onWheel, {passive:false, capture:true});
-        window.addEventListener('wheel', onWheel, {passive:false, capture:true});
-
-        function draw(){
-          const W = canvas.width  / dpr;
-          const H = canvas.height / dpr;
-          const now = performance.now(), start = now - 60000;
-          while(events.length && (now - events[0].time) > 60000) events.shift();
-          ctx.clearRect(0,0,W,H);
-          // mid line
-          ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth=1;
-          ctx.beginPath(); ctx.moveTo(0, H/2); ctx.lineTo(W, H/2); ctx.stroke();
-          const barW = 4, span = 60000;
-          for(const ev of events){
-            const x = ((ev.time - start) / span) * W;
-            const h = (H/2) * 0.88;
-            ctx.fillStyle = ev.up ? 'rgba(255,110,130,.9)' : 'rgba(70,165,255,.95)';
-            if(ev.up) ctx.fillRect(x, H/2 - h, barW, h);
-            else      ctx.fillRect(x, H/2,      barW, h);
-          }
-          requestAnimationFrame(draw);
-        }
-        draw();
-      })();
-    </script>
-  </body>
-  </html>`;
-
-  const iframe = document.getElementById('app-frame');
-  // srcdoc 주입
-  iframe.srcdoc = src;
+        requestAnimationFrame(draw);
+      }
+      draw();
+    })();
   </script>
 </body>
 </html>
