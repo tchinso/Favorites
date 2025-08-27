@@ -3,72 +3,73 @@
 <head>
   <meta charset="UTF-8" />
   <title>마우스 상태 점검</title>
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
   <style>
-    /* 데스크톱 전용 — 화면을 넓게 쓰도록 최소한만 손봄 */
-    html, body { height: 100%; }
-    body {
-      margin: 0; padding: 20px 24px;
+    :root{
+      --bg: #0b0f14;
+      --panel: rgba(255,255,255,0.06);
+      --panel-2: rgba(255,255,255,0.10);
+      --text: #e8edf2;
+      --muted: #96a2b1;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; padding:20px 24px;
       font-family: ui-sans-serif, -apple-system, Segoe UI, Roboto, "Noto Sans KR", Helvetica, Arial, sans-serif;
+      color:var(--text);
       background:
         radial-gradient(1000px 700px at 10% 0%, #12202f 0%, transparent 60%),
         radial-gradient(1000px 700px at 90% 100%, #101a2b 0%, transparent 60%),
         linear-gradient(180deg, #0a0e13, #0b0f14 35%, #0b0f14 100%);
-      color: #e8edf2;
-      overflow: hidden; /* 스크롤로 빠져나가지 않게 */
+      overflow:hidden; /* 데스크톱 전용 */
+      user-select:none;
     }
-    h1 { margin: 0 0 12px; font-size: 24px; }
-    #controls { margin: 8px 0 16px; }
-    #controls button {
-      margin: 5px; padding: 10px 15px; border: none; cursor: pointer;
-      border-radius: 10px; background: rgba(255,255,255,.08); color: #e8edf2;
+    h1{ margin:0 0 12px; font-size:24px; }
+    #controls{ margin:8px 0 16px; }
+    #controls button{
+      margin:5px; padding:10px 15px; border:none; cursor:pointer;
+      border-radius:10px; background:var(--panel); color:var(--text);
       box-shadow: inset 0 0 0 1px rgba(255,255,255,.12);
     }
-    #controls button:hover { background: rgba(255,255,255,.12); }
-    .section { display: none; }
-    .section.active { display: block; }
+    #controls button:hover{ background:var(--panel-2) }
+    .section{ display:none }
+    .section.active{ display:block }
 
-    /* 더블클릭 테스트 영역: 거의 풀화면 */
-    #double h2, #drag h2, #wheel h2 { margin: 8px 0 10px; font-size: 16px; color:#aeb7c4; }
-    #doubleClickArea {
-      width: 100%;
-      height: 80vh;               /* 화면 대부분을 차지 */
-      min-height: 420px;
-      background: #3cb043;        /* 초기버전 색 유지 (로직이 이 값에 의존) */
-      display: flex; align-items: center; justify-content: center;
-      color: #fff; font-size: 22px; user-select: none; cursor: pointer;
-      border-radius: 12px;
-      box-shadow: 0 12px 28px rgba(0,0,0,.35), inset 0 0 0 1px rgba(255,255,255,.14);
+    /* 더블클릭 */
+    #double h2, #drag h2, #wheel h2{ margin:8px 0 10px; font-size:16px; color:#aeb7c4 }
+    #doubleClickArea{
+      width:100%;
+      height:80vh; min-height:420px;
+      background:#3cb043; /* 초기색 유지 */
+      display:flex; align-items:center; justify-content:center;
+      color:#fff; font-size:22px; cursor:pointer;
+      border-radius:12px;
+      box-shadow:0 12px 28px rgba(0,0,0,.35), inset 0 0 0 1px rgba(255,255,255,.14);
     }
-    #doubleMessage { font-weight: bold; margin-top: 8px; color:#ffd5da; }
+    #doubleMessage{ font-weight:bold; margin-top:8px; color:#ffd5da; visibility:hidden }
 
-    /* 드래그 캔버스: 거의 풀화면 */
-    #dragCanvas {
-      width: 100%;
-      height: 80vh;               /* CSS 크기만 키움 — 로직 그대로 */
-      min-height: 420px;
-      display: block;
-      border: 1px solid rgba(255,255,255,.18);
-      background:
-        repeating-conic-gradient(from 0deg, rgba(255,255,255,.03) 0 25%, transparent 0 50%) 0/28px 28px,
-        linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
-      border-radius: 12px;
-      box-shadow: 0 12px 28px rgba(0,0,0,.35), inset 0 0 0 1px rgba(255,255,255,.08);
+    /* 드래그: 배경을 흰색으로 강제 */
+    #dragCanvas{
+      width:100%;
+      height:80vh; min-height:420px;
+      display:block;
+      border:1px solid rgba(0,0,0,.15);
+      background:#ffffff !important;
+      border-radius:12px;
+      box-shadow:0 12px 28px rgba(0,0,0,.20), inset 0 0 0 1px rgba(0,0,0,.06);
     }
 
-    /* 휠 캔버스도 크게 */
-    #wheelCanvas {
-      width: 100%;
-      height: 46vh;               /* 넉넉하게 확대 */
-      min-height: 260px;
-      display: block;
-      border: 1px solid rgba(255,255,255,.18);
-      background: rgba(0,0,0,.22);
-      border-radius: 12px;
-      box-shadow: 0 12px 28px rgba(0,0,0,.35), inset 0 0 0 1px rgba(255,255,255,.08);
+    /* 휠: 넉넉하게 확대(초기 로직 유지) */
+    #wheelCanvas{
+      width:100%;
+      height:46vh; min-height:260px;
+      display:block;
+      border:1px solid rgba(255,255,255,.18);
+      background:rgba(0,0,0,.22);
+      border-radius:12px;
+      box-shadow:0 12px 28px rgba(0,0,0,.35), inset 0 0 0 1px rgba(255,255,255,.08);
     }
-
-    /* 캔버스 내부 해상도(드로잉 버퍼)는 초기 방식 유지.
-       다만 기본 크기를 넉넉하게 줘서 확대 시 흐려짐 줄임 */
   </style>
 </head>
 <body>
@@ -80,7 +81,7 @@
     <button data-target="wheel">휠 테스트</button>
   </div>
 
-  <!-- 더블클릭 테스트 -->
+  <!-- 더블클릭 -->
   <div id="double" class="section active">
     <h2>더블클릭 테스트</h2>
     <div id="doubleClickArea">여기를 클릭</div>
@@ -88,59 +89,55 @@
       전체 클릭 수: <span id="totalClicks">0</span> /
       빠른 더블클릭 수: <span id="doubleCount">0</span>
     </p>
-    <p id="doubleMessage" style="visibility:hidden;">⚠️ 비정상적으로 빠른 더블클릭 감지!</p>
+    <p id="doubleMessage">⚠️ 비정상적으로 빠른 더블클릭 감지!</p>
   </div>
 
-  <!-- 드래그 테스트 -->
+  <!-- 드래그 -->
   <div id="drag" class="section">
     <h2>드래그 테스트</h2>
-    <!-- 드로잉 버퍼를 넉넉히: 초기 800x400 -> 크게 -->
-    <canvas id="dragCanvas" width="1920" height="1000"></canvas><br />
+    <!-- 내부 버퍼 크기는 fit()에서 화면 크기에 맞춰 동적으로 설정 -->
+    <canvas id="dragCanvas"></canvas><br/>
     <button id="dragReset">리셋</button>
   </div>
 
-  <!-- 휠 테스트 -->
+  <!-- 휠 -->
   <div id="wheel" class="section">
     <h2>휠 테스트 (최근 1분)</h2>
-    <!-- 초기 600x200 -> 크게 -->
+    <!-- 초기 로직 유지: 내부 버퍼 고정값 사용 -->
     <canvas id="wheelCanvas" width="1920" height="500"></canvas>
-    <p style="font-size:14px; color:#aeb7c4;">※ 휠 테스트 캔버스 안에서 마우스 휠을 굴려야 기록돼</p>
+    <p style="font-size:14px; color:#aeb7c4;">※ 휠 테스트 캔버스 안에서 마우스 휠을 굴려줘</p>
   </div>
 
   <script>
-    // ====== 섹션 전환 (초기 방식 유지) ======
-    document.querySelectorAll('#controls button').forEach(btn => {
-      btn.addEventListener('click', () => {
+    /* 섹션 전환: 초기 방식 */
+    document.querySelectorAll('#controls button').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
         const target = btn.dataset.target;
-        document.querySelectorAll('.section').forEach(sec => {
-          sec.classList.toggle('active', sec.id === target);
+        document.querySelectorAll('.section').forEach(sec=>{
+          sec.classList.toggle('active', sec.id===target);
         });
+        if(target==='drag'){ window.dispatchEvent(new Event('resize')); }
       });
     });
 
-    /* ---------------- 더블클릭 테스트 (초기 로직 유지) ---------------- */
-    (function () {
+    /* 더블클릭: 초기 로직 유지 */
+    (function(){
       const area = document.getElementById('doubleClickArea');
-      const msg = document.getElementById('doubleMessage');
+      const msg  = document.getElementById('doubleMessage');
       const fastSpan = document.getElementById('doubleCount');
-      const totalSpan = document.getElementById('totalClicks');
+      const totalSpan= document.getElementById('totalClicks');
 
-      let lastClick = 0;
-      let fastCount = 0;
-      let totalCount = 0;
+      let lastClick=0, fast=0, total=0;
 
-      area.addEventListener('click', () => {
+      area.addEventListener('click', ()=>{
         const now = Date.now();
-        totalCount += 1;
-        totalSpan.textContent = totalCount;
-        if (now - lastClick <= 100) {
-          // 비정상 빠른 더블클릭
-          area.style.background = '#c0392b'; // 빨간색
+        total++; totalSpan.textContent = total;
+        if(now - lastClick <= 100){
+          area.style.background = '#c0392b';
           msg.style.visibility = 'visible';
-          fastCount += 1;
-          fastSpan.textContent = fastCount;
-          setTimeout(() => {
-            area.style.background = '#3cb043'; // 원래색으로 복귀
+          fast++; fastSpan.textContent = fast;
+          setTimeout(()=>{
+            area.style.background = '#3cb043';
             msg.style.visibility = 'hidden';
           }, 2000);
         }
@@ -148,86 +145,104 @@
       });
     })();
 
-    /* ---------------- 드래그 테스트 (초기 로직 유지) ---------------- */
-    (function () {
+    /* 드래그: 초기 이벤트(mousedown/mousemove) 유지 + 좌표 정합/DPR 보정 + 내부 흰배경 */
+    (function(){
       const canvas = document.getElementById('dragCanvas');
       const ctx = canvas.getContext('2d');
-      ctx.lineWidth = 2;
-      ctx.lineCap = 'round';
-      let drawing = false;
 
-      function getPos(evt) {
-        const rect = canvas.getBoundingClientRect();
-        return {
-          x: evt.clientX - rect.left,
-          y: evt.clientY - rect.top
-        };
+      let dpr=1, cssW=0, cssH=0, drawing=false;
+
+      function fit(){
+        dpr = Math.max(1, window.devicePixelRatio || 1);
+        const r = canvas.getBoundingClientRect();
+        cssW = r.width; cssH = r.height;
+
+        // 내부 버퍼를 화면 크기*DPR로 설정
+        canvas.width  = Math.max(1, Math.round(cssW * dpr));
+        canvas.height = Math.max(1, Math.round(cssH * dpr));
+
+        // 이후 그리기는 CSS 좌표로 (DPR 스케일 적용)
+        ctx.setTransform(dpr,0,0,dpr,0,0);
+
+        // 내부도 흰색으로 강제(가시성 보장)
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0,0,cssW,cssH);
+
+        // 선 스타일(초기값 유지)
+        ctx.lineWidth = 2;         // CSS px 기준
+        ctx.lineCap = 'round';
+        ctx.lineJoin= 'round';
+        ctx.strokeStyle = '#000000'; // 흰 배경에서 선명
       }
 
-      canvas.addEventListener('mousedown', evt => {
+      function getPos(evt){
+        const r = canvas.getBoundingClientRect();
+        return { x: evt.clientX - r.left, y: evt.clientY - r.top };
+      }
+
+      canvas.addEventListener('mousedown', (evt)=>{
         drawing = true;
         const p = getPos(evt);
         ctx.beginPath();
         ctx.moveTo(p.x, p.y);
       });
 
-      canvas.addEventListener('mousemove', evt => {
-        if (!drawing) return;
+      canvas.addEventListener('mousemove', (evt)=>{
+        if(!drawing) return;
         const p = getPos(evt);
         ctx.lineTo(p.x, p.y);
         ctx.stroke();
       });
 
-      window.addEventListener('mouseup', () => {
-        drawing = false;
+      window.addEventListener('mouseup', ()=>{ drawing=false; });
+
+      const resetBtn = document.getElementById('dragReset');
+      resetBtn.addEventListener('click', ()=>{
+        ctx.setTransform(dpr,0,0,dpr,0,0);
+        ctx.clearRect(0,0,cssW,cssH);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0,0,cssW,cssH);
       });
 
-      document.getElementById('dragReset').addEventListener('click', () => {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-      });
+      window.addEventListener('resize', fit);
+      fit();
     })();
 
-    /* ---------------- 휠 테스트 (초기 로직 유지) ---------------- */
-    (function () {
+    /* 휠: 초기 로직 유지 */
+    (function(){
       const canvas = document.getElementById('wheelCanvas');
       const ctx = canvas.getContext('2d');
       const W = canvas.width;
       const H = canvas.height;
-      const MID = H / 2;
+      const MID = H/2;
       const events = [];
 
-      canvas.addEventListener('wheel', evt => {
-        evt.preventDefault(); // 초기 그대로
+      canvas.addEventListener('wheel', (evt)=>{
+        evt.preventDefault();
         events.push({ time: Date.now(), up: evt.deltaY < 0 });
-      }, { passive: false });
+      }, { passive:false });
 
-      function draw() {
+      function draw(){
         const now = Date.now();
-        const start = now - 60000; // 1분 전
-        while (events.length && events[0].time < start) events.shift();
+        const start = now - 60000; // 1분
+        while(events.length && events[0].time < start) events.shift();
 
-        ctx.clearRect(0, 0, W, H);
+        ctx.clearRect(0,0,W,H);
 
-        // 가운데 기준선
+        // 기준선
         ctx.strokeStyle = '#9aa6b2';
-        ctx.beginPath();
-        ctx.moveTo(0, MID);
-        ctx.lineTo(W, MID);
-        ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0,MID); ctx.lineTo(W,MID); ctx.stroke();
 
-        const barWidth = 4;
-        const barHeight = H / 2 * 0.9;
+        const barW = 4;
+        const barH = (H/2)*0.9;
 
-        events.forEach(e => {
-          const x = ((e.time - start) / 60000) * W;
+        for(let i=0;i<events.length;i++){
+          const e = events[i];
+          const x = ((e.time - start)/60000)*W;
           ctx.fillStyle = e.up ? '#ff6e82' : '#46a5ff';
-          if (e.up) {
-            ctx.fillRect(x, MID - barHeight, barWidth, barHeight);
-          } else {
-            ctx.fillRect(x, MID, barWidth, barHeight);
-          }
-        });
-
+          if(e.up) ctx.fillRect(x, MID - barH, barW, barH);
+          else     ctx.fillRect(x, MID,       barW, barH);
+        }
         requestAnimationFrame(draw);
       }
       draw();
