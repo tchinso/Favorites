@@ -6,22 +6,12 @@
 <title>급변 세계 시뮬레이터 — 구경 전용</title>
 <style>
   :root {
-    --bg: #0b0f14;
-    --panel: #111823;
-    --ink: #e6edf3;
-    --muted: #8aa4b1;
-    --accent: #4cc9f0;
-    --accent2: #b8f2ff;
-    --sea: #1a5b7a;   /* 바다 */
-    --land: #3c8d5a;  /* 평지 */
-    --mount: #7a6b59; /* 산맥 */
-    --grid: #0f141a;
-    --hit: #ffe066;
+    --bg: #0b0f14; --panel: #111823; --ink: #e6edf3; --muted: #8aa4b1;
+    --accent: #4cc9f0; --accent2: #b8f2ff;
+    --sea: #1a5b7a; --land: #3c8d5a; --mount: #7a6b59; --hit: #ffe066;
   }
   html, body { height: 100%; }
-  body {
-    margin: 0; background: var(--bg); color: var(--ink); font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Noto Sans, Apple SD Gothic Neo, sans-serif;
-    display: grid; grid-template-rows: auto 1fr auto; gap: 8px; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Noto Sans, Apple SD Gothic Neo, sans-serif; display: grid; grid-template-rows: auto 1fr auto; gap: 8px; }
   header { padding: 12px 16px; background: linear-gradient(180deg, #0d1520, #0c1320); box-shadow: 0 1px 0 #0008 inset; }
   header h1 { margin: 0; font-size: 18px; letter-spacing: .5px; color: var(--accent2); }
   header .meta { color: var(--muted); font-size: 12px; margin-top: 4px; }
@@ -35,7 +25,6 @@
   button, select { background: #0f1926; color: var(--ink); border:1px solid #203043; border-radius: 10px; padding: 8px 10px; cursor: pointer; font-weight: 600; }
   button:hover { border-color:#375672; }
   button:disabled { opacity:.5; cursor:not-allowed; }
-  select { padding: 6px 8px; }
   #ticker { background:#0c141d; border:1px solid #182333; border-radius: 10px; padding:8px; font-size:12px; height: 280px; overflow:auto; }
   #ticker b { color:#ffd670; }
   #stats { display:grid; grid-template-columns: 1fr 1fr; gap:8px; margin-top:8px; }
@@ -77,9 +66,7 @@
         <button id="resumeBtn" disabled>재개</button>
         <button id="restartBtn">새로시작</button>
       </div>
-      <div class="row">
-        <span class="tag">이벤트 티커</span>
-      </div>
+      <div class="row"><span class="tag">이벤트 티커</span></div>
       <div id="ticker"></div>
       <div id="stats">
         <div class="statBox">
@@ -104,37 +91,25 @@
   </footer>
 
 <script>
-/**
- * 급변 세계 시뮬레이터 — 관찰 전용
- * - 30x16 격자
- * - 지형: 바다/평지/산맥 (노이즈 + 후처리)
- * - 이벤트: 전쟁, 반란, 연합합병
- * - 글로벌 긴장도 T로 페이싱 자동조절
- * - UI: 속도, 일시정지, 재개, 새로시작
- */
-
-// ====== 설정 상수 ======
-const W = 60, H = 32;               // 격자 크기 (2배 촘촘)
-const CELL = 12;                    // 픽셀 크기 (캔버스 동일, 셀 절반 → 720x384 유지)
+// ====== 기본 상수 ======
+const W = 60, H = 32;               // 격자 크기 (2배)
+const CELL = 12;                    // 픽셀 크기 (720×384 유지)
 const LAND_TARGET = 0.48;           // 토지 비율 목표
 const MOUNT_TARGET = 0.16;          // 산맥 비율 목표(육지 대비)
 
-// 이벤트 베이스 파라미터
+// 이벤트 베이스 파라미터(이벤트 로직은 유지)
 const W0 = 0.015;  // 전쟁 기본 확률 계수
 const R0 = 0.003;  // 반란 기본 확률 계수
 const U0 = 0.06;   // 연합합병 기본 확률 계수
-
 const MAX_P_WAR = 0.35;
 const MAX_P_REB = 0.25;
 
-// 색상 팔레트 (국가용)
+// ====== 색 팔레트 ======
 function makePalette(n, rng){
   const arr = [];
   for(let i=0;i<n;i++){
-    // HSL → HEX (밝고 선명한 팔레트)
-    const h = (i*137.508 + rng()*30) % 360; // 골든앵글 기반 분산
-    const s = 65 + rng()*25; // 65~90
-    const l = 50 + rng()*10; // 50~60
+    const h = (i*137.508 + rng()*30) % 360; // 골든앵글 분산
+    const s = 65 + rng()*25; const l = 50 + rng()*10;
     arr.push(hslToHex(h, s, l));
   }
   return arr;
@@ -147,28 +122,7 @@ function hslToHex(h, s, l) {
   return `#${toHex(f(0))}${toHex(f(8))}${toHex(f(4))}`;
 }
 
-// === 랜덤 국가명 생성 & 중심 좌표 ===
-function makeName(){
-  const pre=['Ar','Bel','Cal','Den','Eri','Fal','Gar','Hel','Ira','Jun','Kar','Lys','Mor','Nor','Or','Pra','Qua','Ryn','Syl','Tor','Ulf','Val','Wes','Xan','Yor','Zer'];
-  const mid=['a','e','i','o','u','y','ae','ia','oa','ui'];
-  const suf=['land','ia','stan','ara','ora','eria','nor','gard','heim','veen','mere','vale','reach','shore','mar','lia'];
-  const syll = 2 + Math.floor(rng()*2);
-  let name = pre[randInt(rng,0,pre.length-1)];
-  for(let i=0;i<syll-1;i++){
-    name += mid[randInt(rng,0,mid.length-1)];
-    if(rng()<0.6) name += String.fromCharCode(97+Math.floor(rng()*26));
-  }
-  name += suf[randInt(rng,0,suf.length-1)];
-  return name;
-}
-function centroidOf(c){
-  let sx=0, sy=0, n=0;
-  c.cells.forEach(g=>{ sx += (g%W)+0.5; sy += ((g/W)|0)+0.5; n++; });
-  if(n===0) return [0,0];
-  return [ (sx/n)*CELL, (sy/n)*CELL ];
-}
-
-// ====== RNG & 시드 ======
+// ====== RNG ======
 function mulberry32(seed){
   return function(){
     let t = seed += 0x6D2B79F5;
@@ -179,18 +133,13 @@ function mulberry32(seed){
 }
 function randInt(rng, a,b){ return Math.floor(rng()*(b-a+1))+a; }
 function choice(rng, arr){ return arr[Math.floor(rng()*arr.length)]; }
-
-// 로그정규 샘플 (승패 변동용)
 function sampleLogNormal(rng, sigma=0.35){
-  // Box-Muller → N(0,1)
   const u1 = Math.max(rng(),1e-12), u2=rng();
   const z = Math.sqrt(-2*Math.log(u1))*Math.cos(2*Math.PI*u2);
   return Math.exp(sigma*z);
 }
-// 파레토 분포 (큰 파도 드물게)
 function samplePareto(rng, k=1.8, xm=1){
-  const u = 1 - rng();
-  return xm / Math.pow(u, 1/k);
+  const u = 1 - rng(); return xm / Math.pow(u, 1/k);
 }
 
 // ====== 캔버스 ======
@@ -200,8 +149,7 @@ const countryCV = document.getElementById('countries');
 const ctx = countryCV.getContext('2d');
 const sparkN = document.getElementById('sparkN').getContext('2d');
 const sparkG = document.getElementById('sparkG').getContext('2d');
-
-// 컨테이너가 absolute 캔버스를 품지 못해 0x0이 되는 이슈 방지용
+// 부모 래퍼가 absolute 자식의 크기를 못 잡아서 0x0이 되는 문제 수정
 const stageWrap = document.getElementById('stageWrap');
 stageWrap.style.width = terrainCV.width + 'px';
 stageWrap.style.height = terrainCV.height + 'px';
@@ -210,60 +158,30 @@ stageWrap.style.height = terrainCV.height + 'px';
 let rng, seed;
 let gridTerrain; // 0=바다,1=평지,2=산
 let gridCountry; // 국가ID or -1
-let isIsthmus;   // 1칸 지협 추정 태그
+let isIsthmus;   // 지협 태그
 let C;           // 국가 배열
 let colors;      // 국가 색상
-let borderEdges; // 국경쌍 목록 [{a,b, type, cells:[...]}]
-
-let turn = 0;
-let paused = false;
-let speed = 1; // 배속
-let T = 1.0;   // 글로벌 긴장도(0.8~1.5)
-let eventScoreRing = []; // 최근 8턴 이벤트 점수
-let Nspark = [], Gspark = []; // 스파크라인 데이터
-
-// 하이라이트 (전투/반란 칸 점멸)
-let highlights = []; // {x,y,t}
-
-// UI 엘리먼트
-const seedOut = document.getElementById('seedOut');
-const turnOut = document.getElementById('turnOut');
-const speedOut = document.getElementById('speedOut');
-const ticker = document.getElementById('ticker');
+let borderEdges; // 국경쌍 목록
+let turn = 0; let paused = false; let speed = 1; let T = 1.0;
+let eventScoreRing = []; // 최근 10턴 점수
+let Nspark = [], Gspark = [];
+let highlights = [];
 
 // ====== 유틸 ======
 function idx(x,y){ return y*W + x; }
 function inside(x,y){ return x>=0&&x<W&&y>=0&&y<H; }
 function forEachCell(cb){ for(let y=0;y<H;y++) for(let x=0;x<W;x++) cb(x,y); }
 function neighbors4(x,y){ return [[x+1,y],[x-1,y],[x,y+1],[x,y-1]].filter(([a,b])=>inside(a,b)); }
+function getCSS(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+function median(arr){ if(arr.length===0) return 0; const s=[...arr].sort((a,b)=>a-b); const m=(s.length-1)/2; return (s[Math.floor(m)]+s[Math.ceil(m)])/2; }
+function maxSize(){ return C.reduce((p,c)=>Math.max(p,c.cells.size),0); }
+function frontierRatio(c){ let border=0; c.cells.forEach(g=>{ const x=g%W,y=(g/W)|0; if(neighbors4(x,y).some(([a,b])=>{ const id=gridCountry[idx(a,b)]; return id>=0 && id!==c.id; })) border++; }); return border/Math.max(1,c.cells.size); }
 
-// ====== 노이즈 (간단 값 노이즈 + 옥타브) ======
-function hash2(i,j, s){
-  let h = i*374761393 + j*668265263 ^ s;
-  h = (h ^ (h>>13)) * 1274126177;
-  return ((h ^ (h>>16)) >>> 0) / 4294967296;
-}
-function valueNoise2D(x,y, s){
-  const xi = Math.floor(x), yi = Math.floor(y);
-  const xf = x - xi, yf = y - yi;
-  const v00 = hash2(xi, yi, s);
-  const v10 = hash2(xi+1, yi, s);
-  const v01 = hash2(xi, yi+1, s);
-  const v11 = hash2(xi+1, yi+1, s);
-  const u = xf*xf*(3-2*xf); // smootherstep
-  const v = yf*yf*(3-2*yf);
-  const x1 = v00*(1-u) + v10*u;
-  const x2 = v01*(1-u) + v11*u;
-  return x1*(1-v) + x2*v; // 0..1
-}
-function octaveNoise(x,y,s, oct=4, lac=2, gain=0.5){
-  let amp = 1, freq = 1, sum=0, norm=0;
-  for(let i=0;i<oct;i++){
-    sum += amp * valueNoise2D(x*freq, y*freq, s+i*7919);
-    norm += amp; amp *= gain; freq *= lac;
-  }
-  return sum/norm; // 0..1 대략
-}
+// ====== 값 노이즈 ======
+function hash2(i,j, s){ let h = i*374761393 + j*668265263 ^ s; h = (h ^ (h>>13)) * 1274126177; return ((h ^ (h>>16)) >>> 0) / 4294967296; }
+function valueNoise2D(x,y, s){ const xi=Math.floor(x), yi=Math.floor(y); const xf=x-xi, yf=y-yi; const v00=hash2(xi,yi,s), v10=hash2(xi+1,yi,s), v01=hash2(xi,yi+1,s), v11=hash2(xi+1,yi+1,s); const u=xf*xf*(3-2*xf), v=yf*yf*(3-2*yf); const x1=v00*(1-u)+v10*u, x2=v01*(1-u)+v11*u; return x1*(1-v)+x2*v; }
+function octaveNoise(x,y,s, oct=4, lac=2, gain=0.5){ let amp=1, freq=1, sum=0, norm=0; for(let i=0;i<oct;i++){ sum+=amp*valueNoise2D(x*freq,y*freq,s+i*7919); norm+=amp; amp*=gain; freq*=lac; } return sum/norm; }
 
 // ====== 지도 생성 ======
 function generateMap(){
@@ -271,24 +189,19 @@ function generateMap(){
   gridCountry = new Int16Array(W*H).fill(-1);
   isIsthmus = new Uint8Array(W*H).fill(0);
 
-  // 1) 노이즈 기반 고도
-  const scale = 0.12; // 해상도 2배 → 스케일 미세 조정(대륙 결 더 풍부)
+  const scale = 0.12; // 해상도↑ → 패턴 세분화
   const heights = new Float32Array(W*H);
   forEachCell((x,y)=>{
     const nx = x*scale, ny = y*scale;
-    // 중앙부 살짝 융기 (원형 폴백터)
     const cx=(x-(W-1)/2)/(W/2), cy=(y-(H-1)/2)/(H/2);
     const falloff = Math.max(0, 1 - Math.sqrt(cx*cx+cy*cy)*0.9);
     const h = octaveNoise(nx,ny, 123456 + (seed&0xffff), 4, 1.9, 0.55)*0.8 + falloff*0.3;
-    heights[idx(x,y)] = h; // 0..1
+    heights[idx(x,y)] = h;
   });
 
-  // 2) 임계값 조정으로 토지/바다 비율 근사
-  // 히스토그램을 통해 LAND_TARGET 근방이 되도록 임계치를 자동선정
+  // 임계값으로 바다/육지/산 분리
   const sorted = Array.from(heights).sort((a,b)=>a-b);
-  const landThresh = sorted[Math.floor((1-LAND_TARGET)*sorted.length)] || 0.5; // 이 값 초과면 육지
-
-  // 산맥 임계: 육지 상위 MOUNT_TARGET 비율
+  const landThresh = sorted[Math.floor((1-LAND_TARGET)*sorted.length)] || 0.5;
   const landHeights = sorted.slice(sorted.length - Math.floor(LAND_TARGET*sorted.length));
   const mountThresh = landHeights[Math.floor((1-MOUNT_TARGET)*landHeights.length)] || 0.8;
 
@@ -299,22 +212,18 @@ function generateMap(){
     else gridTerrain[idx(x,y)] = 2; // 산맥
   });
 
-  // 3) 후처리 — 섬/군도 보강, 반도, 지협, 산맥 랜덤워크
   postprocessTerrain();
-
-  // 4) 지형 렌더 (고정)
   drawTerrain();
 }
 
 function postprocessTerrain(){
-  // 연결요소 파악 (육지=1, 산=2 → landMask=1)
+  // 연결요소 파악
   const landMask = new Uint8Array(W*H);
   forEachCell((x,y)=>{ landMask[idx(x,y)] = (gridTerrain[idx(x,y)]===0)?0:1; });
   const comps = connectedComponents(landMask, 1);
 
-  // 작은 섬 확보(군도 바탕): 1~2칸 섬 개수 목표
-  const desiredTinyIslands = 12;
-  let tinyCount = 0;
+  // 작은 섬 확보(군도 바탕): 1~2칸 섬 목표
+  const desiredTinyIslands = 12; let tinyCount = 0;
   comps.forEach(c=>{ if(c.cells.length<=2) tinyCount++; });
   const toAdd = Math.max(0, desiredTinyIslands - tinyCount);
   for(let t=0;t<toAdd;t++){
@@ -323,35 +232,24 @@ function postprocessTerrain(){
       if(gridTerrain[idx(x,y)]===0){
         const near = neighbors4(x,y);
         if(near.every(([a,b])=>gridTerrain[idx(a,b)]===0)){
-          gridTerrain[idx(x,y)] = (rng()<0.2)? 2 : 1; // 가끔 작은 암석섬(산)
+          gridTerrain[idx(x,y)] = (rng()<0.2)? 2 : 1; // 가끔 암석섬
           break;
         }
       }
     }
   }
 
-  // 군도 다발 보강: 바다 중심에 여러 섬 흩뿌리기
-  addArchipelagoClusters(6);
-
-  // 반도: 해안선에서 바다로 가늘게 뻗기 (여러 개)
-  for(let k=0;k<12;k++) addPeninsula();
-
-  // 지협/협곡: 1칸 연결·차단 + 2칸 폭 연결부
-  addIsthmusBridges(8);
-  carveStraits(8);
-  addLandBridgeWide(4);
-
-  // 산맥 랜덤 워크 보강 (여러 줄)
-  for(let m=0;m<6;m++) addMountainRidge();
-
-  // 지협 태그 업데이트
+  addArchipelagoClusters(6);     // 군도 다발
+  for(let k=0;k<12;k++) addPeninsula(); // 반도 다수
+  addIsthmusBridges(8);          // 지협 메움
+  carveStraits(8);               // 협곡 깎기
+  addLandBridgeWide(4);          // 2칸 연결부
+  for(let m=0;m<6;m++) addMountainRidge(); // 능선 강화
   tagIsthmusCells();
 }
 
-
 function connectedComponents(mask, pass=1){
-  const seen = new Uint8Array(W*H);
-  const comps = [];
+  const seen = new Uint8Array(W*H); const comps = [];
   forEachCell((x,y)=>{
     const id = idx(x,y);
     if(!seen[id] && mask[id]===pass){
@@ -368,620 +266,192 @@ function connectedComponents(mask, pass=1){
   })
   return comps;
 }
-
-function isCoast(x,y){
-  if(gridTerrain[idx(x,y)]===0) return false;
-  return neighbors4(x,y).some(([a,b])=>gridTerrain[idx(a,b)]===0);
-}
-
+function isCoast(x,y){ if(gridTerrain[idx(x,y)]===0) return false; return neighbors4(x,y).some(([a,b])=>gridTerrain[idx(a,b)]===0); }
 function addPeninsula(){
-  // 해안선에서 시작하여 2~5칸 바다로 뻗음
   const coast = [];
   forEachCell((x,y)=>{ if(isCoast(x,y) && gridTerrain[idx(x,y)]!==2) coast.push([x,y]); });
   if(coast.length===0) return;
   const [sx,sy] = choice(rng, coast);
-  // 바다 방향으로 진행
-  let dir = choice(rng, neighbors4(sx,sy).filter(([a,b])=>gridTerrain[idx(a,b)]===0));
-  if(!dir) return; let [dx,dy] = [dir[0]-sx, dir[1]-sy];
+  const dirCand = neighbors4(sx,sy).filter(([a,b])=>gridTerrain[idx(a,b)]===0);
+  if(dirCand.length===0) return;
+  let [dx,dy] = choice(rng, dirCand).map((v,i)=>[v-(i?sy:sx)])[0]; // normalize
+  dx = Math.sign(dx); dy = Math.sign(dy);
   let x=sx, y=sy; const len = randInt(rng,2,5);
   for(let i=0;i<len;i++){
     const nx=x+dx, ny=y+dy; if(!inside(nx,ny)) break;
     if(gridTerrain[idx(nx,ny)]===0){ gridTerrain[idx(nx,ny)] = 1; }
     x=nx; y=ny;
-    // 좌우로 가끔 1칸 살 붙이기
     if(rng()<0.4){
       const lx = nx - dy, ly = ny + dx; if(inside(lx,ly) && gridTerrain[idx(lx,ly)]===0 && rng()<0.6) gridTerrain[idx(lx,ly)]=1;
       const rx = nx + dy, ry = ny - dx; if(inside(rx,ry) && gridTerrain[idx(rx,ry)]===0 && rng()<0.6) gridTerrain[idx(rx,ry)]=1;
     }
   }
 }
+function addIsthmusBridges(maxBridges){ if(typeof maxBridges!=='number') maxBridges=6; let bridges=0; for(let tries=0; tries<200 && bridges<maxBridges; tries++){ const x = randInt(rng,1,W-2), y=randInt(rng,1,H-2); if(gridTerrain[idx(x,y)]!==0) continue; const up=gridTerrain[idx(x,y-1)]!==0, down=gridTerrain[idx(x,y+1)]!==0; const left=gridTerrain[idx(x-1,y)]!==0, right=gridTerrain[idx(x+1,y)]!==0; if((up&&down && !left && !right) || (left&&right && !up && !down)){ gridTerrain[idx(x,y)] = 1; bridges++; } } }
+function carveStraits(maxCuts){ if(typeof maxCuts!=='number') maxCuts=6; let cuts=0; for(let tries=0; tries<240 && cuts<maxCuts; tries++){ const x = randInt(rng,1,W-2), y=randInt(rng,1,H-2); if(gridTerrain[idx(x,y)]===0) continue; const up=gridTerrain[idx(x,y-1)]!==0, down=gridTerrain[idx(x,y+1)]!==0; const left=gridTerrain[idx(x-1,y)]!==0, right=gridTerrain[idx(x+1,y)]!==0; if((up&&down&&!left&&!right) || (!up&&!down&&left&&right)){ if(rng()<0.3){ gridTerrain[idx(x,y)] = 0; cuts++; } } } }
+function addLandBridgeWide(max=3){ let made=0; for(let tries=0; tries<300 && made<max; tries++){ const x = randInt(rng,2,W-3), y = randInt(rng,2,H-3); if(gridTerrain[idx(x-1,y)]!==0 && gridTerrain[idx(x,y)]===0 && gridTerrain[idx(x+1,y)]===0 && gridTerrain[idx(x+2,y)]!==0){ gridTerrain[idx(x,y)] = 1; gridTerrain[idx(x+1,y)] = 1; made++; continue; } if(gridTerrain[idx(x,y-1)]!==0 && gridTerrain[idx(x,y)]===0 && gridTerrain[idx(x,y+1)]===0 && gridTerrain[idx(x,y+2)]!==0){ gridTerrain[idx(x,y)] = 1; gridTerrain[idx(x,y+1)] = 1; made++; continue; } } }
+function addMountainRidge(){ for(let tries=0; tries<50; tries++){ const x = randInt(rng,0,W-1), y=randInt(rng,0,H-1); if(gridTerrain[idx(x,y)]!==1) continue; let len = randInt(rng,8,16), cx=x, cy=y; let lastDir=null; while(len-->0){ gridTerrain[idx(cx,cy)] = 2; const opts = neighbors4(cx,cy).filter(([a,b])=>gridTerrain[idx(a,b)]!==0); if(opts.length===0) break; let [nx,ny] = choice(rng, opts); if(lastDir && rng()<0.5){ const tx = cx + (lastDir[0]-cx), ty = cy + (lastDir[1]-cy); if(inside(tx,ty) && gridTerrain[idx(tx,ty)]!==0){ nx=tx; ny=ty; } } lastDir=[nx,ny]; cx=nx; cy=ny; } break; } }
+function tagIsthmusCells(){ forEachCell((x,y)=>{ const id=idx(x,y); if(gridTerrain[id]===0) { isIsthmus[id]=0; return; } const up = gridTerrain[idx(x,y-1)]!==0, down=gridTerrain[idx(x,y+1)]!==0; const left = gridTerrain[idx(x-1,y)]!==0, right=gridTerrain[idx(x+1,y)]!==0; if((up&&down && !left && !right) || (left&&right && !up && !down)) isIsthmus[id]=1; else isIsthmus[id]=0; }); }
+function addArchipelagoClusters(count=5){ for(let c=0;c<count;c++){ for(let tries=0; tries<60; tries++){ const x = randInt(rng,2,W-3), y = randInt(rng,2,H-3); if(gridTerrain[idx(x,y)]!==0) continue; const seaN = neighbors4(x,y).filter(([a,b])=>gridTerrain[idx(a,b)]===0).length; if(seaN>=3){ const n = randInt(rng,4,9); for(let i=0;i<n;i++){ const ox = randInt(rng,-3,3), oy = randInt(rng,-3,3); const ax = x+ox, ay = y+oy; if(!inside(ax,ay)) continue; if(gridTerrain[idx(ax,ay)]===0 && rng()<0.8) gridTerrain[idx(ax,ay)] = 1; if(rng()<0.15 && gridTerrain[idx(ax,ay)]!==0) gridTerrain[idx(ax,ay)] = 2; } break; } } } }
 
-function addIsthmusBridges(maxBridges){
-  if(typeof maxBridges !== 'number') maxBridges = 6;
-  let bridges = 0;
-  for(let tries=0; tries<200 && bridges<maxBridges; tries++){
-    const x = randInt(rng,1,W-2), y = randInt(rng,1,H-2);
-    if(gridTerrain[idx(x,y)]!==0) continue;
-    const up = gridTerrain[idx(x,y-1)]!==0, down = gridTerrain[idx(x,y+1)]!==0;
-    const left = gridTerrain[idx(x-1,y)]!==0, right = gridTerrain[idx(x+1,y)]!==0;
-    if((up && down && !left && !right) || (left && right && !up && !down)){
-      gridTerrain[idx(x,y)] = 1; // 메움
-      bridges++;
-    }
-  }
+function drawTerrain(){ terr.clearRect(0,0,terrainCV.width, terrainCV.height); forEachCell((x,y)=>{ const t = gridTerrain[idx(x,y)]; terr.fillStyle = t===0? getCSS('--sea') : t===1? getCSS('--land') : getCSS('--mount'); terr.fillRect(x*CELL, y*CELL, CELL, CELL); }); }
+
+// ====== 국가 배치 ======
+function makeName(){
+  const pre=['Ar','Bel','Cal','Den','Eri','Fal','Gar','Hel','Ira','Jun','Kar','Lys','Mor','Nor','Or','Pra','Qua','Ryn','Syl','Tor','Ulf','Val','Wes','Xan','Yor','Zer'];
+  const mid=['a','e','i','o','u','y','ae','ia','oa','ui'];
+  const suf=['land','ia','stan','ara','ora','eria','nor','gard','heim','veen','mere','vale','reach','shore','mar','lia'];
+  const syll = 2 + Math.floor(rng()*2);
+  let name = pre[randInt(rng,0,pre.length-1)];
+  for(let i=0;i<syll-1;i++){ name += mid[randInt(rng,0,mid.length-1)]; if(rng()<0.6) name += String.fromCharCode(97+Math.floor(rng()*26)); }
+  name += suf[randInt(rng,0,suf.length-1)];
+  return name;
 }
+function centroidOf(c){ let sx=0, sy=0, n=0; c.cells.forEach(g=>{ sx += (g%W)+0.5; sy += ((g/W)|0)+0.5; n++; }); if(n===0) return [0,0]; return [ (sx/n)*CELL, (sy/n)*CELL ]; }
 
-
-function carveStraits(maxCuts){
-  if(typeof maxCuts !== 'number') maxCuts = 6;
-  let cuts = 0;
-  for(let tries=0; tries<240 && cuts<maxCuts; tries++){
-    const x = randInt(rng,1,W-2), y = randInt(rng,1,H-2);
-    if(gridTerrain[idx(x,y)]===0) continue;
-    const up = gridTerrain[idx(x,y-1)]!==0, down = gridTerrain[idx(x,y+1)]!==0;
-    const left = gridTerrain[idx(x-1,y)]!==0, right = gridTerrain[idx(x+1,y)]!==0;
-    if((up && down && !left && !right) || (!up && !down && left && right)){
-      if(rng() < 0.3){ gridTerrain[idx(x,y)] = 0; cuts++; }
-    }
-  }
-}
-
-
-function addMountainRidge(){
-  // 육지에서 랜덤시작 → 랜덤워크로 5~10칸 산맥 덧칠
-  for(let tries=0; tries<50; tries++){
-    const x = randInt(rng,0,W-1), y=randInt(rng,0,H-1);
-    if(gridTerrain[idx(x,y)]!==1) continue; // 평지에서 시작
-    let len = randInt(rng,8,16), cx=x, cy=y; let lastDir=null;
-    while(len-->0){
-      gridTerrain[idx(cx,cy)] = 2; // 산으로
-      const opts = neighbors4(cx,cy).filter(([a,b])=>gridTerrain[idx(a,b)]!==0);
-      if(opts.length===0) break; let [nx,ny] = choice(rng, opts);
-      if(lastDir && rng()<0.5){ // 직진 가중
-        const tx = cx + (lastDir[0]-cx), ty = cy + (lastDir[1]-cy);
-        if(inside(tx,ty) && gridTerrain[idx(tx,ty)]!==0){ nx=tx; ny=ty; }
-      }
-      lastDir = [nx,ny]; cx=nx; cy=ny;
-    }
-    break;
-  }
-}
-
-// 군도(archipelago) 다발 생성
-function addArchipelagoClusters(count=5){
-  for(let c=0;c<count;c++){
-    // 바다 중심 고르기: 주변 바다가 많은 곳 선호
-    for(let tries=0; tries<60; tries++){
-      const x = randInt(rng,2,W-3), y = randInt(rng,2,H-3);
-      if(gridTerrain[idx(x,y)]!==0) continue;
-      const near = neighbors4(x,y);
-      const seaN = near.filter(([a,b])=>gridTerrain[idx(a,b)]===0).length;
-      if(seaN>=3){
-        // 반경 1~3 안에 4~9개 점을 찍어 작은 섬 흩뿌리기
-        const n = randInt(rng,4,9);
-        for(let i=0;i<n;i++){
-          const ox = randInt(rng,-3,3), oy = randInt(rng,-3,3);
-          const ax = x+ox, ay = y+oy;
-          if(!inside(ax,ay)) continue;
-          if(gridTerrain[idx(ax,ay)]===0 && rng()<0.8) gridTerrain[idx(ax,ay)] = 1; // 평지 섬
-          // 드물게 중심 하나를 산으로 올려 군도 중심 봉우리 연출
-          if(rng()<0.15 && gridTerrain[idx(ax,ay)]!==0) gridTerrain[idx(ax,ay)] = 2;
-        }
-        break;
-      }
-    }
-  }
-}
-
-// 2칸 폭 대륙 연결부 생성 (land - sea - sea - land 패턴 메움)
-function addLandBridgeWide(max=3){
-  let made=0;
-  for(let tries=0; tries<300 && made<max; tries++){
-    const x = randInt(rng,2,W-3), y = randInt(rng,2,H-3);
-    // 가로 패턴
-    if(gridTerrain[idx(x-1,y)]!==0 && gridTerrain[idx(x,y)]===0 && gridTerrain[idx(x+1,y)]===0 && gridTerrain[idx(x+2,y)]!==0){
-      gridTerrain[idx(x,y)] = 1; gridTerrain[idx(x+1,y)] = 1; made++; continue;
-    }
-    // 세로 패턴
-    if(gridTerrain[idx(x,y-1)]!==0 && gridTerrain[idx(x,y)]===0 && gridTerrain[idx(x,y+1)]===0 && gridTerrain[idx(x,y+2)]!==0){
-      gridTerrain[idx(x,y)] = 1; gridTerrain[idx(x,y+1)] = 1; made++; continue;
-    }
-  }
-}
-
-function tagIsthmusCells(){
-  // 간이 판정: 좌우 바다 & 상하 육지 or 반대 → 지협 추정
-  forEachCell((x,y)=>{
-    const id=idx(x,y);
-    if(gridTerrain[id]===0) { isIsthmus[id]=0; return; }
-    const up = gridTerrain[idx(x,y-1)]!==0, down=gridTerrain[idx(x,y+1)]!==0;
-    const left = gridTerrain[idx(x-1,y)]!==0, right=gridTerrain[idx(x+1,y)]!==0;
-    if((up&&down && !left && !right) || (left&&right && !up && !down)) isIsthmus[id]=1; else isIsthmus[id]=0;
-  });
-}
-
-function drawTerrain(){
-  terr.clearRect(0,0,terrainCV.width, terrainCV.height);
-  forEachCell((x,y)=>{
-    const t = gridTerrain[idx(x,y)];
-    terr.fillStyle = t===0? getCSS('--sea') : t===1? getCSS('--land') : getCSS('--mount');
-    terr.fillRect(x*CELL, y*CELL, CELL, CELL);
-  });
-}
-
-function getCSS(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
-
-// ====== 국가 초기 배치 (균등 랜덤 분할: 씨앗 확장) ======
 function seedCountries(){
-  // 육지 셀 목록
-  const landCells = [];
-  forEachCell((x,y)=>{ if(gridTerrain[idx(x,y)]!==0) landCells.push([x,y]); });
-  const L = landCells.length;
-  const targetCountries = Math.max(6, Math.min(20, Math.floor(L/20)));
+  const landCells = []; forEachCell((x,y)=>{ if(gridTerrain[idx(x,y)]!==0) landCells.push([x,y]); });
+  const L = landCells.length; const targetCountries = Math.max(6, Math.min(20, Math.floor(L/20)));
+  C = []; gridCountry.fill(-1); colors = makePalette(targetCountries, rng);
 
-  C = []; gridCountry.fill(-1);
-  colors = makePalette(targetCountries, rng);
-
-  // 씨앗 선택 (서로 멀리 떨어지게 샘플)
+  // 씨앗 배치
   const chosen=[];
   for(let i=0;i<targetCountries;i++){
     for(let tries=0; tries<100; tries++){
       const [x,y] = choice(rng, landCells);
-      if(chosen.every(([ax,ay])=> (Math.abs(ax-x)+Math.abs(ay-y))>4)){
-        chosen.push([x,y]); break;
-      }
+      if(chosen.every(([ax,ay])=> (Math.abs(ax-x)+Math.abs(ay-y))>4)) { chosen.push([x,y]); break; }
     }
   }
-  chosen.forEach(([x,y], id)=>{
-    C.push({ id, cells: new Set([idx(x,y)]), s: 0.7 + rng()*0.2, neighbors: new Set(), tag:{}, name: makeName() });
-    gridCountry[idx(x,y)]=id;
-  });
+  chosen.forEach(([x,y], id)=>{ C.push({ id, cells: new Set([idx(x,y)]), s: 0.7 + rng()*0.2, neighbors: new Set(), tag:{}, name: makeName() }); gridCountry[idx(x,y)]=id; });
 
-  // 다익스트라식 확장 (멀티씨앗 BFS)
-  const frontier = [];
-  chosen.forEach(([x,y], id)=>{
-    neighbors4(x,y).forEach(([a,b])=> frontier.push([a,b,id]));
-  });
+  // 멀티-씨앗 확장
+  const frontier = []; chosen.forEach(([x,y], id)=>{ neighbors4(x,y).forEach(([a,b])=> frontier.push([a,b,id])); });
   while(frontier.length){
-    const i = randInt(rng,0,frontier.length-1);
-    const [x,y,id] = frontier.splice(i,1)[0];
-    const gid = idx(x,y);
+    const i = randInt(rng,0,frontier.length-1); const [x,y,id] = frontier.splice(i,1)[0]; const gid = idx(x,y);
     if(gridTerrain[gid]===0 || gridCountry[gid]!==-1) continue;
-    // 가끔 경쟁이 붙으면 랜덤으로
     gridCountry[gid] = id; C[id].cells.add(gid);
     neighbors4(x,y).forEach(([a,b])=> frontier.push([a,b,id]));
   }
 
-  // 태그: 산악/섬 비율
-  C.forEach(c=>{
-    let mount=0, coast=0;
-    c.cells.forEach(g=>{ if(gridTerrain[g]===2) mount++; const x=g%W,y=(g/W)|0; if(isCoast(x,y)) coast++; });
-    c.tag.mountRatio = mount/Math.max(1,c.cells.size);
-    c.tag.coastRatio = coast/Math.max(1,c.cells.size);
-  });
-
-  // 인접국 계산
+  // 태그
+  C.forEach(c=>{ let mount=0, coast=0; c.cells.forEach(g=>{ if(gridTerrain[g]===2) mount++; const x=g%W,y=(g/W)|0; if(isCoast(x,y)) coast++; }); c.tag.mountRatio = mount/Math.max(1,c.cells.size); c.tag.coastRatio = coast/Math.max(1,c.cells.size); });
   rebuildNeighborsAll();
 }
 
 function rebuildNeighborsAll(){
   C.forEach(c=>c.neighbors.clear());
-  forEachCell((x,y)=>{
-    const a = gridCountry[idx(x,y)]; if(a<0) return;
-    neighbors4(x,y).forEach(([nx,ny])=>{
-      const b = gridCountry[idx(nx,ny)];
-      if(b>=0 && b!==a){ C[a].neighbors.add(b); C[b].neighbors.add(a); }
-    })
-  });
-  // 국경 에지 수집
+  forEachCell((x,y)=>{ const a = gridCountry[idx(x,y)]; if(a<0) return; neighbors4(x,y).forEach(([nx,ny])=>{ const b = gridCountry[idx(nx,ny)]; if(b>=0 && b!==a){ C[a].neighbors.add(b); C[b].neighbors.add(a); } }) });
   borderEdges = collectBorders();
+  const have = new Set(borderEdges.map(e=> e.a+"-"+e.b));
+  const seaEdges = collectMaritimeBorders(3);
+  seaEdges.forEach(e=>{ const key=e.a+"-"+e.b; if(!have.has(key)){ borderEdges.push(e); have.add(key); }});
+  borderEdges.forEach(e=>{ const A=C[e.a], B=C[e.b]; if(A&&B){ A.neighbors.add(B.id); B.neighbors.add(A.id); }});
 }
 
 function collectBorders(){
-  const map = new Map(); // key "a-b" -> {a,b,cells:[id...], type}
+  const map = new Map();
   forEachCell((x,y)=>{
     const a = gridCountry[idx(x,y)]; if(a<0) return;
     [[1,0],[0,1]].forEach(([dx,dy])=>{
-      const nx=x+dx, ny=y+dy; if(!inside(nx,ny)) return;
-      const b = gridCountry[idx(nx,ny)];
-      if(b>=0 && b!==a){
-        const lo = Math.min(a,b), hi = Math.max(a,b);
-        const key = lo+"-"+hi; if(!map.has(key)) map.set(key, {a:lo, b:hi, cells:[], type:null});
-        map.get(key).cells.push([x,y,nx,ny]);
-      }
+      const nx=x+dx, ny=y+dy; if(!inside(nx,ny)) return; const b = gridCountry[idx(nx,ny)];
+      if(b>=0 && b!==a){ const lo=Math.min(a,b), hi=Math.max(a,b); const key=lo+"-"+hi; if(!map.has(key)) map.set(key,{a:lo,b:hi,cells:[],type:null}); map.get(key).cells.push([x,y,nx,ny]); }
     })
   });
-  // 타입 추정: 산맥이 포함되면 산맥 경계, 지협 셀이 많으면 지협, 아니면 평지
-  map.forEach(entry=>{
-    let mount=0, neck=0;
-    entry.cells.forEach(([x,y,nx,ny])=>{
-      const t1 = gridTerrain[idx(x,y)], t2 = gridTerrain[idx(nx,ny)];
-      if(t1===2 || t2===2) mount++;
-      if(isIsthmus[idx(x,y)]||isIsthmus[idx(nx,ny)]) neck++;
-    });
-    if(neck/entry.cells.length > 0.3) entry.type = 'isthmus';
-    else if(mount/entry.cells.length > 0.2) entry.type = 'mount';
-    else entry.type = 'plain';
+  map.forEach(entry=>{ let mount=0, neck=0; entry.cells.forEach(([x,y,nx,ny])=>{ const t1 = gridTerrain[idx(x,y)], t2 = gridTerrain[idx(nx,ny)]; if(t1===2 || t2===2) mount++; if(isIsthmus[idx(x,y)]||isIsthmus[idx(nx,ny)]) neck++; }); if(neck/entry.cells.length > 0.3) entry.type='isthmus'; else if(mount/entry.cells.length > 0.2) entry.type='mount'; else entry.type='plain'; });
+  return Array.from(map.values());
+}
+
+function collectMaritimeBorders(maxGap=3){
+  const map = new Map();
+  forEachCell((x,y)=>{
+    const a = gridCountry[idx(x,y)]; if(a<0) return; if(!isCoast(x,y)) return;
+    const dirs = [[1,0],[-1,0],[0,1],[0,-1]];
+    for(const [dx,dy] of dirs){
+      let nx=x+dx, ny=y+dy, gap=0;
+      while(inside(nx,ny) && gap<maxGap){
+        const t = gridTerrain[idx(nx,ny)];
+        if(t===0){ gap++; nx+=dx; ny+=dy; continue; }
+        const b = gridCountry[idx(nx,ny)];
+        if(b>=0 && b!==a){ const lo=Math.min(a,b), hi=Math.max(a,b); const key = lo+"-"+hi+"-sea"; if(!map.has(key)) map.set(key,{a:lo,b:hi,cells:[],type:'sea'}); map.get(key).cells.push([x,y,nx,ny]); }
+        break;
+      }
+    }
   });
   return Array.from(map.values());
 }
 
-// ====== 렌더: 국가 ======
+// ====== 렌더 ======
 function drawCountries(){
   ctx.clearRect(0,0,countryCV.width,countryCV.height);
-  // 국가 채우기
-  C.forEach(c=>{
-    ctx.fillStyle = colors[c.id % colors.length];
-    c.cells.forEach(g=>{
-      const x=g%W, y=(g/W)|0;
-      ctx.fillRect(x*CELL, y*CELL, CELL, CELL);
-    });
-  });
-  // 하이라이트 점멸
-  const now = Date.now();
-  highlights = highlights.filter(h=> now - h.t < 1000);
-  ctx.globalAlpha = 0.8;
-  ctx.fillStyle = getCSS('--hit');
-  highlights.forEach(h=>{
-    const a = 1 - (now-h.t)/1000;
-    ctx.globalAlpha = 0.2 + 0.6*a;
-    ctx.fillRect(h.x*CELL, h.y*CELL, CELL, CELL);
-  });
-  ctx.globalAlpha = 1;
-  // 국가 이름 라벨
-  ctx.save();
-  ctx.textAlign='center';
-  ctx.textBaseline='middle';
-  C.forEach(c=>{
-    const [px,py] = centroidOf(c);
-    const sz = c.cells.size;
-    const fontSize = Math.max(10, Math.min(22, 8 + Math.sqrt(sz)*1.2));
-    ctx.font = 'bold ' + fontSize + 'px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Noto Sans';
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = 'rgba(0,0,0,0.7)';
-    ctx.strokeText(c.name, px, py);
-    ctx.fillStyle = '#ffffff';
-    ctx.fillText(c.name, px, py);
-  });
+  C.forEach(c=>{ ctx.fillStyle = colors[c.id % colors.length]; c.cells.forEach(g=>{ const x=g%W, y=(g/W)|0; ctx.fillRect(x*CELL, y*CELL, CELL, CELL); }); });
+  // 하이라이트
+  const now = Date.now(); highlights = highlights.filter(h=> now - h.t < 1000); ctx.globalAlpha=0.8; ctx.fillStyle=getCSS('--hit');
+  highlights.forEach(h=>{ const a=1-(now-h.t)/1000; ctx.globalAlpha=0.2+0.6*a; ctx.fillRect(h.x*CELL, h.y*CELL, CELL, CELL); }); ctx.globalAlpha=1;
+  // 라벨
+  ctx.save(); ctx.textAlign='center'; ctx.textBaseline='middle';
+  C.forEach(c=>{ const [px,py]=centroidOf(c); const sz=c.cells.size; const fontSize = Math.max(10, Math.min(22, 8 + Math.sqrt(sz)*1.2)); ctx.font='bold '+fontSize+'px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Noto Sans'; ctx.lineWidth=3; ctx.strokeStyle='rgba(0,0,0,0.7)'; ctx.strokeText(c.name, px, py); ctx.fillStyle='#ffffff'; ctx.fillText(c.name, px, py); });
   ctx.restore();
 }
 
-// ====== 이벤트 확률 계수 ======
-function borderMod(entry){
-  switch(entry.type){
-    case 'mount': return 0.5; // 발발 억제
-    case 'isthmus': return 1.7; // 요충지
-    default: return 1.0; // 평지
-  }
-}
-function defenseMod(entry){
-  switch(entry.type){
-    case 'mount': return 1.4; // 방어 강화
-    case 'isthmus': return 1.3; // 수성 유리
-    default: return 1.0;
-  }
-}
+function borderMod(entry){ switch(entry.type){ case 'mount': return 0.5; case 'isthmus': return 1.7; case 'sea': return 0.35; default: return 1.0; } }
+function defenseMod(entry){ switch(entry.type){ case 'mount': return 1.4; case 'isthmus': return 1.3; case 'sea': return 1.0; default: return 1.0; } }
 
 // ====== 시뮬 루프 ======
-let tickHandle=null, stepDelay=250; // 1x -> 250ms
-function setSpeed(v){
-  speed = v; speedOut.textContent = v+"×";
-  stepDelay = 250 / v; // 1x=4턴/초, 8x=32턴/초
-  if(!paused){
-    clearInterval(tickHandle);
-    tickHandle = setInterval(step, stepDelay);
-  }
-}
+let tickHandle=null, stepDelay=250; // 1x → 4턴/초
+function setSpeed(v){ speed=v; document.getElementById('speedOut').textContent=v+'×'; stepDelay = 250 / v; if(!paused){ clearInterval(tickHandle); tickHandle = setInterval(step, stepDelay); } }
+function pushTicker(html){ const line=document.createElement('div'); line.innerHTML=html; const t=document.getElementById('ticker'); t.prepend(line); while(t.childElementCount>60) t.lastChild.remove(); }
+function metricG(){ const sizes=C.map(c=>c.cells.size).sort((a,b)=>b-a); const total=sizes.reduce((p,c)=>p+c,0)||1; return sizes.length?(sizes[0]/total):0; }
+function adjustTension(){ const E10 = eventScoreRing.reduce((p,c)=>p+c,0); const targetLo=18, targetHi=22; if(E10 < targetLo){ T = Math.min(1.5, T * 1.1); } else if(E10 > targetHi){ T = Math.max(0.8, T * 0.9); } else { T += (1.0 - T)*0.05; } }
 
-function pushTicker(html){
-  const line = document.createElement('div');
-  line.innerHTML = html; ticker.prepend(line);
-  // 길이 제한
-  while(ticker.childElementCount>60) ticker.lastChild.remove();
-}
-
-function metricG(){
-  const sizes = C.map(c=>c.cells.size).sort((a,b)=>b-a);
-  const total = sizes.reduce((p,c)=>p+c,0)||1;
-  return sizes.length? (sizes[0]/total) : 0;
-}
-
-function adjustTension(){
-  // 최근 8턴 이벤트 점수 목표치 18~22 → 부족하면 T up, 과열이면 down
-  const E8 = eventScoreRing.reduce((p,c)=>p+c,0);
-  const targetLo=18, targetHi=22; // 10턴당
-  if(E8 < targetLo){
-    T = Math.min(1.5, T * 1.1);
-  } else if(E8 > targetHi){
-    T = Math.max(0.8, T * 0.9);
-  } else {
-    // 완만 회귀
-    T += (1.0 - T)*0.05;
-  }
-}
-
-function step(){
-  if(paused) return;
-  turn++;
-  let eScore = 0; // 이벤트 점수 (전쟁1, 반란1.5, 연합2)
-
-  // 자연 안정도 변화 & 거대국 패널티
-  const med = median(C.map(c=>c.cells.size));
-  const G = metricG();
-  C.forEach(c=>{
-    c.s -= 0.01 * Math.log(1 + c.cells.size / Math.max(1,med));
-    if(G>0.40 && c.cells.size === maxSize()) c.s -= 0.02; // 최대국 추가 페널티
-    c.s += 0.02; // 자연 회복
-    c.s = clamp(c.s, 0, 1);
-  });
-
-  // 전쟁 후보 샘플링 (국경쌍 일부만)
-  if(borderEdges.length){
-    const samples = Math.min(12, borderEdges.length);
-    for(let k=0;k<samples;k++){
-      const entry = borderEdges[randInt(rng,0,borderEdges.length-1)];
-      const a = C.find(c=>c && c.id===entry.a), b = C.find(c=>c && c.id===entry.b);
-      if(!a||!b) continue;
-      const larger = a.cells.size>=b.cells.size? a:b; const smaller = (larger===a)? b:a;
-      // 발발확률
-      const modB = borderMod(entry);
-      const base = W0 * T * modB * (1 + Math.max(0, Math.log(larger.cells.size / Math.max(1, smaller.cells.size)))) * (0.5 + 0.5* frontierRatio(larger)) * (1 - 0.3*smaller.s);
-      const p = Math.min(MAX_P_WAR, base);
-      if(rng()<p){
-        // 전투력
-        const A_terr = (entry.type==='mount')?0.8 : (entry.type==='isthmus'?1.1:1.0);
-        const D_def = defenseMod(entry);
-        const F_att = Math.pow(larger.cells.size,0.6)*Math.pow(Math.max(0.1,larger.s),0.4)*A_terr*sampleLogNormal(rng,0.35);
-        const F_def = Math.pow(smaller.cells.size,0.6)*Math.pow(Math.max(0.1,smaller.s),0.4)*D_def*sampleLogNormal(rng,0.35);
-        const attacker = larger;
-        const defender = smaller;
-        if(F_att>F_def){
-          // 점령 칸 수
-          const want = Math.floor(Math.min(12, Math.max(1, samplePareto(rng,1.8,1))));
-          const taken = seizeBorder(attacker, defender, entry, want);
-          if(taken>0){
-            attacker.s += 0.03; defender.s -= 0.10; attacker.s=clamp(attacker.s,0,1); defender.s=clamp(defender.s,0,1);
-            eScore += 1;
-            pushTicker(`⚔ <b>전쟁</b> — <span style="color:${colors[attacker.id]}">국가${attacker.id}</span> → <span style="color:${colors[defender.id]}">국가${defender.id}</span> (${taken}칸)`);
-          }
-        } else {
-          // 수비 성공(간단히 사기 소폭 상승)
-          defender.s += 0.02; attacker.s -= 0.02;
-        }
-      }
-    }
-  }
-
-  // 반란: 국가 일부만 샘플 평가 (성능)
-  const evalCount = Math.min(8, C.length);
-  for(let i=0;i<evalCount;i++){
-    const c = choice(rng, C);
-    if(!c) continue;
-    const R_terr = 1 + 0.5*c.tag.mountRatio + 0.2*Math.min(0.8,c.tag.coastRatio);
-    const med = median(C.map(x=>x.cells.size));
-    const p = clamp(R0 * T * R_terr * Math.pow(c.cells.size/Math.max(1,med),0.7) * Math.pow(1-c.s,1.2), 0, MAX_P_REB);
-    if(rng()<p && c.cells.size>=6){
-      const out = splitRebellion(c);
-      if(out){ eScore += 1.5; pushTicker(`⚑ <b>반란</b> — 국가${c.id}에서 신생국 <span style="color:${colors[out.id]}">국가${out.id}</span> 등장 (${out.cells.size}칸)`); }
-    }
-  }
-
-  // 연합합병: 7턴마다 평가 (부하 완화)
-  if(turn%7===0){
-    const gShare = metricG();
-    if(gShare>=0.25){
-      const merged = tryUnionMerge(gShare);
-      if(merged>0){ eScore += 2; pushTicker(`⛬ <b>연합</b> — 소국 ${merged}개가 연합하여 강자 견제`); }
-    }
-  }
-
-  // 멸망 처리 & 정리
-  C = C.filter(c=>c && c.cells.size>0);
-  reindexCountries();
-  rebuildNeighborsAll();
-
-  // 이벤트 점수 링버퍼(최근 10턴)
-  eventScoreRing.unshift(eScore); if(eventScoreRing.length>10) eventScoreRing.pop();
-  adjustTension();
-
-  // 스파크라인 업데이트
-  const N = C.length, Gv = metricG();
-  Nspark.push(N); if(Nspark.length>100) Nspark.shift();
-  Gspark.push(Gv); if(Gspark.length>100) Gspark.shift();
-  drawSparks();
-
+function step(){ if(paused) return; turn++; let eScore=0; const med = median(C.map(c=>c.cells.size)); const G = metricG();
+  // 안정도 자연 변화
+  C.forEach(c=>{ c.s -= 0.01 * Math.log(1 + c.cells.size / Math.max(1,med)); if(G>0.40 && c.cells.size === maxSize()) c.s -= 0.02; c.s += 0.02; c.s = clamp(c.s,0,1); });
+  // 전쟁 샘플링
+  if(borderEdges.length){ const samples = Math.min(12, borderEdges.length); for(let k=0;k<samples;k++){ const entry = borderEdges[randInt(rng,0,borderEdges.length-1)]; const a = C.find(c=>c && c.id===entry.a), b = C.find(c=>c && c.id===entry.b); if(!a||!b) continue; const larger = a.cells.size>=b.cells.size? a:b; const smaller = (larger===a)? b:a; const modB = borderMod(entry); const base = W0 * T * modB * (1 + Math.max(0, Math.log(larger.cells.size / Math.max(1, smaller.cells.size)))) * (0.5 + 0.5*frontierRatio(larger)) * (1 - 0.3*smaller.s); const p = Math.min(MAX_P_WAR, base); if(rng()<p){ let A_terr=1.0; if(entry.type==='mount') A_terr=0.8; else if(entry.type==='isthmus') A_terr=1.1; else if(entry.type==='sea') A_terr=0.75; const D_def = defenseMod(entry); const F_att = Math.pow(larger.cells.size,0.6)*Math.pow(Math.max(0.1,larger.s),0.4)*A_terr*sampleLogNormal(rng,0.35); const F_def = Math.pow(smaller.cells.size,0.6)*Math.pow(Math.max(0.1,smaller.s),0.4)*D_def*sampleLogNormal(rng,0.35); const attacker=larger, defender=smaller; if(F_att>F_def){ const want = Math.floor(Math.min(12, Math.max(1, samplePareto(rng,1.8,1)))); const taken = seizeBorder(attacker, defender, entry, want); if(taken>0){ attacker.s += 0.03; defender.s -= 0.10; attacker.s=clamp(attacker.s,0,1); defender.s=clamp(defender.s,0,1); eScore += 1; pushTicker(`⚔ <b>전쟁</b> — <span style="color:${colors[attacker.id]}">국가${attacker.id}</span> → <span style="color:${colors[defender.id]}">국가${defender.id}</span> (${taken}칸)`); } } else { defender.s += 0.02; attacker.s -= 0.02; } } } }
+  // 반란
+  const evalCount = Math.min(8, C.length); for(let i=0;i<evalCount;i++){ const c = choice(rng, C); if(!c) continue; const R_terr = 1 + 0.5*c.tag.mountRatio + 0.2*Math.min(0.8,c.tag.coastRatio); const p = clamp(R0 * T * R_terr * Math.pow(c.cells.size/Math.max(1,med),0.7) * Math.pow(1-c.s,1.2), 0, MAX_P_REB); if(rng()<p && c.cells.size>=6){ const out = splitRebellion(c); if(out){ eScore += 1.5; pushTicker(`⚑ <b>반란</b> — 국가${c.id}에서 신생국 <span style="color:${colors[out.id]}">국가${out.id}</span> 등장 (${out.cells.size}칸)`); } } }
+  // 연합합병
+  if(turn%7===0){ const gShare = metricG(); if(gShare>=0.25){ const merged = tryUnionMerge(gShare); if(merged>0){ eScore += 2; pushTicker(`⛬ <b>연합</b> — 소국 ${merged}개가 연합하여 강자 견제`); } } }
+  // 멸망 정리
+  C = C.filter(c=>c && c.cells.size>0); reindexCountries(); rebuildNeighborsAll();
+  // 페이싱
+  eventScoreRing.unshift(eScore); if(eventScoreRing.length>10) eventScoreRing.pop(); adjustTension();
+  // 스파크라인
+  const N=C.length, Gv=metricG(); Nspark.push(N); if(Nspark.length>100) Nspark.shift(); Gspark.push(Gv); if(Gspark.length>100) Gspark.shift(); drawSparks();
   // 렌더
-  drawCountries();
-
-  // 상단 표기
-  turnOut.textContent = String(turn);
-}
-
-function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
-function median(arr){ if(arr.length===0) return 0; const s=[...arr].sort((a,b)=>a-b); const m=(s.length-1)/2; return (s[Math.floor(m)]+s[Math.ceil(m)])/2; }
-function maxSize(){ return C.reduce((p,c)=>Math.max(p,c.cells.size),0); }
-function frontierRatio(c){
-  let border=0;
-  c.cells.forEach(g=>{ const x=g%W,y=(g/W)|0; if(neighbors4(x,y).some(([a,b])=>{ const id=gridCountry[idx(a,b)]; return id>=0 && id!==c.id; })) border++; });
-  return border/Math.max(1,c.cells.size);
+  drawCountries(); document.getElementById('turnOut').textContent=String(turn);
 }
 
 function seizeBorder(att, def, entry, want){
-  // 국경 근처에서 def의 타일을 want만큼 att로 전환
   const q = [];
-  entry.cells.forEach(([x,y,nx,ny])=>{
-    // def 쪽 타일을 시작점 후보로
-    if(gridCountry[idx(x,y)]===def.id) q.push([x,y]);
-    if(gridCountry[idx(nx,ny)]===def.id) q.push([nx,ny]);
-  });
-  const seen = new Set();
-  let taken=0;
-  while(q.length && taken<want){
-    const i = randInt(rng,0,q.length-1);
-    const [x,y] = q.splice(i,1)[0];
-    const gid = idx(x,y);
-    if(gridCountry[gid]!==def.id || seen.has(gid)) continue;
-    seen.add(gid);
-    // 바다/산맥 제한: 산맥은 확률적으로만 점령
-    if(gridTerrain[gid]===2 && rng()<0.4) { continue; }
-    gridCountry[gid] = att.id; att.cells.add(gid); def.cells.delete(gid);
-    highlights.push({x,y,t:Date.now()});
-    taken++;
-    neighbors4(x,y).forEach(([a,b])=>{ if(gridCountry[idx(a,b)]===def.id) q.push([a,b]); });
-  }
+  entry.cells.forEach(([x,y,nx,ny])=>{ if(gridCountry[idx(x,y)]===def.id) q.push([x,y]); if(gridCountry[idx(nx,ny)]===def.id) q.push([nx,ny]); });
+  const seen = new Set(); let taken=0;
+  while(q.length && taken<want){ const i = randInt(rng,0,q.length-1); const [x,y] = q.splice(i,1)[0]; const gid=idx(x,y); if(gridCountry[gid]!==def.id || seen.has(gid)) continue; seen.add(gid); if(gridTerrain[gid]===2 && rng()<0.4) { continue; } gridCountry[gid]=att.id; att.cells.add(gid); def.cells.delete(gid); highlights.push({x,y,t:Date.now()}); taken++; neighbors4(x,y).forEach(([a,b])=>{ if(gridCountry[idx(a,b)]===def.id) q.push([a,b]); }); }
   return taken;
 }
 
-function splitRebellion(c){
-  // 산악/해안 위주로 20~40% 떼어내기
-  const size = c.cells.size; const target = Math.max(3, Math.floor(size*(0.2+0.2*rng())));
-  // 후보 시작점: 산맥/해안 셀 우선
-  const cells = Array.from(c.cells);
-  const weighted = cells.map(g=>{
-    const x=g%W,y=(g/W)|0; const coast=isCoast(x,y)?1:0; const mount=(gridTerrain[g]===2)?1:0;
-    return {g, w: 1 + 1.5*mount + 0.6*coast};
-  });
-  let start = weighted[0]?.g;
-  if(weighted.length){
-    let sum = weighted.reduce((p,o)=>p+o.w,0), r=rng()*sum;
-    for(const o of weighted){ r-=o.w; if(r<=0){ start=o.g; break; } }
-  }
-  const startX=start%W, startY=(start/W)|0;
-  const out = new Set(); const q=[[startX,startY]]; const seen=new Set([start]);
-  while(q.length && out.size<target){
-    const [x,y]=q.shift(); const gid=idx(x,y); if(gridCountry[gid]!==c.id) continue;
-    out.add(gid);
-    const nbr = neighbors4(x,y).sort(()=>rng()-0.5);
-    nbr.forEach(([a,b])=>{
-      const id=idx(a,b);
-      if(!seen.has(id) && gridCountry[id]===c.id){ seen.add(id); q.push([a,b]); }
-    });
-  }
-  if(out.size<3) return null;
-  const newId = C.length; const s0 = 0.55 + rng()*0.2;
-  const newC = { id:newId, cells:new Set(out), s:s0, neighbors:new Set(), tag:{}, name: makeName() };
-  out.forEach(g=>{ gridCountry[g]=newId; c.cells.delete(g); const x=g%W,y=(g/W)|0; highlights.push({x,y,t:Date.now()}); });
-  C.push(newC);
-  // 색 하나 더 or 재사용
-  colors[newId] = colors[newId] || hslToHex((rng()*360), 70, 55);
-  // 태그 업데이트
-  let mount=0, coast=0; newC.cells.forEach(g=>{ if(gridTerrain[g]===2) mount++; const x=g%W,y=(g/W)|0; if(isCoast(x,y)) coast++; });
-  newC.tag.mountRatio = mount/Math.max(1,newC.cells.size);
-  newC.tag.coastRatio = coast/Math.max(1,newC.cells.size);
-  return newC;
-}
+function splitRebellion(c){ const size=c.cells.size; const target=Math.max(3, Math.floor(size*(0.2+0.2*rng()))); const cells=Array.from(c.cells); const weighted=cells.map(g=>{ const x=g%W,y=(g/W)|0; const coast=isCoast(x,y)?1:0; const mount=(gridTerrain[g]===2)?1:0; return {g, w: 1 + 1.5*mount + 0.6*coast}; }); let start=weighted[0]?.g; if(weighted.length){ let sum=weighted.reduce((p,o)=>p+o.w,0), r=rng()*sum; for(const o of weighted){ r-=o.w; if(r<=0){ start=o.g; break; } } } const startX=start%W, startY=(start/W)|0; const out=new Set(); const q=[[startX,startY]]; const seen=new Set([start]); while(q.length && out.size<target){ const [x,y]=q.shift(); const gid=idx(x,y); if(gridCountry[gid]!==c.id) continue; out.add(gid); const nbr=neighbors4(x,y).sort(()=>rng()-0.5); nbr.forEach(([a,b])=>{ const id=idx(a,b); if(!seen.has(id) && gridCountry[id]===c.id){ seen.add(id); q.push([a,b]); } }); } if(out.size<3) return null; const newId=C.length; const s0=0.55 + rng()*0.2; const newC={ id:newId, cells:new Set(out), s:s0, neighbors:new Set(), tag:{}, name: makeName() }; out.forEach(g=>{ gridCountry[g]=newId; c.cells.delete(g); const x=g%W,y=(g/W)|0; highlights.push({x,y,t:Date.now()}); }); C.push(newC); colors[newId] = colors[newId] || hslToHex((rng()*360), 70, 55); let mount=0, coast=0; newC.cells.forEach(g=>{ if(gridTerrain[g]===2) mount++; const x=g%W,y=(g/W)|0; if(isCoast(x,y)) coast++; }); newC.tag.mountRatio = mount/Math.max(1,newC.cells.size); newC.tag.coastRatio = coast/Math.max(1,newC.cells.size); return newC; }
 
-function tryUnionMerge(Gshare){
-  // 소국: size <= median/2
-  const med = median(C.map(c=>c.cells.size));
-  const small = C.filter(c=>c.cells.size <= Math.max(2, Math.floor(med/2)));
-  if(small.length<3) return 0;
-  // 인접 그래프에서 컴포넌트 추출
-  const idToIdx = new Map(); small.forEach((c,i)=>idToIdx.set(c.id,i));
-  const seen = new Set(); let mergedCount=0;
-  for(const s of small){
-    if(seen.has(s.id)) continue;
-    // BFS로 스몰 클러스터
-    const comp=[s]; seen.add(s.id);
-    const q=[s];
-    while(q.length){
-      const cur=q.shift();
-      cur.neighbors.forEach(nid=>{
-        if(idToIdx.has(nid) && !seen.has(nid)){
-          seen.add(nid); const nc = C.find(x=>x.id===nid); if(nc) { comp.push(nc); q.push(nc); }
-        }
-      })
-    }
-    if(comp.length>=3){
-      // 지리 응집도 추정: 평균 국경 공유율
-      let borders=0, possible=0;
-      comp.forEach(a=>comp.forEach(b=>{ if(a!==b){ possible++; if(a.neighbors.has(b.id)) borders++; }}));
-      const cohesion = possible? (borders/possible) : 0.5;
-      const p = clamp(U0 * T * Math.pow(Gshare-0.25,1.1) * (comp.length/3) * (0.8 + 0.6*cohesion), 0, 0.6);
-      if(rng()<p){
-        // 병합 수행 — 첫 국가로 합침
-        const base = comp[0];
-        for(let i=1;i<comp.length;i++){
-          const victim = comp[i];
-          victim.cells.forEach(g=>{ gridCountry[g]=base.id; base.cells.add(g); const x=g%W,y=(g/W)|0; highlights.push({x,y,t:Date.now()}); });
-          victim.cells.clear();
-        }
-        // 안정도 보너스
-        base.s = clamp((base.s + 0.1), 0, 1);
-        mergedCount = comp.length; // 리포트용
-        break; // 한 번만
-      }
-    }
-  }
-  return mergedCount;
-}
+function tryUnionMerge(Gshare){ const med = median(C.map(c=>c.cells.size)); const small = C.filter(c=>c.cells.size <= Math.max(2, Math.floor(med/2))); if(small.length<3) return 0; const idToIdx = new Map(); small.forEach((c,i)=>idToIdx.set(c.id,i)); const seen=new Set(); let mergedCount=0; for(const s of small){ if(seen.has(s.id)) continue; const comp=[s]; seen.add(s.id); const q=[s]; while(q.length){ const cur=q.shift(); cur.neighbors.forEach(nid=>{ if(idToIdx.has(nid) && !seen.has(nid)){ seen.add(nid); const nc=C.find(x=>x.id===nid); if(nc){ comp.push(nc); q.push(nc); } } }) } if(comp.length>=3){ let borders=0, possible=0; comp.forEach(a=>comp.forEach(b=>{ if(a!==b){ possible++; if(a.neighbors.has(b.id)) borders++; }})); const cohesion = possible? (borders/possible) : 0.5; const p = clamp(U0 * T * Math.pow(Gshare-0.25,1.1) * (comp.length/3) * (0.8 + 0.6*cohesion), 0, 0.6); if(rng()<p){ const base=comp[0]; for(let i=1;i<comp.length;i++){ const victim=comp[i]; victim.cells.forEach(g=>{ gridCountry[g]=base.id; base.cells.add(g); const x=g%W,y=(g/W)|0; highlights.push({x,y,t:Date.now()}); }); victim.cells.clear(); } base.s = clamp((base.s + 0.1), 0, 1); mergedCount = comp.length; break; } } } return mergedCount; }
 
-function reindexCountries(){
-  // ID가 비는 문제를 방지 (색은 유지)
-  const alive = C.filter(c=>c.cells.size>0);
-  const mapId = new Map(alive.map((c,i)=>[c.id,i]));
-  alive.forEach((c,i)=>{ c.id=i; });
-  // gridCountry 갱신
-  forEachCell((x,y)=>{
-    const g = gridCountry[idx(x,y)];
-    if(g>=0) gridCountry[idx(x,y)] = mapId.get(g);
-  });
-  // colors 재매핑
-  const newColors = [];
-  alive.forEach(c=>{ newColors[c.id] = colors[c.id] || colors[mapId.get(c.id)] || hslToHex(rng()*360,70,55); });
-  colors = newColors;
-  C = alive;
-}
+function reindexCountries(){ const alive=C.filter(c=>c.cells.size>0); const mapId=new Map(alive.map((c,i)=>[c.id,i])); alive.forEach((c,i)=>{ c.id=i; }); forEachCell((x,y)=>{ const g=gridCountry[idx(x,y)]; if(g>=0) gridCountry[idx(x,y)] = mapId.get(g); }); const newColors=[]; alive.forEach(c=>{ newColors[c.id] = colors[c.id] || colors[mapId.get(c.id)] || hslToHex(rng()*360,70,55); }); colors=newColors; C=alive; }
 
-function drawSparks(){
-  const draw = (g, arr, color)=>{
-    g.clearRect(0,0,g.canvas.width,g.canvas.height);
-    const w=g.canvas.width,h=g.canvas.height;
-    if(arr.length<2) return;
-    const min = Math.min(...arr), max=Math.max(...arr);
-    const pad=4;
-    g.beginPath();
-    for(let i=0;i<arr.length;i++){
-      const x = pad + (w-2*pad)*i/(arr.length-1);
-      const norm = (arr[i]-min)/Math.max(1e-6,(max-min));
-      const y = h-pad - (h-2*pad)*norm;
-      if(i===0) g.moveTo(x,y); else g.lineTo(x,y);
-    }
-    g.strokeStyle = color; g.lineWidth=1.5; g.stroke();
-  }
-  draw(sparkN, Nspark, '#87f291');
-  draw(sparkG, Gspark, '#f2cd87');
-}
+function drawSparks(){ const draw=(g,arr,color)=>{ g.clearRect(0,0,g.canvas.width,g.canvas.height); const w=g.canvas.width,h=g.canvas.height; if(arr.length<2) return; const min=Math.min(...arr), max=Math.max(...arr); const pad=4; g.beginPath(); for(let i=0;i<arr.length;i++){ const x=pad+(w-2*pad)*i/(arr.length-1); const norm=(arr[i]-min)/Math.max(1e-6,(max-min)); const y=h-pad-(h-2*pad)*norm; if(i===0) g.moveTo(x,y); else g.lineTo(x,y); } g.strokeStyle=color; g.lineWidth=1.5; g.stroke(); }
+  draw(sparkN, Nspark, '#87f291'); draw(sparkG, Gspark, '#f2cd87'); }
 
-// ====== 부트스트랩 / 재시작 ======
-function restart(){
-  seed = (Math.random()*0xffffffff)>>>0;
-  rng = mulberry32(seed);
-  seedOut.textContent = seed.toString(16).padStart(8,'0');
-  turn = 0; T=1.0; eventScoreRing = []; Nspark=[]; Gspark=[]; highlights=[]; ticker.innerHTML='';
-  generateMap();
-  seedCountries();
-  drawCountries();
-}
+// ====== 부트스트랩 ======
+function restart(){ seed = (Math.random()*0xffffffff)>>>0; rng = mulberry32(seed); document.getElementById('seedOut').textContent = seed.toString(16).padStart(8,'0'); turn=0; T=1.0; eventScoreRing=[]; Nspark=[]; Gspark=[]; highlights=[]; document.getElementById('ticker').innerHTML=''; generateMap(); seedCountries(); drawCountries(); }
 
-// ====== UI 바인딩 ======
 const pauseBtn = document.getElementById('pauseBtn');
 const resumeBtn = document.getElementById('resumeBtn');
 const restartBtn = document.getElementById('restartBtn');
 const speedSel = document.getElementById('speed');
-
 pauseBtn.addEventListener('click', ()=>{ paused=true; pauseBtn.disabled=true; resumeBtn.disabled=false; });
 resumeBtn.addEventListener('click', ()=>{ paused=false; pauseBtn.disabled=false; resumeBtn.disabled=true; });
 restartBtn.addEventListener('click', ()=>{ restart(); });
-
 speedSel.addEventListener('change', (e)=>{ setSpeed(parseFloat(e.target.value)); });
 
-// 스타트
-restart();
-setSpeed(1);
-paused=false;
-clearInterval(tickHandle); tickHandle = setInterval(step, stepDelay);
-
+restart(); setSpeed(1); paused=false; clearInterval(tickHandle); tickHandle = setInterval(step, stepDelay);
 </script>
 </body>
 </html>
