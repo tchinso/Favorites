@@ -184,20 +184,51 @@ function valueNoise2D(x,y, s){ const xi=Math.floor(x), yi=Math.floor(y); const x
 function octaveNoise(x,y,s, oct=4, lac=2, gain=0.5){ let amp=1, freq=1, sum=0, norm=0; for(let i=0;i<oct;i++){ sum+=amp*valueNoise2D(x*freq,y*freq,s+i*7919); norm+=amp; amp*=gain; freq*=lac; } return sum/norm; }
 
 // ====== 지도 생성 ======
+// === 다중 대륙 필드 (큰 덩어리 여러 개) ===
+let continentSeeds = [];
+function initContinents(){
+  continentSeeds.length = 0;
+  const n = randInt(rng,3,5); // 대륙 개수 3~5
+  for(let i=0;i<n;i++){
+    const cx = randInt(rng, Math.floor(W*0.15), Math.floor(W*0.85));
+    const cy = randInt(rng, Math.floor(H*0.15), Math.floor(H*0.85));
+    const rx = randInt(rng, Math.floor(W*0.18), Math.floor(W*0.28));
+    const ry = randInt(rng, Math.floor(H*0.18), Math.floor(H*0.28));
+    const ang = rng()*Math.PI*2;
+    continentSeeds.push({cx,cy,rx,ry,ang});
+  }
+}
+function continentField(x,y){
+  // 각 시드의 타원형 가우시안 범프의 최대값 → 분리된 큰 덩어리
+  let v = 0;
+  for(const s of continentSeeds){
+    const cos = Math.cos(s.ang), sin = Math.sin(s.ang);
+    const dx = x - s.cx, dy = y - s.cy;
+    const rx = (dx*cos + dy*sin)/s.rx;
+    const ry = (-dx*sin + dy*cos)/s.ry;
+    const d2 = rx*rx + ry*ry;
+    const bump = Math.exp(-d2); // 1 at center → 0 toward edge
+    if(bump > v) v = bump;
+  }
+  return v; // 0..1 근사
+}
+
 function generateMap(){
   gridTerrain = new Uint8Array(W*H);
   gridCountry = new Int16Array(W*H).fill(-1);
   isIsthmus = new Uint8Array(W*H).fill(0);
 
   const scale = 0.12; // 해상도↑ → 패턴 세분화
-  const heights = new Float32Array(W*H);
-  forEachCell((x,y)=>{
-    const nx = x*scale, ny = y*scale;
-    const cx=(x-(W-1)/2)/(W/2), cy=(y-(H-1)/2)/(H/2);
-    const falloff = Math.max(0, 1 - Math.sqrt(cx*cx+cy*cy)*0.9);
-    const h = octaveNoise(nx,ny, 123456 + (seed&0xffff), 4, 1.9, 0.55)*0.8 + falloff*0.3;
-    heights[idx(x,y)] = h;
-  });
+const heights = new Float32Array(W*H);
+initContinents();
+forEachCell((x,y)=>{
+  const nx = x*scale, ny = y*scale;
+  const cont = continentField(x,y);                     // 대륙 큰 덩어리
+  const detail = octaveNoise(nx,ny, 123456 + (seed&0xffff), 4, 1.9, 0.55); // 지역 디테일
+  const macro  = octaveNoise(nx*0.35, ny*0.35, 98765 + (seed>>>16), 2, 1.8, 0.6); // 장주기 요철
+  const h = 0.6*cont + 0.35*detail + 0.05*macro;       // 블렌딩
+  heights[idx(x,y)] = h;
+});
 
   // 임계값으로 바다/육지/산 분리
   const sorted = Array.from(heights).sort((a,b)=>a-b);
