@@ -94,7 +94,7 @@
 // ====== 기본 상수 ======
 const W = 60, H = 32;               // 격자 크기 (2배)
 const CELL = 12;                    // 픽셀 크기 (720×384 유지)
-const LAND_TARGET = 0.48;           // 토지 비율 목표
+const LAND_TARGET = 0.50;           // 토지 비율 목표
 const MOUNT_TARGET = 0.16;          // 산맥 비율 목표(육지 대비)
 
 // 이벤트 베이스 파라미터(이벤트 로직은 유지)
@@ -223,7 +223,7 @@ function postprocessTerrain(){
   const comps = connectedComponents(landMask, 1);
 
   // 작은 섬 확보(군도 바탕): 1~2칸 섬 목표
-  const desiredTinyIslands = 12; let tinyCount = 0;
+  const desiredTinyIslands = 6; let tinyCount = 0;
   comps.forEach(c=>{ if(c.cells.length<=2) tinyCount++; });
   const toAdd = Math.max(0, desiredTinyIslands - tinyCount);
   for(let t=0;t<toAdd;t++){
@@ -292,7 +292,7 @@ function carveStraits(maxCuts){ if(typeof maxCuts!=='number') maxCuts=6; let cut
 function addLandBridgeWide(max=3){ let made=0; for(let tries=0; tries<300 && made<max; tries++){ const x = randInt(rng,2,W-3), y = randInt(rng,2,H-3); if(gridTerrain[idx(x-1,y)]!==0 && gridTerrain[idx(x,y)]===0 && gridTerrain[idx(x+1,y)]===0 && gridTerrain[idx(x+2,y)]!==0){ gridTerrain[idx(x,y)] = 1; gridTerrain[idx(x+1,y)] = 1; made++; continue; } if(gridTerrain[idx(x,y-1)]!==0 && gridTerrain[idx(x,y)]===0 && gridTerrain[idx(x,y+1)]===0 && gridTerrain[idx(x,y+2)]!==0){ gridTerrain[idx(x,y)] = 1; gridTerrain[idx(x,y+1)] = 1; made++; continue; } } }
 function addMountainRidge(){ for(let tries=0; tries<50; tries++){ const x = randInt(rng,0,W-1), y=randInt(rng,0,H-1); if(gridTerrain[idx(x,y)]!==1) continue; let len = randInt(rng,8,16), cx=x, cy=y; let lastDir=null; while(len-->0){ gridTerrain[idx(cx,cy)] = 2; const opts = neighbors4(cx,cy).filter(([a,b])=>gridTerrain[idx(a,b)]!==0); if(opts.length===0) break; let [nx,ny] = choice(rng, opts); if(lastDir && rng()<0.5){ const tx = cx + (lastDir[0]-cx), ty = cy + (lastDir[1]-cy); if(inside(tx,ty) && gridTerrain[idx(tx,ty)]!==0){ nx=tx; ny=ty; } } lastDir=[nx,ny]; cx=nx; cy=ny; } break; } }
 function tagIsthmusCells(){ forEachCell((x,y)=>{ const id=idx(x,y); if(gridTerrain[id]===0) { isIsthmus[id]=0; return; } const up = gridTerrain[idx(x,y-1)]!==0, down=gridTerrain[idx(x,y+1)]!==0; const left = gridTerrain[idx(x-1,y)]!==0, right=gridTerrain[idx(x+1,y)]!==0; if((up&&down && !left && !right) || (left&&right && !up && !down)) isIsthmus[id]=1; else isIsthmus[id]=0; }); }
-function addArchipelagoClusters(count=5){ for(let c=0;c<count;c++){ for(let tries=0; tries<60; tries++){ const x = randInt(rng,2,W-3), y = randInt(rng,2,H-3); if(gridTerrain[idx(x,y)]!==0) continue; const seaN = neighbors4(x,y).filter(([a,b])=>gridTerrain[idx(a,b)]===0).length; if(seaN>=3){ const n = randInt(rng,4,9); for(let i=0;i<n;i++){ const ox = randInt(rng,-3,3), oy = randInt(rng,-3,3); const ax = x+ox, ay = y+oy; if(!inside(ax,ay)) continue; if(gridTerrain[idx(ax,ay)]===0 && rng()<0.8) gridTerrain[idx(ax,ay)] = 1; if(rng()<0.15 && gridTerrain[idx(ax,ay)]!==0) gridTerrain[idx(ax,ay)] = 2; } break; } } } }
+function addArchipelagoClusters(count=5){ for(let c=0;c<count;c++){ for(let tries=0; tries<60; tries++){ const x = randInt(rng,2,W-3), y = randInt(rng,2,H-3); if(gridTerrain[idx(x,y)]!==0) continue; const seaN = neighbors4(x,y).filter(([a,b])=>gridTerrain[idx(a,b)]===0).length; if(seaN>=3){ const n = randInt(rng,4,9); for(let i=0;i<n;i++){ const ox = randInt(rng,-3,3), oy = randInt(rng,-3,3); const ax = x+ox, ay = y+oy; if(!inside(ax,ay)) continue; if(gridTerrain[idx(ax,ay)]===0 && rng()<0.85){ gridTerrain[idx(ax,ay)] = 1; neighbors4(ax,ay).forEach(([nx,ny])=>{ if(gridTerrain[idx(nx,ny)]===0 && rng()<0.35) gridTerrain[idx(nx,ny)] = 1; }); } if(rng()<0.12 && gridTerrain[idx(ax,ay)]!==0) gridTerrain[idx(ax,ay)] = 2; } break; } } } }
 
 function drawTerrain(){ terr.clearRect(0,0,terrainCV.width, terrainCV.height); forEachCell((x,y)=>{ const t = gridTerrain[idx(x,y)]; terr.fillStyle = t===0? getCSS('--sea') : t===1? getCSS('--land') : getCSS('--mount'); terr.fillRect(x*CELL, y*CELL, CELL, CELL); }); }
 
@@ -405,7 +405,7 @@ function adjustTension(){ const E10 = eventScoreRing.reduce((p,c)=>p+c,0); const
 
 function step(){ if(paused) return; turn++; let eScore=0; const med = median(C.map(c=>c.cells.size)); const G = metricG();
   // 안정도 자연 변화
-  C.forEach(c=>{ c.s -= 0.01 * Math.log(1 + c.cells.size / Math.max(1,med)); if(G>0.40 && c.cells.size === maxSize()) c.s -= 0.02; c.s += 0.02; c.s = clamp(c.s,0,1); });
+  C.forEach(c=>{ c.s -= 0.01 * Math.log(1 + c.cells.size / Math.max(1,med)); if(G>0.38 && c.cells.size === maxSize()) c.s -= 0.02; c.s += 0.02; c.s = clamp(c.s,0,1); });
   // 전쟁 샘플링
   if(borderEdges.length){ const samples = Math.min(12, borderEdges.length); for(let k=0;k<samples;k++){ const entry = borderEdges[randInt(rng,0,borderEdges.length-1)]; const a = C.find(c=>c && c.id===entry.a), b = C.find(c=>c && c.id===entry.b); if(!a||!b) continue; const larger = a.cells.size>=b.cells.size? a:b; const smaller = (larger===a)? b:a; const modB = borderMod(entry); const base = W0 * T * modB * (1 + Math.max(0, Math.log(larger.cells.size / Math.max(1, smaller.cells.size)))) * (0.5 + 0.5*frontierRatio(larger)) * (1 - 0.3*smaller.s); const p = Math.min(MAX_P_WAR, base); if(rng()<p){ let A_terr=1.0; if(entry.type==='mount') A_terr=0.8; else if(entry.type==='isthmus') A_terr=1.1; else if(entry.type==='sea') A_terr=0.75; const D_def = defenseMod(entry); const F_att = Math.pow(larger.cells.size,0.6)*Math.pow(Math.max(0.1,larger.s),0.4)*A_terr*sampleLogNormal(rng,0.35); const F_def = Math.pow(smaller.cells.size,0.6)*Math.pow(Math.max(0.1,smaller.s),0.4)*D_def*sampleLogNormal(rng,0.35); const attacker=larger, defender=smaller; if(F_att>F_def){ const want = Math.floor(Math.min(12, Math.max(1, samplePareto(rng,1.8,1)))); const taken = seizeBorder(attacker, defender, entry, want); if(taken>0){ attacker.s += 0.03; defender.s -= 0.10; attacker.s=clamp(attacker.s,0,1); defender.s=clamp(defender.s,0,1); eScore += 1; pushTicker(`⚔ <b>전쟁</b> — <span style="color:${colors[attacker.id]}">국가${attacker.id}</span> → <span style="color:${colors[defender.id]}">국가${defender.id}</span> (${taken}칸)`); } } else { defender.s += 0.02; attacker.s -= 0.02; } } } }
   // 반란
