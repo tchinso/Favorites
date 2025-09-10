@@ -15,7 +15,7 @@
   header { padding: 12px 16px; background: linear-gradient(180deg, #0d1520, #0c1320); box-shadow: 0 1px 0 #0008 inset; }
   header h1 { margin: 0; font-size: 18px; letter-spacing: .5px; color: var(--accent2); }
   header .meta { color: var(--muted); font-size: 12px; margin-top: 4px; }
-  main { display: grid; grid-template-columns: 1fr 300px; gap: 10px; padding: 0 10px 10px; }
+  main { display: grid; grid-template-columns: 1fr; gap: 10px; padding: 0 10px 10px; }
   #stageWrap { position: relative; width: fit-content; margin: 0 auto; box-shadow: 0 10px 30px #0009; border-radius: 10px; overflow: hidden; background:#0a0f14; }
   canvas { display: block; image-rendering: pixelated; }
   #terrain, #countries { position: absolute; left:0; top:0; }
@@ -61,6 +61,8 @@
           <option value="2">2×</option>
           <option value="4">4×</option>
           <option value="8">8×</option>
+          <option value="16">16×</option>
+          <option value="32">32×</option>
         </select>
         <button id="pauseBtn">일시정지</button>
         <button id="resumeBtn" disabled>재개</button>
@@ -92,8 +94,8 @@
 
 <script>
 // ====== 기본 상수 ======
-const W = 60, H = 32;               // 격자 크기 (2배)
-const CELL = 12;                    // 픽셀 크기 (720×384 유지)
+const W = 90, H = 48;               // 격자 크기 (기존 대비 1.5×)
+const CELL = 8;                     // 셀 픽셀 크기 재조정(90×8=720, 48×8=384로 캔버스 동일 유지)
 const LAND_TARGET = 0.50;           // 토지 비율 목표
 const MOUNT_TARGET = 0.16;          // 산맥 비율 목표(육지 대비)
 
@@ -188,7 +190,7 @@ function octaveNoise(x,y,s, oct=4, lac=2, gain=0.5){ let amp=1, freq=1, sum=0, n
 let continentSeeds = [];
 function initContinents(){
   continentSeeds.length = 0;
-  const n = randInt(rng,3,5); // 대륙 개수 3~5
+  const n = randInt(rng,4,7); // 대륙 개수 소폭 증가 4~7
   for(let i=0;i<n;i++){
     const cx = randInt(rng, Math.floor(W*0.15), Math.floor(W*0.85));
     const cy = randInt(rng, Math.floor(H*0.15), Math.floor(H*0.85));
