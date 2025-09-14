@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Hiyori · Four Classics — Static HTML</title>
+<style>
+  :root { --bg:#0f1220; --panel:#171a2b; --ink:#e8ecff; --muted:#9aa0c7; --accent:#8bc6ff; --accent2:#ffd28b; --good:#7dffa1; --bad:#ff8b8b; }
+  html,body{height:100%;}
+  body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.4 system-ui,Segoe UI,Roboto,Apple Color Emoji,Helvetica,Arial,sans-serif;}
+  .wrap{max-width:1100px;margin:0 auto;padding:18px;}
+  h1{font-size:20px;margin:0 0 12px;letter-spacing:.2px}
+  .hint{color:var(--muted)}
+  .tabs{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 14px}
+  .tab{border:1px solid #2a2f4f;background:var(--panel);padding:8px 12px;border-radius:10px;cursor:pointer;user-select:none}
+  .tab.active{outline:2px solid var(--accent);}
+  .row{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap}
+  .left{flex:1 1 540px}
+  .right{flex:1 1 360px}
+  .card{background:var(--panel);border:1px solid #2a2f4f;border-radius:14px;padding:12px}
+  button{background:#232848;color:var(--ink);border:1px solid #2a2f4f;border-radius:10px;padding:8px 12px;cursor:pointer}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  .bar{display:flex;gap:8px;align-items:center;justify-content:space-between;margin:8px 0}
+  .log{white-space:pre-wrap;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;color:var(--muted);max-height:260px;overflow:auto}
+  .pill{display:inline-block;border:1px solid #2a2f4f;background:#1b2040;padding:2px 8px;border-radius:999px;color:var(--accent)}
+  .board{display:grid;background:#0c0f1f;border:1px solid #2a2f4f;border-radius:12px;box-shadow:inset 0 0 0 1px #101436}
+  .cell{display:grid;place-items:center;cursor:pointer;border:1px solid #22264a}
+  .cell:hover{background:#151a35}
+  .stone{width:86%;height:86%;border-radius:50%}
+  .b{background:#0f121a;box-shadow:inset 0 0 10px rgba(255,255,255,.12)}
+  .w{background:#e9eefc;box-shadow:inset 0 0 10px rgba(0,0,0,.18)}
+  .disc{width:90%;height:90%;border-radius:50%;box-shadow:inset 0 0 10px rgba(0,0,0,.2)}
+  .r-black{background:#0d1117}
+  .r-white{background:#e9eefc}
+  .connect-slot{width:90%;height:90%;border-radius:50%;background:#0c0f1f;box-shadow:inset 0 0 10px rgba(255,255,255,.04)}
+  .connect-red{background:#ff5959}
+  .connect-yellow{background:#ffd84d}
+  .dot{width:8px;height:8px;border-radius:50%;background:#e9eefc}
+  .box{background:#151a35;display:flex;align-items:center;justify-content:center;font-weight:700;color:#8fb3ff}
+  /* Dots & Boxes edges */
+  .h-edge,.v-edge{background:#131733;border:1px solid #272c52;transition:background .12s, box-shadow .12s}
+  .h-edge{height:12px;border-radius:6px}
+  .v-edge{width:12px;border-radius:6px}
+  .edge{cursor:pointer}
+  .taken{box-shadow:inset 0 0 0 1px #3a3f68}
+  .edge.u-edge{background:rgba(255,210,139,.9); box-shadow:0 0 6px rgba(255,210,139,.45)}
+  .edge.a-edge{background:rgba(139,198,255,.9); box-shadow:0 0 6px rgba(139,198,255,.45)}
+  .edge.edge-hover{box-shadow:0 0 10px rgba(255,255,255,.35)}
+  .box.hint-box{outline:2px dashed rgba(255,216,77,.55); outline-offset:-4px}
+  .you{color:var(--accent2)}
+  .ai{color:var(--accent)}
+  .win{color:var(--good)}
+  .lose{color:var(--bad)}
+  .even{color:#b6bdf0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>네 가지 보드게임 · 싱글 파일</h1>
+  <div class="hint">5목·Connect Four는 사용자가 선공, 리버시·점잇기는 사용자가 후공. 동점 최선수는 무작위 변주, 단 하나뿐인 최선은 반드시 선택.</div>
+
+  <div class="tabs">
+    <div class="tab active" data-pane="#gomoku">5목</div>
+    <div class="tab" data-pane="#connect4">Connect Four</div>
+    <div class="tab" data-pane="#reversi">리버시</div>
+    <div class="tab" data-pane="#dots">Dots & Boxes</div>
+  </div>
+
+  <!-- Gomoku -->
+  <section class="row" id="gomoku">
+    <div class="left card">
+      <div class="bar"><div>
+        <span class="pill">보드 15×15</span>
+        <span class="pill">선공: 사용자(흑)</span>
+      </div>
+      <div>
+        <button id="g-reset">리셋</button>
+        <button id="g-undo">되돌리기</button>
+        <label class="pill">AI 깊이 <select id="g-depth">
+          <option value="3" selected>3-ply</option>
+          <option value="4">4-ply</option>
+        </select></label>
+      </div></div>
+      <div id="g-board" class="board" style="grid-template-columns: repeat(15, 32px); grid-template-rows: repeat(15, 32px);"></div>
+    </div>
+    <div class="right card">
+      <div><b>진행</b></div>
+      <div class="log" id="g-log"></div>
+    </div>
+  </section>
+
+  <!-- Connect Four -->
+  <section class="row" id="connect4" style="display:none">
+    <div class="left card">
+      <div class="bar">
+        <div>
+          <span class="pill">보드 7×6</span>
+          <span class="pill">선공: 사용자(빨강)</span>
+        </div>
+        <div>
+          <button id="c4-reset">리셋</button>
+          <label class="pill">AI 깊이 <select id="c4-depth">
+            <option value="7" selected>7</option>
+            <option value="8">8</option>
+            <option value="9">9</option>
+          </select></label>
+        </div>
+      </div>
+      <div id="c4-board" class="board" style="grid-template-columns: repeat(7, 58px); grid-template-rows: repeat(6, 58px);"></div>
+    </div>
+    <div class="right card">
+      <div><b>진행</b></div>
+      <div class="log" id="c4-log"></div>
+    </div>
+  </section>
+
+  <!-- Reversi -->
+  <section class="row" id="reversi" style="display:none">
+    <div class="left card">
+      <div class="bar">
+        <div>
+          <span class="pill">보드 8×8</span>
+          <span class="pill">선공: AI(흑) · 사용자(백)</span>
+        </div>
+        <div>
+          <button id="r-reset">리셋</button>
+          <label class="pill">AI 깊이 <select id="r-depth">
+            <option value="4">4</option>
+            <option value="5" selected>5</option>
+            <option value="6">6</option>
+          </select></label>
+        </div>
+      </div>
+      <div id="r-board" class="board" style="grid-template-columns: repeat(8, 54px); grid-template-rows: repeat(8, 54px);"></div>
+    </div>
+    <div class="right card">
+      <div><b>진행</b></div>
+      <div class="log" id="r-log"></div>
+    </div>
+  </section>
+
+  <!-- Dots & Boxes -->
+  <section class="row" id="dots" style="display:none">
+    <div class="left card">
+      <div class="bar">
+        <div>
+          <span class="pill">상자 4×4</span>
+          <span class="pill">선공: AI · 사용자 후공</span>
+        </div>
+        <div>
+          <button id="d-reset">리셋</button>
+          <label class="pill">AI 모드 <select id="d-mode">
+            <option value="smart" selected>전술형</option>
+            <option value="greedy">탐욕형</option>
+          </select></label>
+        </div>
+      </div>
+      <div id="d-board" class="board"></div>
+    </div>
+    <div class="right card">
+      <div><b>진행</b></div>
+      <div class="log" id="d-log"></div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+// ---------- Tabs ----------
+const tabs=[...document.querySelectorAll('.tab')];
+tabs.forEach(t=>t.addEventListener('click',()=>{
+  tabs.forEach(x=>x.classList.remove('active'));
+  t.classList.add('active');
+  document.querySelectorAll('section.row').forEach(p=>p.style.display='none');
+  document.querySelector(t.dataset.pane).style.display='flex';
+}));
+
+// ---------- Utils ----------
+const randChoice = arr => arr[Math.floor(Math.random()*arr.length)];
+
+// =========================================================
+// 1) Gomoku (15x15, user first)
+// =========================================================
+(function(){
+  const N=15, EMPTY=0, BLACK=1, WHITE=2; // user: BLACK, ai: WHITE
+  const boardEl=document.getElementById('g-board');
+  const logEl=document.getElementById('g-log');
+  const depthSel=document.getElementById('g-depth');
+  const hist=[];
+  let board, turn, over=false;
+
+  function inb(r,c){ return r>=0&&c>=0&&r<N&&c<N; }
+  const dirs=[[1,0],[0,1],[1,1],[1,-1]];
+  function countLine(r,c,col,dr,dc){
+    let k=1, rr=r+dr, cc=c+dc;
+    while(inb(rr,cc)&&board[rr][cc]===col){k++; rr+=dr; cc+=dc;}
+    rr=r-dr; cc=c-dc;
+    while(inb(rr,cc)&&board[rr][cc]===col){k++; rr-=dr; cc-=dc;}
+    return k;
+  }
+  function checkWin(r,c,col){ for(const [dr,dc] of dirs){ if(countLine(r,c,col,dr,dc)>=5) return true; } return false; }
+
+  function render(){
+    for(let i=0;i<boardEl.children.length;i++){
+      const d=boardEl.children[i];
+      const r=+d.dataset.r, c=+d.dataset.c;
+      d.innerHTML='';
+      if(board[r][c]!==EMPTY){
+        const s=document.createElement('div');
+        s.className='stone '+(board[r][c]==BLACK?'b':'w');
+        d.appendChild(s);
+      }
+    }
+  }
+
+  function onHuman(e){
+    if(over||turn!==BLACK) return;
+    const r=+e.currentTarget.dataset.r, c=+e.currentTarget.dataset.c;
+    if(board[r][c]!==EMPTY) return;
+    move(r,c,BLACK); render();
+    if(checkWin(r,c,BLACK)){ over=true; log('흑 승리', 'win'); return; }
+    turn=WHITE; setTimeout(aiTurn,5);
+  }
+
+  function init(){
+    board=[...Array(N)].map(()=>Array(N).fill(EMPTY));
+    boardEl.innerHTML='';
+    boardEl.style.gridTemplateColumns=`repeat(${N}, 32px)`;
+    boardEl.style.gridTemplateRows=`repeat(${N}, 32px)`;
+    for(let r=0;r<N;r++) for(let c=0;c<N;c++){
+      const d=document.createElement('div');
+      d.className='cell';
+      d.dataset.r=r; d.dataset.c=c;
+      d.addEventListener('click', onHuman);
+      boardEl.appendChild(d);
+    }
+    hist.length=0; over=false; turn=BLACK; // user first
+    logEl.textContent='시작… 흑(사용자) 선공';
+  }
+
+  function move(r,c,col){ board[r][c]=col; hist.push([r,c]); }
+  function undo(){ if(!hist.length) return; const [r,c]=hist.pop(); board[r][c]=EMPTY; }
+
+  const S={ FIVE:1e9, OPEN4:1e6, CLOSED4:5e5, OPEN3:2e5, CLOSED3:7e4, OPEN2:2e4, CLOSED2:5e3 };
+
+  function evalBoard(color){
+    const lines=[];
+    for(let r=0;r<N;r++) lines.push(board[r]);
+    for(let c=0;c<N;c++){ const col=[]; for(let r=0;r<N;r++) col.push(board[r][c]); lines.push(col); }
+    for(let s=0;s<=N-5;s++){
+      const d1=[], d2=[];
+      for(let i=0;i<N-s;i++){ d1.push(board[i][i+s]); d2.push(board[i+s][i]); }
+      lines.push(d1); if(s) lines.push(d2);
+    }
+    for(let s=0;s<=N-5;s++){
+      const d1=[], d2=[];
+      for(let i=0;i<N-s;i++){ d1.push(board[i][(N-1)-(i+s)]); d2.push(board[i+s][(N-1)-i]); }
+      lines.push(d1); if(s) lines.push(d2);
+    }
+
+    function scoreLine(arr, me){
+      let sc=0; const len=arr.length;
+      for(let i=0;i<=len-5;i++){
+        const w=arr.slice(i,i+5);
+        const mine=w.filter(x=>x===me).length;
+        const opp=w.filter(x=>x&&x!==me).length;
+        if(opp>0 && mine>0) continue;
+        const left=i-1>=0?arr[i-1]:-1;
+        const right=i+5<len?arr[i+5]:-1;
+        if(mine===5) sc+=S.FIVE;
+        else if(mine===4) sc+=(left===0&&right===0)?S.OPEN4:S.CLOSED4;
+        else if(mine===3) sc+=(left===0&&right===0)?S.OPEN3:S.CLOSED3;
+        else if(mine===2) sc+=(left===0&&right===0)?S.OPEN2:S.CLOSED2;
+        const their = w.filter(x=>x=== (me===BLACK?WHITE:BLACK)).length;
+        if(their===5) sc-=S.FIVE;
+        else if(their===4) sc-=(left===0&&right===0)?S.OPEN4:S.CLOSED4;
+        else if(their===3) sc-=(left===0&&right===0)?S.OPEN3:S.CLOSED3;
+        else if(their===2) sc-=(left===0&&right===0)?S.OPEN2:S.CLOSED2;
+      }
+      return sc;
+    }
+    let sum=0; for(const L of lines) sum+=scoreLine(L, color);
+    return sum;
+  }
+
+  function genMoves(){
+    const cand=[]; let hasStone=false;
+    for(let r=0;r<N;r++) for(let c=0;c<N;c++) if(board[r][c]!==0){hasStone=true;}
+    if(!hasStone) return [[Math.floor(N/2), Math.floor(N/2)]];
+    for(let r=0;r<N;r++) for(let c=0;c<N;c++){
+      if(board[r][c]!==0) continue; outer: for(let dr=-2;dr<=2;dr++) for(let dc=-2;dc<=2;dc++){
+        if(!dr && !dc) continue; const rr=r+dr, cc=c+dc; if(inb(rr,cc) && board[rr][cc]!==0){ cand.push([r,c]); dr=3; dc=3; break outer; }
+      }
+    }
+    cand.sort((a,b)=> (Math.abs(a[0]-7.5)+Math.abs(a[1]-7.5)) - (Math.abs(b[0]-7.5)+Math.abs(b[1]-7.5)) );
+    return cand;
+  }
+
+  function aiTurn(){ if(over) return; const depth=parseInt(depthSel.value,10); const res = searchRoot(depth); if(!res||!res.move){ log('AI 착수 실패', 'lose'); return; } const [r,c]=res.move; move(r,c,WHITE); render(); if(checkWin(r,c,WHITE)){ over=true; log('백(AI) 승리', 'lose'); return; } turn=BLACK; }
+
+  function searchRoot(maxDepth){ let best=-Infinity, bests=[]; const alpha0=-Infinity, beta0=Infinity; const me=WHITE; const moves=genMoves(); for(const [r,c] of moves){ board[r][c]=me; let val = -negamax(maxDepth-1, -beta0, -alpha0, BLACK); board[r][c]=0; if(val>best){ best=val; bests=[[r,c]]; } else if(Math.abs(val-best)<1e-6){ bests.push([r,c]); } } return {score:best, move: randChoice(bests)}; }
+  function negamax(depth, alpha, beta, player){ if(depth<=0) return evalBoard(WHITE) * (player===WHITE?1:-1); const moves=genMoves(); if(moves.length===0) return 0; let best=-Infinity; for(const [r,c] of moves){ board[r][c]=player; if(checkWin(r,c,player)){ board[r][c]=0; return 1e8; } const val = -negamax(depth-1, -beta, -alpha, player===WHITE?BLACK:WHITE); board[r][c]=0; if(val>best) best=val; if(best>alpha) alpha=best; if(alpha>=beta) break; } return best; }
+  function log(t,cls){ const s=document.createElement('div'); if(cls) s.className=cls; s.textContent=t; logEl.prepend(s); }
+  document.getElementById('g-reset').onclick=()=>init();
+  document.getElementById('g-undo').onclick=()=>{ if(over) return; if(hist.length>=2){ undo(); undo(); render(); turn=BLACK; } };
+  init();
+})();
+
+// =========================================================
+// 2) Connect Four (7x6, user first)
+// =========================================================
+(function(){
+  const COLS=7, ROWS=6, EMPTY=0, HUMAN=1, AI=2;
+  const boardEl=document.getElementById('c4-board');
+  const logEl=document.getElementById('c4-log');
+  const depthSel=document.getElementById('c4-depth');
+  let grid, turn, over=false;
+
+  function init(){
+    grid=[...Array(ROWS)].map(()=>Array(COLS).fill(EMPTY));
+    boardEl.innerHTML='';
+    boardEl.style.gridTemplateColumns=`repeat(${COLS},58px)`;
+    boardEl.style.gridTemplateRows=`repeat(${ROWS},58px)`;
+    for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+      const d=document.createElement('div');
+      d.className='cell';
+      d.addEventListener('click',()=>humanPlay(c));
+      const slot=document.createElement('div'); slot.className='connect-slot'; d.appendChild(slot);
+      d.dataset.c=c; d.dataset.r=r; boardEl.appendChild(d);
+    }
+    turn=HUMAN; over=false; logEl.textContent='시작… 사용자 선공(빨강)';
+    render();
+  }
+
+  function render(){ for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){ const idx=r*COLS+c; const d=boardEl.children[idx].firstChild; d.className='connect-slot ' + (grid[r][c]==HUMAN?'connect-red':grid[r][c]==AI?'connect-yellow':''); } }
+  function drop(c, who){ for(let r=ROWS-1;r>=0;r--){ if(grid[r][c]===EMPTY){ grid[r][c]=who; return r; } } return -1; }
+  function undrop(c){ for(let r=0;r<ROWS;r++){ if(grid[r][c]!==EMPTY){ grid[r][c]=EMPTY; return; } } }
+  function legal(c){ return grid[0][c]===EMPTY; }
+
+  function humanPlay(c){ if(over||turn!==HUMAN||!legal(c)) return; const r=drop(c,HUMAN); render(); if(winAt(r,c,HUMAN)){ over=true; log('사용자 승리', 'win'); return; } if(full()) { over=true; log('무승부', 'even'); return; } turn=AI; setTimeout(aiTurn,5); }
+
+  function aiTurn(){ const depth=parseInt(depthSel.value,10); const {bestCols}=search(depth); const c=randChoice(bestCols); const r=drop(c,AI); render(); if(winAt(r,c,AI)){ over=true; log('AI 승리', 'lose'); return; } if(full()) { over=true; log('무승부', 'even'); return; } turn=HUMAN; }
+
+  const order=[3,2,4,1,5,0,6];
+  function search(maxDepth){ let best=-Infinity, bestCols=[]; let alpha=-Infinity, beta=Infinity; for(const c of order){ if(!legal(c)) continue; const r=drop(c,AI); let val = minimax(maxDepth-1, false, alpha, beta); undrop(c); if(val>best){ best=val; bestCols=[c]; } else if(Math.abs(val-best)<1e-9) bestCols.push(c); alpha=Math.max(alpha,best);} return {score:best, bestCols}; }
+  function minimax(depth, isMax, alpha, beta){ if(depth===0 || full()){ return evaluate(); } if(isMax){ let best=-Infinity; for(const c of order){ if(!legal(c)) continue; const r=drop(c,AI); if(winAt(r,c,AI)){undrop(c); return 1e7;} const val=minimax(depth-1,false,alpha,beta); undrop(c); best=Math.max(best,val); alpha=Math.max(alpha,val); if(alpha>=beta) break; } return best; } else { let best=Infinity; for(const c of order){ if(!legal(c)) continue; const r=drop(c,HUMAN); if(winAt(r,c,HUMAN)){undrop(c); return -1e7;} const val=minimax(depth-1,true,alpha,beta); undrop(c); best=Math.min(best,val); beta=Math.min(beta,val); if(alpha>=beta) break; } return best; } }
+  function full(){ return grid[0].every(x=>x!==EMPTY); }
+  function inb(r,c){ return r>=0&&r<ROWS&&c>=0&&c<COLS; }
+  function winAt(r,c,who){ const dirs=[[1,0],[0,1],[1,1],[1,-1]]; for(const [dr,dc] of dirs){ let k=1, rr=r+dr,cc=c+dc; while(inb(rr,cc)&&grid[rr][cc]===who){k++; rr+=dr;cc+=dc} rr=r-dr;cc=c-dc; while(inb(rr,cc)&&grid[rr][cc]===who){k++; rr-=dr;cc-=dc} if(k>=4) return true; } return false; }
+  function evaluate(){ let score=0; const windows=[]; for(let r=0;r<ROWS;r++) for(let c=0;c<=COLS-4;c++) windows.push([grid[r][c],grid[r][c+1],grid[r][c+2],grid[r][c+3]]); for(let c=0;c<COLS;c++) for(let r=0;r<=ROWS-4;r++) windows.push([grid[r][c],grid[r+1][c],grid[r+2][c],grid[r+3][c]]); for(let r=0;r<=ROWS-4;r++) for(let c=0;c<=COLS-4;c++) windows.push([grid[r][c],grid[r+1][c+1],grid[r+2][c+2],grid[r+3][c+3]]); for(let r=3;r<ROWS;r++) for(let c=0;c<=COLS-4;c++) windows.push([grid[r][c],grid[r-1][c+1],grid[r-2][c+2],grid[r-3][c+3]]); for(const w of windows){ const a=w.filter(x=>x===AI).length; const h=w.filter(x=>x===HUMAN).length; const e=w.filter(x=>x===EMPTY).length; if(a===4) score+=100000; else if(a===3&&e===1) score+=200; else if(a===2&&e===2) score+=40; if(h===3&&e===1) score-=180; else if(h===2&&e===2) score-=30; } const mid=Math.floor(COLS/2); let centerCount=0; for(let r=0;r<ROWS;r++) if(grid[r][mid]===AI) centerCount++; score+=centerCount*6; return score; }
+  function log(t,cls){ const s=document.createElement('div'); if(cls) s.className=cls; s.textContent=t; logEl.prepend(s); }
+  document.getElementById('c4-reset').onclick=init;
+  init();
+})();
+
+// =========================================================
+// 3) Reversi (8x8, user second)
+// =========================================================
+(function(){
+  const N=8, EMPTY=0, BLACK=1, WHITE=2; // AI=BLACK first, Human=WHITE
+  const boardEl=document.getElementById('r-board');
+  const logEl=document.getElementById('r-log');
+  const depthSel=document.getElementById('r-depth');
+  let A; let turn; let over=false;
+
+  const P=[ [120,-20,20,5,5,20,-20,120], [-20,-40,-5,-5,-5,-5,-40,-20], [20,-5,15,3,3,15,-5,20], [5,-5,3,3,3,3,-5,5], [5,-5,3,3,3,3,-5,5], [20,-5,15,3,3,15,-5,20], [-20,-40,-5,-5,-5,-5,-40,-20], [120,-20,20,5,5,20,-20,120] ];
+
+  function init(){
+    A=[...Array(N)].map(()=>Array(N).fill(EMPTY));
+    const m=N/2; A[m-1][m-1]=WHITE; A[m][m]=WHITE; A[m-1][m]=BLACK; A[m][m-1]=BLACK;
+    boardEl.innerHTML=''; boardEl.style.gridTemplateColumns=`repeat(${N},54px)`; boardEl.style.gridTemplateRows=`repeat(${N},54px)`;
+    for(let r=0;r<N;r++) for(let c=0;c<N;c++){
+      const d=document.createElement('div'); d.className='cell'; d.dataset.r=r; d.dataset.c=c; d.addEventListener('click',()=>human(r,c)); boardEl.appendChild(d);
+    }
+    turn=BLACK; over=false; logEl.textContent='AI가 선착수(흑)';
+    render(); setTimeout(aiTurn,30);
+  }
+
+  function render(){ for(let i=0;i<boardEl.children.length;i++){ const d=boardEl.children[i]; const r=+d.dataset.r, c=+d.dataset.c; d.innerHTML=''; if(A[r][c]!==EMPTY){ const k=document.createElement('div'); k.className='disc '+(A[r][c]===BLACK?'r-black':'r-white'); d.appendChild(k); } } }
+
+  const DIR=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
+  function inb(r,c){return r>=0&&c>=0&&r<N&&c<N}
+  function flips(r,c,col){ if(A[r][c]!==EMPTY) return []; const opp=col===BLACK?WHITE:BLACK; let acc=[]; for(const [dr,dc] of DIR){ let rr=r+dr,cc=c+dc,t=[]; while(inb(rr,cc)&&A[rr][cc]===opp){ t.push([rr,cc]); rr+=dr; cc+=dc; } if(inb(rr,cc)&&A[rr][cc]===col&&t.length) acc=acc.concat(t); } return acc; }
+  function moves(col){ const m=[]; for(let r=0;r<N;r++) for(let c=0;c<N;c++){ if(flips(r,c,col).length) m.push([r,c]); } return m; }
+
+  function human(r,c){ if(over||turn!==WHITE) return; const f=flips(r,c,WHITE); if(!f.length) return; A[r][c]=WHITE; for(const [rr,cc] of f) A[rr][cc]=WHITE; render(); advance(); }
+  function advance(){ if(moves(BLACK).length===0 && moves(WHITE).length===0){ finish(); return; } turn = (turn===BLACK?WHITE:BLACK); if(moves(turn).length===0){ log('패스'); turn = (turn===BLACK?WHITE:BLACK); } render(); if(turn===BLACK) setTimeout(aiTurn,5); }
+
+  function aiTurn(){ if(over) return; const depth=parseInt(depthSel.value,10); const res=search(depth); if(!res) { turn=WHITE; return; } const [r,c]=randChoice(res.best); const f=flips(r,c,BLACK); A[r][c]=BLACK; for(const [rr,cc] of f) A[rr][cc]=BLACK; render(); advance(); }
+
+  function score(){ const mobB=moves(BLACK).length, mobW=moves(WHITE).length; let s=0; for(let r=0;r<N;r++) for(let c=0;c<N;c++){ if(A[r][c]===BLACK) s+=P[r][c]; else if(A[r][c]===WHITE) s-=P[r][c]; } s += 4*(mobB - mobW); const corners=[[0,0],[0,7],[7,0],[7,7]]; for(const [r,c] of corners){ if(A[r][c]===BLACK) s+=50; else if(A[r][c]===WHITE) s-=50; } return s; }
+  function search(maxDepth){ let best=-Infinity, bestMoves=[]; let alpha=-Infinity, beta=Infinity; const ms=moves(BLACK); if(!ms.length) return null; const ord = ms.slice().sort((a,b)=> cornerScore(b)-cornerScore(a)); function cornerScore([r,c]){ return ((r===0||r===7)&&(c===0||c===7))?1:0; } for(const [r,c] of ord){ const f=flips(r,c,BLACK); A[r][c]=BLACK; for(const [rr,cc] of f) A[rr][cc]=BLACK; const val = -negamax(maxDepth-1, -beta, -alpha, WHITE); for(const [rr,cc] of f) A[rr][cc]=WHITE; A[r][c]=EMPTY; if(val>best){ best=val; bestMoves=[[r,c]]; } else if(Math.abs(val-best)<1e-6){ bestMoves.push([r,c]); } alpha=Math.max(alpha,best); } return {score:best, best:bestMoves}; }
+  function negamax(depth, alpha, beta, player){ const ms=moves(player); if(depth===0 || (moves(BLACK).length===0 && moves(WHITE).length===0)) return score()*(player===BLACK?1:-1); if(!ms.length){ return -negamax(depth-1, -beta, -alpha, player===BLACK?WHITE:BLACK); } let best=-Infinity; const ord = ms.slice().sort((a,b)=>cornerScore(b)-cornerScore(a)); function cornerScore([r,c]){ return ((r===0||r===7)&&(c===0||c===7))?1:0; } for(const [r,c] of ord){ const f=flips(r,c,player); A[r][c]=player; for(const [rr,cc] of f) A[rr][cc]=player; const val = -negamax(depth-1, -beta, -alpha, player===BLACK?WHITE:BLACK); const opp=player===BLACK?WHITE:BLACK; for(const [rr,cc] of f) A[rr][cc]=opp; A[r][c]=EMPTY; if(val>best) best=val; if(best>alpha) alpha=best; if(alpha>=beta) break; } return best; }
+  function finish(){ over=true; let b=0,w=0; for(let r=0;r<N;r++) for(let c=0;c<N;c++){ if(A[r][c]===BLACK) b++; else if(A[r][c]===WHITE) w++; } if(b>w) log(`종료 · AI ${b}:${w} 승`, 'lose'); else if(w>b) log(`종료 · 사용자 ${w}:${b} 승`, 'win'); else log('종료 · 무승부', 'even'); }
+  function log(t,cls){ const s=document.createElement('div'); if(cls) s.className=cls; s.textContent=t; logEl.prepend(s); }
+  document.getElementById('r-reset').onclick=init;
+  init();
+})();
+
+// =========================================================
+// 4) Dots & Boxes (4x4 boxes, user second) — variant: turn ALWAYS passes after a move
+// =========================================================
+(function(){
+  const R=4, C=4; // boxes R x C
+  const boardEl=document.getElementById('d-board');
+  const logEl=document.getElementById('d-log');
+  const HUMAN=1, AI=2;
+  let H,V,boxes,turn,over=false;
+
+  function init(){
+    H=[...Array(R+1)].map(()=>Array(C).fill(0));
+    V=[...Array(R)].map(()=>Array(C+1).fill(0));
+    boxes=[...Array(R)].map(()=>Array(C).fill(0));
+    over=false; turn=AI; // user second
+    buildUI(); attachHover(); render();
+    logEl.textContent='AI 선공 (캡처해도 턴 넘김)';
+    setTimeout(aiTurn,20);
+  }
+
+  function buildUI(){
+    const g=document.createElement('div');
+    const rows = R*2+1, cols = C*2+1;
+    g.style.display='grid'; g.style.gridTemplateColumns=`repeat(${cols}, 34px)`; g.style.gridAutoRows='34px'; g.style.gap='2px';
+    for(let r=0;r<rows;r++){
+      for(let c=0;c<cols;c++){
+        const isDot=(r%2===0&&c%2===0), isHE=(r%2===0&&c%2===1), isVE=(r%2===1&&c%2===0), isBox=(r%2===1&&c%2===1);
+        const d=document.createElement('div');
+        if(isDot){ d.className='dot'; }
+        else if(isHE){ d.className='h-edge edge'; const rr=r/2, cc=(c-1)/2; d.dataset.type='H'; d.dataset.r=rr; d.dataset.c=cc; d.onclick=()=>humanEdge('H',rr,cc); }
+        else if(isVE){ d.className='v-edge edge'; const rr=(r-1)/2, cc=c/2; d.dataset.type='V'; d.dataset.r=rr; d.dataset.c=cc; d.onclick=()=>humanEdge('V',rr,cc); }
+        else if(isBox){ d.className='box'; const rr=(r-1)/2, cc=(c-1)/2; d.dataset.box=`${rr},${cc}`; }
+        g.appendChild(d);
+      }
+    }
+    boardEl.innerHTML=''; boardEl.appendChild(g);
+    const resetBtn=document.getElementById('d-reset'); if(resetBtn) resetBtn.onclick=init; const m=document.getElementById('d-mode'); if(m) m.onchange=()=>{};
+  }
+
+  function attachHover(){
+    const edges=[...boardEl.querySelectorAll('.edge')];
+    edges.forEach(d=>{ const t=d.dataset.type, r=+d.dataset.r, c=+d.dataset.c; d.addEventListener('mouseenter',()=>{ d.classList.add('edge-hover'); highlightAdj(t,r,c,true); }); d.addEventListener('mouseleave',()=>{ d.classList.remove('edge-hover'); highlightAdj(t,r,c,false); }); });
+  }
+
+  function highlightAdj(t,r,c,on){
+    const affected=[];
+    if(t==='H'){ if(r>0) affected.push([r-1,c]); if(r<R) affected.push([r,c]); }
+    else { if(c>0) affected.push([r,c-1]); if(c<C) affected.push([r,c]); }
+    for(const [br,bc] of affected){ if(br<0||bc<0||br>=R||bc>=C) continue; const el=boardEl.querySelector(`.box[data-box="${br},${bc}"]`); if(el) el.classList.toggle('hint-box', on); }
+  }
+
+  function render(){
+    const edges=[...boardEl.querySelectorAll('.edge')];
+    edges.forEach(d=>{ const t=d.dataset.type, r=+d.dataset.r, c=+d.dataset.c; const val=(t==='H'?H[r][c]:V[r][c]); d.classList.toggle('taken', !!val); d.classList.toggle('u-edge', val===HUMAN); d.classList.toggle('a-edge', val===AI); });
+    const bs=[...boardEl.querySelectorAll('.box')];
+    bs.forEach(b=>{ const [r,c]=b.dataset.box.split(',').map(Number); b.textContent= boxes[r][c]===HUMAN?'U': boxes[r][c]===AI?'A':''; });
+  }
+
+  function humanEdge(t,r,c){ if(over||turn!==HUMAN) return; if((t==='H'?H[r][c]:V[r][c])!==0) return; placeEdge([t,r,c], HUMAN); }
+
+  function placeEdge(mv, who){
+    const [t,r,c]=mv; if(t==='H') H[r][c]=who; else V[r][c]=who; applyBoxesFromEdge(mv, who); render(); if(allEdgesTaken()){ finish(); return; } turn = (who===AI?HUMAN:AI); if(turn===AI) setTimeout(aiTurn,5);
+  }
+
+  function affectedBoxes(t,r,c){ const arr=[]; if(t==='H'){ if(r>0) arr.push([r-1,c]); if(r<R) arr.push([r,c]); } else { if(c>0) arr.push([r,c-1]); if(c<C) arr.push([r,c]); } return arr; }
+  function isBoxComplete(r,c){ return H[r][c] && H[r+1][c] && V[r][c] && V[r][c+1]; }
+  function boxSides(r,c){ return (H[r][c]?1:0) + (H[r+1][c]?1:0) + (V[r][c]?1:0) + (V[r][c+1]?1:0); }
+
+  function applyBoxesFromEdge([t,r,c], who){ for(const [br,bc] of affectedBoxes(t,r,c)){ if(br<0||bc<0||br>=R||bc>=C) continue; if(!boxes[br][bc] && isBoxComplete(br,bc)) boxes[br][bc]=who; } }
+
+  // ---------- AI (minimax, capture doesn't grant extra turn) ----------
+  function listMoves(){ const moves=[]; for(let r=0;r<=R;r++) for(let c=0;c<C;c++) if(!H[r][c]) moves.push(['H',r,c]); for(let r=0;r<R;r++) for(let c=0;c<=C;c++) if(!V[r][c]) moves.push(['V',r,c]); return moves; }
+  function captureGain([t,r,c]){ let g=0; for(const [br,bc] of affectedBoxes(t,r,c)){ if(br>=0&&bc>=0&&br<R&&bc<C){ if(!boxes[br][bc] && boxSides(br,bc)===3) g++; } } return g; }
+
+  function evalPosition(){ let a=0,h=0; for(let r=0;r<R;r++) for(let c=0;c<C;c++){ if(boxes[r][c]===AI) a++; else if(boxes[r][c]===HUMAN) h++; } let score=(a-h)*100; let three=0,two=0; for(let r=0;r<R;r++) for(let c=0;c<C;c++){ const s=boxSides(r,c); if(!boxes[r][c]){ if(s===3) three++; else if(s===2) two++; } } score += -15*three + 4*two; let myCap2=0, opCap2=0; const ms=listMoves(); for(const mv of ms){ const g=captureGain(mv); if(g>=2) myCap2++; }
+    for(const mv of ms){ const g=captureGain(mv); if(g>=2) opCap2++; }
+    score += 40*myCap2 - 40*opCap2; return score; }
+
+  function applyMove(mv, who){ const [t,r,c]=mv; const changed={edge:mv, boxes:[]}; if(t==='H') H[r][c]=who; else V[r][c]=who; for(const [br,bc] of affectedBoxes(t,r,c)){ if(br<0||bc<0||br>=R||bc>=C) continue; if(!boxes[br][bc] && isBoxComplete(br,bc)){ boxes[br][bc]=who; changed.boxes.push([br,bc]); } } return changed; }
+  function undoMove(changed){ const [t,r,c]=changed.edge; if(t==='H') H[r][c]=0; else V[r][c]=0; for(const [br,bc] of changed.boxes){ boxes[br][bc]=0; } }
+
+  function minimax(depth, player, alpha, beta){ if(depth===0 || allEdgesTaken()) return evalPosition(); const moves=listMoves().sort((a,b)=>captureGain(b)-captureGain(a)); if(player===AI){ let best=-Infinity; for(const mv of moves){ const ch=applyMove(mv, AI); const val=minimax(depth-1, HUMAN, alpha, beta); undoMove(ch); if(val>best) best=val; if(best>alpha) alpha=best; if(alpha>=beta) break; } return best; } else { let best=Infinity; for(const mv of moves){ const ch=applyMove(mv, HUMAN); const val=minimax(depth-1, AI, alpha, beta); undoMove(ch); if(val<best) best=val; if(best<beta) beta=best; if(alpha>=beta) break; } return best; } }
+
+  function aiTurn(){ if(over||turn!==AI) return; const depth=2; const moves=listMoves(); if(!moves.length){ finish(); return; } let best=-Infinity, bests=[]; moves.sort((a,b)=>captureGain(b)-captureGain(a)); for(const mv of moves){ const ch=applyMove(mv, AI); const val=minimax(depth-1, HUMAN, -Infinity, Infinity); undoMove(ch); if(val>best){ best=val; bests=[mv]; } else if(Math.abs(val-best)<1e-6){ bests.push(mv); } } placeEdge(randChoice(bests), AI); }
+
+  function allEdgesTaken(){ for(let r=0;r<=R;r++) for(let c=0;c<C;c++) if(!H[r][c]) return false; for(let r=0;r<R;r++) for(let c=0;c<=C;c++) if(!V[r][c]) return false; return true; }
+  function finish(){ over=true; let a=0,h=0; for(let r=0;r<R;r++) for(let c=0;c<C;c++){ if(boxes[r][c]===AI) a++; else if(boxes[r][c]===HUMAN) h++; } const msg = a>h?`종료 · AI ${a}:${h} 승` : h>a?`종료 · 사용자 ${h}:${a} 승` : '종료 · 무승부'; log(msg, h>a?'win': a>h?'lose':'even'); }
+  function log(t,cls){ const s=document.createElement('div'); if(cls) s.className=cls; s.textContent=t; logEl.prepend(s); }
+
+  const resetBtn=document.getElementById('d-reset'); if(resetBtn) resetBtn.onclick=init;
+  init();
+})();
+</script>
+</body>
+</html>
