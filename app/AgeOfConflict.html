@@ -610,7 +610,7 @@ function step(){ if(paused) return; if(!Array.isArray(C) || C.length===0){ retur
       const pieces = countCountryChunks(c);
       if (pieces > 1){
         const frag = pieces - 1;
-        const penalty = 0.001 * Math.pow(frag, 1.25);
+        const penalty = 0.004 * Math.pow(frag, 1.25);
         c.s = clamp(c.s - penalty, 0, 1);
       }
     });
