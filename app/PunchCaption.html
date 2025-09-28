@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Punch‑Sync Subtitle Editor</title>
+  <style>
+    :root{
+      --bg:#0b0d12; --panel:#121521; --soft:#1a1f2f; --line:#2a3045; --text:#e8ecf1; --muted:#a9b3c7; --accent:#6ea8fe;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans KR", Helvetica, Arial, sans-serif}
+    .app{display:grid;grid-template-rows:auto 1fr;min-height:100vh}
+    header{position:sticky;top:0;z-index:2;background:linear-gradient(180deg,var(--panel),#0f1320);border-bottom:1px solid var(--line);padding:10px 12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+    header .group{display:flex;gap:8px;align-items:center;background:var(--soft);padding:8px 10px;border:1px solid var(--line);border-radius:12px}
+    input[type="number"], input[type="text"]{background:#0e1220;color:var(--text);border:1px solid var(--line);border-radius:8px;padding:6px 8px;min-width:90px}
+    button{background:var(--soft);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:8px 10px;cursor:pointer}
+    button:hover{border-color:var(--accent)}
+    .accent{background:linear-gradient(180deg,#1f2840,#1a2237);border-color:#3d4d74}
+    .pill{padding:6px 10px;border-radius:999px}
+    .muted{color:var(--muted)}
+
+    .main{display:grid;grid-template-columns: minmax(280px,1.1fr) minmax(320px,1fr); gap:12px; padding:12px}
+    .panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden}
+    .videoWrap{display:grid;grid-template-rows:auto 1fr auto}
+    .videoTop{display:flex;gap:10px;align-items:center;padding:10px;border-bottom:1px solid var(--line)}
+    .videoBox{position:relative;background:#000}
+    video{width:100%;height:auto;display:block;background:#000}
+    .curSub{border-top:1px solid var(--line);padding:10px 12px;min-height:48px;background:#0e1220;font-size:18px;line-height:1.6;letter-spacing:.2px}
+    .curSub .muted{opacity:.7;font-size:14px}
+
+    .subsWrap{display:grid;grid-template-rows:auto 1fr}
+    .subsTop{display:flex;align-items:center;gap:10px;padding:10px;border-bottom:1px solid var(--line)}
+    .table{height:100%;overflow:auto}
+    table{width:100%;border-collapse:separate;border-spacing:0}
+    thead th{position:sticky;top:0;background:var(--panel);border-bottom:1px solid var(--line);padding:10px;text-align:left}
+    tbody td{border-bottom:1px solid var(--line);padding:8px 10px;vertical-align:top}
+    tbody tr:nth-child(even){background:#101429}
+    tbody tr.active{outline:2px solid var(--accent);outline-offset:-2px;background:#141c35}
+    .timeInput{width:95px}
+    .textInput{width:100%;min-width:200px}
+    .btnPunch{font-size:18px;line-height:1;background:none;border:none;cursor:pointer}
+    .btnPunch:hover{filter:brightness(1.2)}
+    .small{font-size:12px}
+
+    @media (max-width: 900px){
+      .main{grid-template-columns: 1fr}
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div class="group">
+        <label for="latency">싱크 보정(ms)</label>
+        <input id="latency" type="number" step="1" value="120" />
+      </div>
+      <div class="group">
+        <strong>현재 재생</strong>
+        <span id="now" class="muted">00:00.000</span>
+      </div>
+      <div class="group">
+        <button id="btnImport" class="pill">SRT/VTT 불러오기</button>
+        <button id="btnExport" class="pill">SRT 내보내기</button>
+        <input id="fileSubs" type="file" accept=".srt,.vtt,text/plain" hidden />
+      </div>
+      <div class="group">
+        <button id="btnReset" title="초기 상태로" class="pill">되돌리기</button>
+      </div>
+      <div class="muted small">🥊을 누르면 (현재시각 − 보정값)이 해당 줄 시작시간으로 맞춰지고, 그 줄 이후가 같은 만큼 이동돼</div>
+    </header>
+
+    <div class="main">
+      <!-- LEFT: Video -->
+      <section class="panel videoWrap">
+        <div class="videoTop">
+          <button id="btnOpenVideo" class="accent">영상 열기</button>
+          <input id="fileVideo" type="file" accept="video/*" hidden />
+          <button id="btnBack2">⏪ -2s</button>
+          <button id="btnPlay">▶︎/⏸</button>
+          <button id="btnFwd2">⏩ +2s</button>
+          <span class="muted small">스페이스: 재생/일시정지</span>
+        </div>
+        <div class="videoBox">
+          <video id="vid" controls crossorigin="anonymous"></video>
+        </div>
+        <div class="curSub" id="curSub" aria-live="polite" title="현재 재생 자막"></div>
+      </section>
+
+      <!-- RIGHT: Subtitles -->
+      <section class="panel subsWrap">
+        <div class="subsTop">
+          <span class="muted">자막 줄을 편집해도 돼. 시간은 HH:MM:SS.mmm 형식도 되고 MM:SS.mmm도 돼</span>
+        </div>
+        <div class="table" id="subsScroller">
+          <table>
+            <thead>
+              <tr>
+                <th style="width:56px">줄</th>
+                <th style="width:120px">시작</th>
+                <th style="width:120px">끝</th>
+                <th>텍스트</th>
+                <th style="width:70px">펀치</th>
+              </tr>
+            </thead>
+            <tbody id="tbody"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    // ===== Utilities =====
+    const $ = (s, el=document) => el.querySelector(s);
+    const $$ = (s, el=document) => [...el.querySelectorAll(s)];
+    const clamp = (n, min, max) => Math.min(Math.max(n, min), max);
+    const escapeHtml = (s)=> String(s||'').replace(/[&<>\"']/g, c=>({"&":"&amp;","<":"&lt;",
+      ">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+
+    function msToStr(ms){
+      ms = Math.max(0, Math.round(ms));
+      const h = Math.floor(ms/3600000); ms%=3600000;
+      const m = Math.floor(ms/60000); ms%=60000;
+      const s = Math.floor(ms/1000);
+      const mm = ms%1000;
+      const HH = h>0 ? String(h).padStart(2,'0')+":" : "";
+      return `${HH}${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}.${String(mm).padStart(3,'0')}`;
+    }
+    function strToMs(str){
+      // Accept HH:MM:SS.mmm or MM:SS.mmm (comma or dot), also bare seconds like 12.345
+      const t = (str||'').trim().replace(/,/g, '.');
+      if(!t) return 0;
+      const parts = t.split(":");
+      const toNum = (x, d=0)=>{ const n = Number(x); return Number.isFinite(n)? n : d; };
+
+      // Helper to split seconds.mmm safely
+      const splitSecMs = (s)=>{
+        const raw = (s??'0').toString();
+        const sp = raw.split('.');
+        const sec = toNum(sp[0], 0);
+        let ms = 0;
+        if(sp.length>1){
+          // accept 1~3 digits, pad to 3
+          const mstr = (sp[1]+"000").slice(0,3);
+          ms = toNum(mstr, 0);
+        }
+        return [sec, ms];
+      };
+
+      let h=0, m=0, s=0, ms=0;
+      if(parts.length===3){
+        h = toNum(parts[0],0);
+        m = toNum(parts[1],0);
+        [s, ms] = splitSecMs(parts[2]);
+      } else if(parts.length===2){
+        m = toNum(parts[0],0);
+        [s, ms] = splitSecMs(parts[1]);
+      } else if(parts.length===1){
+        const [ss, mm] = splitSecMs(parts[0]);
+        s = ss; ms = mm;
+      } else {
+        return 0;
+      }
+      return (((h*60+m)*60)+s)*1000 + ms;
+    }
+
+    // ===== Data Model =====
+    /** @type {{start:number,end:number,text:string}[]} */
+    let subs = [];
+    let originalSubs = [];
+
+    // Sample default
+    const sample = `1\n00:00:01,000 --> 00:00:03,000\nA: 첫 줄 샘플\n\n2\n00:00:03,500 --> 00:00:05,300\nB: 둘째 줄 샘플\n\n3\n00:00:06,000 --> 00:00:07,800\nC: 셋째 줄 샘플\n\n4\n00:00:08,200 --> 00:00:10,000\nD: 넷째 줄 샘플\n`;
+
+    function parseSRT(text){
+      const blocks = text.replace(/\r/g,'').trim().split(/\n\s*\n/);
+      /** @type {{start:number,end:number,text:string}[]} */
+      const list = [];
+      for(const block of blocks){
+        const lines = block.split('\n');
+        // Remove leading index line if it is just a number
+        if(/^\d+$/.test(lines[0]?.trim())) lines.shift();
+        const timeLine = lines.shift()?.trim()||'';
+        // 00:00:01,000 --> 00:00:02,000 (comma) or . for VTT
+        const m = timeLine.match(/(\d{2}:\d{2}:\d{2}[,\.]\d{3}|\d{2}:\d{2}[,\.]\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}[,\.]\d{3}|\d{2}:\d{2}[,\.]\d{3})/);
+        if(!m) continue;
+        const start = strToMs(m[1]);
+        const end   = strToMs(m[2]);
+        const text  = lines.join('\n');
+        list.push({start, end, text});
+      }
+      return list.sort((a,b)=>a.start-b.start);
+    }
+
+    function toSRT(list){
+      return list.map((it, i)=>{
+        const s = msToStr(it.start).replace('.', ',');
+        const e = msToStr(it.end).replace('.', ',');
+        const hh = s.length>9 ? s : ('00:'+s); // ensure HH present for SRT aesthetic
+        const he = e.length>9 ? e : ('00:'+e);
+        return `${i+1}\n${hh} --> ${he}\n${it.text}\n`;
+      }).join('\n');
+    }
+
+    // ===== Rendering =====
+    const tbody = $('#tbody');
+    function render(){
+      tbody.innerHTML = '';
+      subs.forEach((it, idx)=>{
+        const tr = document.createElement('tr');
+        tr.dataset.idx = String(idx);
+        tr.innerHTML = `
+          <td class="small">${idx+1}</td>
+          <td><input class="timeInput" value="${msToStr(it.start)}" title="시작" /></td>
+          <td><input class="timeInput" value="${msToStr(it.end)}" title="끝" /></td>
+          <td><textarea class="textInput" rows="2" spellcheck="false">${it.text.replace(/</g,'&lt;')}</textarea></td>
+          <td><button class="btnPunch" title="이 줄부터 펀치 싱크">🥊</button></td>`;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function attachHandlers(){
+      tbody.addEventListener('click', (e)=>{
+        const btn = e.target.closest('.btnPunch');
+        if(!btn) return;
+        const tr = btn.closest('tr');
+        const idx = Number(tr.dataset.idx);
+        punchFrom(idx);
+      });
+      tbody.addEventListener('change', (e)=>{
+        const tr = e.target.closest('tr');
+        if(!tr) return;
+        const idx = Number(tr.dataset.idx);
+        const inputs = tr.querySelectorAll('input, textarea');
+        const [startInput, endInput, textArea] = inputs;
+        const newStart = strToMs(startInput.value);
+        const newEnd   = strToMs(endInput.value);
+        subs[idx].start = Math.max(0, newStart);
+        subs[idx].end   = Math.max(subs[idx].start+1, newEnd); // ensure end > start
+        subs[idx].text  = textArea.value;
+      });
+    }
+
+    // ===== Punch Logic =====
+    function punchFrom(idx){
+      const vid = $('#vid');
+      const latency = parseInt($('#latency').value||'0',10) || 0;
+      const nowMs = Math.round((vid.currentTime||0) * 1000);
+      const target = Math.max(0, nowMs - latency);
+      const curStart = subs[idx].start;
+      const delta = target - curStart;
+      if(delta === 0) return; // nothing to do
+      for(let i=idx;i<subs.length;i++){
+        subs[i].start = Math.max(0, subs[i].start + delta);
+        subs[i].end   = Math.max(subs[i].start + 1, subs[i].end + delta);
+      }
+      render();
+      // keep the punched row in view
+      const row = tbody.querySelector(`tr[data-idx='${idx}']`);
+      if(row){ row.scrollIntoView({block:'center'}); row.classList.add('active'); setTimeout(()=>row.classList.remove('active'), 800); }
+    }
+
+    // ===== Video Controls & Live State =====
+    function tick(){
+      const vid = $('#vid');
+      $('#now').textContent = msToStr((vid.currentTime||0)*1000);
+      const t = (vid.currentTime||0)*1000;
+      const active = subs.findIndex(it => t >= it.start && t < it.end);
+      $$('#tbody tr').forEach((tr,i)=>{
+        if(i===active) tr.classList.add('active'); else tr.classList.remove('active');
+      });
+      const curEl = $('#curSub');
+      if(active>=0){
+        curEl.innerHTML = escapeHtml(subs[active].text).replace(/\n/g,'<br>');
+      } else {
+        curEl.innerHTML = '<span class="muted">현재 재생 구간에 자막 없음…</span>';
+      }
+      requestAnimationFrame(tick);
+    }
+
+    // ===== Import / Export =====
+    $('#btnImport').addEventListener('click', ()=> $('#fileSubs').click());
+    $('#fileSubs').addEventListener('change', async (ev)=>{
+      const f = ev.target.files?.[0]; if(!f) return;
+      const txt = await f.text();
+      subs = parseSRT(txt);
+      originalSubs = JSON.parse(JSON.stringify(subs));
+      render();
+    });
+    $('#btnExport').addEventListener('click', ()=>{
+      const blob = new Blob([toSRT(subs)], {type:'text/plain;charset=utf-8'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'edited.srt';
+      document.body.appendChild(a); a.click(); a.remove();
+    });
+
+    // ===== Video Open & Shortcuts =====
+    function syncHeights(){
+      const v = $('#vid');
+      const scroller = $('#subsScroller');
+      if(!v || !scroller) return;
+      const rect = v.getBoundingClientRect();
+      const h = Math.max(180, Math.round(rect.height));
+      scroller.style.height = h + 'px';
+    }
+    $('#btnOpenVideo').addEventListener('click', ()=> $('#fileVideo').click());
+    $('#fileVideo').addEventListener('change', (ev)=>{
+      const f = ev.target.files?.[0]; if(!f) return;
+      const url = URL.createObjectURL(f);
+      const vid = $('#vid');
+      vid.src = url; vid.play();
+    });
+    $('#btnPlay').addEventListener('click', ()=>{ const v=$('#vid'); if(v.paused) v.play(); else v.pause(); });
+    $('#btnBack2').addEventListener('click', ()=>{ const v=$('#vid'); v.currentTime = Math.max(0, v.currentTime - 2); });
+    $('#btnFwd2').addEventListener('click', ()=>{ const v=$('#vid'); v.currentTime = Math.min((v.duration||1e9)-0.05, v.currentTime + 2); });
+
+    $('#vid').addEventListener('loadedmetadata', syncHeights);
+    $('#vid').addEventListener('loadeddata', syncHeights);
+
+    document.addEventListener('keydown', (e)=>{
+      const v=$('#vid');
+      if(e.code==='Space'){ e.preventDefault(); if(v.paused) v.play(); else v.pause(); }
+    });
+
+    $('#btnReset').addEventListener('click', ()=>{
+      if(originalSubs.length){ subs = JSON.parse(JSON.stringify(originalSubs)); render(); }
+    });
+
+    // ===== Init =====
+    subs = parseSRT(sample);
+    originalSubs = JSON.parse(JSON.stringify(subs));
+    render(); attachHandlers(); requestAnimationFrame(tick); syncHeights(); window.addEventListener('resize', syncHeights);
+  </script>
+</body>
+</html>
