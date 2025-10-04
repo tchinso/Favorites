@@ -43,6 +43,13 @@
   #rank{ position:absolute; right:8px; top:8px; background:#0c141dd9; border:1px solid #182333; border-radius:8px; padding:8px 10px; font-size:12px; max-width:220px; backdrop-filter: blur(2px); }
   #rank .item{ display:flex; justify-content:space-between; gap:8px; margin:2px 0; }
   #rank .name{ font-weight:700; }
+  /* 랭킹 접이 패널 (지도 위 오버레이) */
+  #rankPanel.overlay{ position:absolute; top:8px; left:8px; z-index:20; }
+  #rankPanel > summary.panelHead{ cursor:pointer; background:#132031; color:var(--ink); padding:6px 10px; border-radius:8px; font-weight:700; box-shadow:0 2px 0 #0006 inset; }
+  #rankPanel[open] > summary.panelHead{ background:#15253a; }
+  #rank{ background:#0c141dd9; border:1px solid #182333; border-radius:8px; padding:8px 10px; font-size:12px; max-width:260px; margin-top:6px; }
+  #rank .item{ display:flex; justify-content:space-between; gap:8px; margin:2px 0; }
+  #rank .name{ font-weight:700; }
 </style>
 </head>
 <body>
@@ -54,7 +61,12 @@
     <div id="stageWrap">
       <canvas id="terrain" width="720" height="384"></canvas>
       <canvas id="countries" width="720" height="384"></canvas>
-      <div id="rank"></div>
+
+<details id="rankPanel" class="overlay" open>
+  <summary class="panelHead">상위 7위</summary>
+  <div id="rank"></div>
+</details>
+
     </div>
     <aside id="ui">
       <h3>컨트롤</h3>
@@ -99,8 +111,8 @@
 
 <script>
 // ====== 기본 상수 ======
-const W = 90, H = 48;               // 격자 크기 (기존 대비 1.5×)
-const CELL = 8;                     // 셀 픽셀 크기 재조정(90×8=720, 48×8=384로 캔버스 동일 유지)
+const W = 120, H = 64;               // 격자 크기 (기존 대비 1.5×)
+const CELL = 6;                     // 셀 픽셀 크기 재조정(90×8=720, 48×8=384로 캔버스 동일 유지)
 const LAND_TARGET = 0.50;           // 토지 비율 목표
 const MOUNT_TARGET = 0.16;          // 산맥 비율 목표(육지 대비)
 
@@ -653,7 +665,7 @@ function updateRank(){
   const box = document.getElementById('rank'); if(!box) return;
   if(!Array.isArray(C) || C.length===0){ box.innerHTML=''; return; }
   const top = C.map(c=>({ name:c.name, size:c.cells.size, color: colors[c.id % colors.length] }))
-               .sort((a,b)=>b.size-a.size).slice(0,5);
+               .sort((a,b)=>b.size-a.size).slice(0,7);
   box.innerHTML = top.map((o,i)=>
     `<div class="item"><span style="color:#9dc6ff;width:1.2em;text-align:right;display:inline-block">${i+1}.</span>
       <span class="name" style="color:${o.color}">${escapeHTML(o.name)}</span>
