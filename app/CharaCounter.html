@@ -29,7 +29,7 @@
   .stat .label{font-size:12px;color:var(--muted);margin-bottom:6px;}
   .stat .value{font-family:var(--mono);font-size:18px;}
 
-  .editor-wrap{position:relative;}
+  .editor-wrap{position:relative; isolation:isolate;}
 
   /* textarea + mirror ─────────────────────────── */
   textarea,.mirror{
@@ -42,13 +42,16 @@
   }
   textarea{
     position:relative;z-index:2;width:100%;resize:vertical;
-    color:transparent;              /* 본문 글씨 숨김 → 겹침 해결 */
+    color:transparent;              /* 본문 글씨 숨김 → 겹침 방지 */
+    -webkit-text-fill-color:transparent; /* 크로뮴 계열에서 완전 투명 처리 */
+    text-shadow:none;
     caret-color:var(--fg);          /* 커서는 그대로 보이도록 */
     background:transparent;
   }
   .mirror{
     position:absolute;inset:0;z-index:1;pointer-events:none;color:var(--fg);
-    scrollbar-width:none;-ms-overflow-style:none;
+    scrollbar-width:none;-ms-overflow-style:none;user-select:none;
+    contain:paint; /* 페인팅 격리로 중복 렌더링 방지 */
   }
   .mirror::-webkit-scrollbar{display:none;}
   .mirror .over{background:var(--over-bg);border-radius:2px;}
@@ -69,7 +72,7 @@
       </label>
       <label>제한 기준
         <select id="basis">
-          <option value="online" selected>온라인 서비스용</option>
+          <option value="online" selected>X/트위터</option>
           <option value="include">공백 포함</option>
           <option value="exclude">공백 제외</option>
         </select>
@@ -79,7 +82,7 @@
     <div class="stats">
       <div class="stat"><div class="label">공백 제외</div><div class="value" id="v-exclude">0</div></div>
       <div class="stat"><div class="label">공백 포함</div><div class="value" id="v-include">0</div></div>
-      <div class="stat"><div class="label">온라인 서비스용</div><div class="value" id="v-online">0</div></div>
+      <div class="stat"><div class="label">X/트위터</div><div class="value" id="v-online">0</div></div>
     </div>
 
     <div class="editor-wrap">
@@ -89,12 +92,12 @@
     </div>
 
     <div class="help">
-      • 온라인 서비스용 계산: ASCII 가시(U+0020–007E) + 확장 ASCII 가시(U+00A0–00FF)=1, 그 외=2<br>
+      • X/트위터 계산: ASCII 가시(U+0020–007E) + 확장 ASCII 가시(U+00A0–00FF) + 개행(Enter)=1, 그 외=2<br>
       • 공백 제외는 스페이스·탭·줄바꿈 등을 빼고 셈
     </div>
   </div>
 
-  <div class="footer">글자수 계산기 v5</div>
+  <div class="footer">글자수 계산기 v5.1</div>
 </div>
 
 <script>
@@ -107,30 +110,46 @@
   const vInc    = document.getElementById('v-include');
   const vOnl    = document.getElementById('v-online');
 
-  const isPASCII = cp => cp>=0x20 && cp<=0x7E;
-  const isPExASCII = cp => cp>=0xA0 && cp<=0xFF;
-  const isWS = ch => /\s/u.test(ch);
+  // ── 유틸
+  const isPASCII = cp => cp>=0x20 && cp<=0x7E;      // 기본 ASCII 가시
+  const isPExASCII = cp => cp>=0xA0 && cp<=0xFF;    // 확장 ASCII 가시
+  const isNL = s => s==='\n' || s==='\r';         // 개행(Enter) 처리
+  const isWS = s => /^\s$/u.test(s);               // 단일 공백 판정
   const esc  = s => s.replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 
+  // 안전한 그래핌(사용자 눈에 보이는 문자) 단위 분할
+  const graphemes = s => {
+    if (window.Intl && Intl.Segmenter) {
+      const seg = new Intl.Segmenter(undefined, {granularity:'grapheme'}).segment(s);
+      return Array.from(seg, x => x.segment);
+    }
+    return Array.from(s); // 폴백: 코드포인트
+  };
+
+  // ── 카운트
   function count(str){
     let inc=0, exc=0, onl=0;
-    for(const ch of str){
-      const cp=ch.codePointAt(0);
+    for(const g of graphemes(str)){
+      const cp=g.codePointAt(0);
       inc++;
-      if(!isWS(ch)) exc++;
-      onl += (isPASCII(cp)||isPExASCII(cp)) ? 1 : 2;
+      if(!isWS(g)) exc++;
+      // X/트위터: 개행도 1자로 취급
+      onl += (isNL(g) || isPASCII(cp) || isPExASCII(cp)) ? 1 : 2;
     }
     return {inc,exc,onl};
   }
 
+  // ── 제한 초과 시작 위치(그래핌 인덱스)
   function overflowStart(str, limit, basis){
     if(!(limit>0)) return -1;
     let acc=0, idx=0;
-    for(const ch of str){
-      const cp=ch.codePointAt(0);
+    const gs = graphemes(str);
+    for(const g of gs){
+      const cp=g.codePointAt(0);
       let add=1;
-      if(basis==='exclude') add=isWS(ch)?0:1;
-      else if(basis==='online') add=(isPASCII(cp)||isPExASCII(cp))?1:2;
+      if(basis==='exclude') add = isWS(g) ? 0 : 1;
+      else if(basis==='online') add = (isNL(g) || isPASCII(cp) || isPExASCII(cp)) ? 1 : 2;
+      // basis==='include' 는 add=1
       acc+=add;
       if(acc>limit) return idx;
       idx++;
@@ -138,19 +157,19 @@
     return -1;
   }
 
+  // ── 미러 그리기(그래핌 안전)
   function drawMirror(text, cut){
-    const arr=[...text];
-    if(cut<0||cut>=arr.length){
+    const gs = graphemes(text);
+    if(cut<0 || cut>=gs.length){
       mirror.innerHTML=esc(text);
       return;
     }
-    mirror.innerHTML = esc(arr.slice(0,cut).join('')) +
-                       '<span class="over">' +
-                       esc(arr.slice(cut).join('')) +
-                       '</span>';
+    const head = gs.slice(0,cut).join('');
+    const tail = gs.slice(cut).join('');
+    mirror.innerHTML = esc(head) + '<span class="over">' + esc(tail) + '</span>';
   }
 
-  const syncScroll = () => { mirror.scrollTop = ta.scrollTop; };
+  const syncScroll = () => { mirror.scrollTop = ta.scrollTop; mirror.scrollLeft = ta.scrollLeft; };
 
   function update(){
     const txt = ta.value;
@@ -158,7 +177,6 @@
     vInc.textContent = inc;
     vExc.textContent = exc;
     vOnl.textContent = onl;
-
     drawMirror(txt, overflowStart(txt, parseInt(limitEl.value,10), basisEl.value));
   }
 
