@@ -1,0 +1,690 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>포렌식 스캔 미니웹앱 (ELA/채널/노이즈/샤프니스/색공간)</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans KR", sans-serif; background:#0b0d12; color:#e7eaf1; }
+    header { padding: 18px 18px 8px; border-bottom: 1px solid #1c2030; position: sticky; top: 0; background: rgba(11,13,18,0.92); backdrop-filter: blur(8px); z-index: 10; }
+    header h1 { margin: 0 0 6px; font-size: 16px; font-weight: 700; letter-spacing: .2px; }
+    header p { margin: 0; font-size: 12px; color:#a8b0c6; line-height: 1.5; }
+    main { padding: 16px 18px 28px; display: grid; gap: 14px; }
+    .panel { border: 1px solid #1c2030; border-radius: 14px; padding: 14px; background: #0f1220; box-shadow: 0 6px 20px rgba(0,0,0,.25); }
+    .row { display:flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+    .drop {
+      flex: 1 1 320px; min-height: 104px;
+      border: 1px dashed #2b3350; border-radius: 14px;
+      display: grid; place-items: center;
+      background: #0c1020;
+      cursor: pointer;
+    }
+    .drop.drag { border-color:#6a7bff; box-shadow: 0 0 0 3px rgba(106,123,255,.15) inset; }
+    .drop strong { font-size: 13px; }
+    .drop span { display:block; margin-top: 6px; font-size: 12px; color:#a8b0c6; }
+    input[type="file"] { display:none; }
+    .controls { display:grid; grid-template-columns: repeat(auto-fit,minmax(210px,1fr)); gap: 10px; margin-top: 10px; }
+    .ctl { border:1px solid #1c2030; border-radius: 12px; padding: 10px; background:#0c1020; }
+    .ctl label { display:flex; justify-content: space-between; gap: 10px; font-size: 12px; color:#cfd6ea; margin-bottom: 8px; }
+    .ctl input[type="range"] { width: 100%; }
+    .ctl input[type="number"] { width: 90px; padding: 6px 8px; border-radius: 10px; border:1px solid #2b3350; background:#0b0d12; color:#e7eaf1; }
+    .meta { font-size: 12px; color:#a8b0c6; line-height: 1.6; }
+    .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+    .card { border:1px solid #1c2030; border-radius: 14px; overflow:hidden; background:#0b0d12; }
+    .card header { position: static; background: transparent; border:0; padding: 10px 10px 8px; }
+    .card header .title { font-size: 13px; font-weight: 700; }
+    .card header .sub { margin-top: 4px; font-size: 11px; color:#a8b0c6; }
+    canvas { width: 100%; height: auto; display:block; background:#05060a; }
+    .card footer { padding: 10px; display:flex; gap: 8px; justify-content: space-between; align-items:center; border-top: 1px solid #1c2030; }
+    .btn {
+      padding: 7px 10px; border-radius: 12px; border: 1px solid #2b3350;
+      background:#0f1220; color:#e7eaf1; font-size: 12px;
+      cursor:pointer;
+    }
+    .btn:active { transform: translateY(1px); }
+    .score { font-size: 12px; color:#cfd6ea; }
+    .hint { font-size: 12px; color:#a8b0c6; margin-top: 8px; }
+    .sep { height: 1px; background:#1c2030; margin: 12px 0; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>이미지 포렌식 스캔 미니웹앱</h1>
+    <p>ELA / RGB 채널 분해 / 노이즈 잔차 / 샤프니스(라플라시안) / 색공간(HSV, YCbCr) 시각화</p>
+  </header>
+
+  <main>
+    <section class="panel">
+      <div class="row">
+        <div id="drop" class="drop" role="button" tabindex="0" aria-label="이미지 업로드">
+          <div style="text-align:center; padding: 14px;">
+            <strong>여기에 사진 드래그</strong>
+            <span>또는 클릭해서 파일 선택</span>
+          </div>
+        </div>
+        <div style="flex: 1 1 320px;">
+          <div class="meta" id="meta">아직 사진 없음</div>
+          <div class="hint">팁: 합성 흔적은 “경계”, “색공간의 군집”, “노이즈 결”, “샤프니스 불균일”에서 잘 튀어나와</div>
+        </div>
+      </div>
+
+      <input id="file" type="file" accept="image/*" />
+
+      <div class="controls">
+        <div class="ctl">
+          <label>
+            <span>처리 최대 변(긴쪽 px)</span>
+            <input id="maxSideNum" type="number" min="0" step="100" value="1400" />
+          </label>
+          <input id="maxSide" type="range" min="0" max="3000" step="100" value="1400" />
+          <div class="meta">0이면 원본 크기 그대로(큰 사진은 느릴 수 있음)</div>
+        </div>
+
+        <div class="ctl">
+          <label>
+            <span>ELA JPEG 품질</span>
+            <input id="elaQNum" type="number" min="10" max="100" step="1" value="85" />
+          </label>
+          <input id="elaQ" type="range" min="10" max="100" step="1" value="85" />
+          <div class="meta">낮출수록 차이가 더 커지기도 함</div>
+        </div>
+
+        <div class="ctl">
+          <label>
+            <span>ELA 증폭</span>
+            <input id="elaGainNum" type="number" min="1" max="80" step="1" value="20" />
+          </label>
+          <input id="elaGain" type="range" min="1" max="80" step="1" value="20" />
+          <div class="meta">너무 올리면 전체가 하얘질 수 있음</div>
+        </div>
+
+        <div class="ctl">
+          <label>
+            <span>노이즈 잔차 증폭</span>
+            <input id="noiseGainNum" type="number" min="1" max="60" step="1" value="12" />
+          </label>
+          <input id="noiseGain" type="range" min="1" max="60" step="1" value="12" />
+          <div class="meta">잔차 = 원본 - 블러(가우시안 흉내)</div>
+        </div>
+
+        <div class="ctl">
+          <label>
+            <span>샤프니스 맵 증폭</span>
+            <input id="sharpGainNum" type="number" min="1" max="30" step="1" value="6" />
+          </label>
+          <input id="sharpGain" type="range" min="1" max="30" step="1" value="6" />
+          <div class="meta">라플라시안(고주파) 강도</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="grid">
+        <div class="card">
+          <header>
+            <div class="title">원본(분석용 리사이즈 적용)</div>
+            <div class="sub">기준 이미지</div>
+          </header>
+          <canvas id="cvOriginal"></canvas>
+          <footer>
+            <button class="btn" data-save="cvOriginal">저장</button>
+            <div class="score" id="sizeInfo">-</div>
+          </footer>
+        </div>
+
+        <div class="card">
+          <header>
+            <div class="title">ELA 스캔</div>
+            <div class="sub">JPEG 재압축 후 차이(밝게 뜨는 곳이 후보)</div>
+          </header>
+          <canvas id="cvELA"></canvas>
+          <footer>
+            <button class="btn" data-save="cvELA">저장</button>
+            <div class="score" id="elaInfo">-</div>
+          </footer>
+        </div>
+
+        <div class="card">
+          <header>
+            <div class="title">R 채널</div>
+            <div class="sub">RGB 분해(그레이)</div>
+          </header>
+          <canvas id="cvR"></canvas>
+          <footer><button class="btn" data-save="cvR">저장</button><div class="score">-</div></footer>
+        </div>
+
+        <div class="card">
+          <header>
+            <div class="title">G 채널</div>
+            <div class="sub">RGB 분해(그레이)</div>
+          </header>
+          <canvas id="cvG"></canvas>
+          <footer><button class="btn" data-save="cvG">저장</button><div class="score">-</div></footer>
+        </div>
+
+        <div class="card">
+          <header>
+            <div class="title">B 채널</div>
+            <div class="sub">RGB 분해(그레이)</div>
+          </header>
+          <canvas id="cvB"></canvas>
+          <footer><button class="btn" data-save="cvB">저장</button><div class="score">-</div></footer>
+        </div>
+
+        <div class="card">
+          <header>
+            <div class="title">노이즈 패턴(잔차)</div>
+            <div class="sub">센서 결/후처리 차이 후보</div>
+          </header>
+          <canvas id="cvNoise"></canvas>
+          <footer>
+            <button class="btn" data-save="cvNoise">저장</button>
+            <div class="score">중간 회색이 “평균”, 튀는 곳이 차이</div>
+          </footer>
+        </div>
+
+        <div class="card">
+          <header>
+            <div class="title">블러/샤프니스 맵</div>
+            <div class="sub">라플라시안 강도(밝을수록 선명)</div>
+          </header>
+          <canvas id="cvSharp"></canvas>
+          <footer>
+            <button class="btn" data-save="cvSharp">저장</button>
+            <div class="score" id="sharpScore">-</div>
+          </footer>
+        </div>
+
+        <div class="card">
+          <header>
+            <div class="title">HSV - H(색상)</div>
+            <div class="sub">색공간 변환(그레이 매핑)</div>
+          </header>
+          <canvas id="cvH"></canvas>
+          <footer><button class="btn" data-save="cvH">저장</button><div class="score">-</div></footer>
+        </div>
+
+        <div class="card">
+          <header>
+            <div class="title">HSV - S(채도)</div>
+            <div class="sub">합성부의 “채도 결”이 튀기도 함</div>
+          </header>
+          <canvas id="cvS"></canvas>
+          <footer><button class="btn" data-save="cvS">저장</button><div class="score">-</div></footer>
+        </div>
+
+        <div class="card">
+          <header>
+            <div class="title">HSV - V(명도)</div>
+            <div class="sub">톤/명암 불일치 후보</div>
+          </header>
+          <canvas id="cvV"></canvas>
+          <footer><button class="btn" data-save="cvV">저장</button><div class="score">-</div></footer>
+        </div>
+
+        <div class="card">
+          <header>
+            <div class="title">YCbCr - Cb(청색 성분)</div>
+            <div class="sub">JPEG 계열에서 자주 쓰는 색공간</div>
+          </header>
+          <canvas id="cvCb"></canvas>
+          <footer><button class="btn" data-save="cvCb">저장</button><div class="score">-</div></footer>
+        </div>
+
+        <div class="card">
+          <header>
+            <div class="title">YCbCr - Cr(적색 성분)</div>
+            <div class="sub">색 번짐/후처리 차이 후보</div>
+          </header>
+          <canvas id="cvCr"></canvas>
+          <footer><button class="btn" data-save="cvCr">저장</button><div class="score">-</div></footer>
+        </div>
+      </div>
+
+      <div class="sep"></div>
+      <div class="meta">
+        참고 메모<br/>
+        - ELA는 “재압축 흔적 차이”를 보는 거라, 원본이 이미 여러 번 저장된 이미지면 해석이 더 까다로울 수 있어<br/>
+        - 노이즈 잔차/샤프니스 맵은 “경계” 말고도 “영역 전체의 결”을 봐야 더 잘 보임
+      </div>
+    </section>
+  </main>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+
+  const el = {
+    drop: $("drop"),
+    file: $("file"),
+    meta: $("meta"),
+    sizeInfo: $("sizeInfo"),
+    elaInfo: $("elaInfo"),
+    sharpScore: $("sharpScore"),
+
+    maxSide: $("maxSide"),
+    maxSideNum: $("maxSideNum"),
+    elaQ: $("elaQ"),
+    elaQNum: $("elaQNum"),
+    elaGain: $("elaGain"),
+    elaGainNum: $("elaGainNum"),
+    noiseGain: $("noiseGain"),
+    noiseGainNum: $("noiseGainNum"),
+    sharpGain: $("sharpGain"),
+    sharpGainNum: $("sharpGainNum"),
+
+    cvOriginal: $("cvOriginal"),
+    cvELA: $("cvELA"),
+    cvR: $("cvR"),
+    cvG: $("cvG"),
+    cvB: $("cvB"),
+    cvNoise: $("cvNoise"),
+    cvSharp: $("cvSharp"),
+    cvH: $("cvH"),
+    cvS: $("cvS"),
+    cvV: $("cvV"),
+    cvCb: $("cvCb"),
+    cvCr: $("cvCr")
+  };
+
+  const ctx = (cv) => cv.getContext("2d", { willReadFrequently: true });
+
+  const hidden = document.createElement("canvas");
+  const hctx = hidden.getContext("2d", { willReadFrequently: true });
+
+  const state = {
+    img: null,
+    w: 0, h: 0,
+    imageData: null
+  };
+
+  // --- UI: range <-> number sync
+  function bindRange(range, num, onChange) {
+    const syncFromRange = () => { num.value = range.value; onChange?.(); };
+    const syncFromNum = () => {
+      let v = Number(num.value);
+      if (Number.isNaN(v)) v = Number(range.value);
+      v = Math.max(Number(range.min), Math.min(Number(range.max), v));
+      range.value = String(v);
+      num.value = String(v);
+      onChange?.();
+    };
+    range.addEventListener("input", syncFromRange);
+    num.addEventListener("change", syncFromNum);
+    syncFromRange();
+  }
+
+  bindRange(el.maxSide, el.maxSideNum, () => rerunIfReady());
+  bindRange(el.elaQ, el.elaQNum, () => rerunIfReady());
+  bindRange(el.elaGain, el.elaGainNum, () => rerunIfReady());
+  bindRange(el.noiseGain, el.noiseGainNum, () => rerunIfReady());
+  bindRange(el.sharpGain, el.sharpGainNum, () => rerunIfReady());
+
+  // --- drag & drop
+  el.drop.addEventListener("click", () => el.file.click());
+  el.drop.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") el.file.click();
+  });
+
+  ["dragenter","dragover"].forEach(evt => el.drop.addEventListener(evt, (e) => {
+    e.preventDefault(); e.stopPropagation();
+    el.drop.classList.add("drag");
+  }));
+  ["dragleave","drop"].forEach(evt => el.drop.addEventListener(evt, (e) => {
+    e.preventDefault(); e.stopPropagation();
+    el.drop.classList.remove("drag");
+  }));
+  el.drop.addEventListener("drop", (e) => {
+    const f = e.dataTransfer.files?.[0];
+    if (f) handleFile(f);
+  });
+
+  el.file.addEventListener("change", () => {
+    const f = el.file.files?.[0];
+    if (f) handleFile(f);
+  });
+
+  // --- save buttons
+  document.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-save]");
+    if (!btn) return;
+    const id = btn.getAttribute("data-save");
+    const canvas = $(id);
+    if (!canvas) return;
+    const a = document.createElement("a");
+    a.download = `${id}.png`;
+    a.href = canvas.toDataURL("image/png");
+    a.click();
+  });
+
+  function setCanvasSize(cv, w, h) { cv.width = w; cv.height = h; }
+
+  function scaledDims(w, h, maxSide) {
+    if (!maxSide || maxSide <= 0) return { w, h, scale: 1 };
+    const m = Math.max(w, h);
+    const s = Math.min(1, maxSide / m);
+    return { w: Math.max(1, Math.round(w * s)), h: Math.max(1, Math.round(h * s)), scale: s };
+  }
+
+  function loadImageFromFile(file) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+      img.onerror = (err) => { URL.revokeObjectURL(url); reject(err); };
+      img.src = url;
+    });
+  }
+
+  async function handleFile(file) {
+    try {
+      el.meta.textContent = `불러오는 중… ${file.name}`;
+      const img = await loadImageFromFile(file);
+      state.img = img;
+
+      const maxSide = Number(el.maxSide.value);
+      const d = scaledDims(img.naturalWidth, img.naturalHeight, maxSide);
+      state.w = d.w; state.h = d.h;
+
+      setCanvasSize(hidden, state.w, state.h);
+      hctx.clearRect(0,0,state.w,state.h);
+      hctx.drawImage(img, 0, 0, state.w, state.h);
+
+      state.imageData = hctx.getImageData(0, 0, state.w, state.h);
+
+      el.meta.innerHTML =
+        `파일: <b>${escapeHtml(file.name)}</b><br/>` +
+        `원본: ${img.naturalWidth}×${img.naturalHeight}<br/>` +
+        `분석: ${state.w}×${state.h} (스케일 ${Math.round(d.scale*100)}%)`;
+
+      rerun();
+    } catch (e) {
+      el.meta.textContent = "이미지 로드 실패(다른 파일로 다시 시도해봐)";
+      console.error(e);
+    }
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+  }
+
+  function rerunIfReady() {
+    if (!state.imageData) return;
+    rerun();
+  }
+
+  function drawImageDataToCanvas(imageData, cv) {
+    setCanvasSize(cv, imageData.width, imageData.height);
+    ctx(cv).putImageData(imageData, 0, 0);
+  }
+
+  function toGray(r,g,b) {
+    return (0.299*r + 0.587*g + 0.114*b);
+  }
+
+  // --- ELA: original vs JPEG recompress
+  async function computeELA(baseImageData, jpegQuality01, gain) {
+    // Draw original into temp canvas
+    setCanvasSize(hidden, baseImageData.width, baseImageData.height);
+    hctx.putImageData(baseImageData, 0, 0);
+
+    const dataUrl = hidden.toDataURL("image/jpeg", jpegQuality01);
+    const jpegImg = await new Promise((resolve, reject) => {
+      const i = new Image();
+      i.onload = () => resolve(i);
+      i.onerror = reject;
+      i.src = dataUrl;
+    });
+
+    // Draw jpeg back
+    hctx.clearRect(0,0,hidden.width,hidden.height);
+    hctx.drawImage(jpegImg, 0, 0, hidden.width, hidden.height);
+    const jpegData = hctx.getImageData(0,0,hidden.width,hidden.height);
+
+    const a = baseImageData.data;
+    const b = jpegData.data;
+    const out = new ImageData(baseImageData.width, baseImageData.height);
+    const o = out.data;
+
+    let maxDiff = 0;
+    for (let i=0; i<a.length; i+=4) {
+      const dr = Math.abs(a[i]   - b[i]);
+      const dg = Math.abs(a[i+1] - b[i+1]);
+      const db = Math.abs(a[i+2] - b[i+2]);
+      const diff = (dr + dg + db) / 3;
+      if (diff > maxDiff) maxDiff = diff;
+
+      const v = clamp8(diff * gain);
+      o[i]=v; o[i+1]=v; o[i+2]=v; o[i+3]=255;
+    }
+    return { out, maxDiff };
+  }
+
+  // --- Channel split (grayscale for each channel)
+  function channelSplit(baseImageData) {
+    const { width:w, height:h, data } = baseImageData;
+    const outR = new ImageData(w,h);
+    const outG = new ImageData(w,h);
+    const outB = new ImageData(w,h);
+
+    for (let i=0; i<data.length; i+=4) {
+      const r = data[i], g = data[i+1], b = data[i+2];
+      outR.data[i]=r; outR.data[i+1]=r; outR.data[i+2]=r; outR.data[i+3]=255;
+      outG.data[i]=g; outG.data[i+1]=g; outG.data[i+2]=g; outG.data[i+3]=255;
+      outB.data[i]=b; outB.data[i+1]=b; outB.data[i+2]=b; outB.data[i+3]=255;
+    }
+    return { outR, outG, outB };
+  }
+
+  // --- Gaussian-ish blur on grayscale (separable 1D kernel)
+  function blurGray(gray, w, h) {
+    // kernel approx: [1,4,6,4,1] / 16
+    const k = [1,4,6,4,1];
+    const div = 16;
+
+    const tmp = new Float32Array(w*h);
+    const out = new Float32Array(w*h);
+
+    // horizontal
+    for (let y=0; y<h; y++) {
+      const row = y*w;
+      for (let x=0; x<w; x++) {
+        let s = 0;
+        for (let i=-2; i<=2; i++) {
+          const xx = Math.min(w-1, Math.max(0, x+i));
+          s += gray[row+xx] * k[i+2];
+        }
+        tmp[row+x] = s / div;
+      }
+    }
+
+    // vertical
+    for (let y=0; y<h; y++) {
+      for (let x=0; x<w; x++) {
+        let s = 0;
+        for (let i=-2; i<=2; i++) {
+          const yy = Math.min(h-1, Math.max(0, y+i));
+          s += tmp[yy*w + x] * k[i+2];
+        }
+        out[y*w + x] = s / div;
+      }
+    }
+    return out;
+  }
+
+  // --- Noise residual map: (gray - blur(gray)) amplified around mid-gray
+  function noiseResidual(baseImageData, gain) {
+    const { width:w, height:h, data } = baseImageData;
+    const gray = new Float32Array(w*h);
+    for (let y=0; y<h; y++) {
+      for (let x=0; x<w; x++) {
+        const i = (y*w + x)*4;
+        gray[y*w+x] = toGray(data[i], data[i+1], data[i+2]);
+      }
+    }
+    const bl = blurGray(gray, w, h);
+    const out = new ImageData(w,h);
+    for (let p=0; p<w*h; p++) {
+      const r = (gray[p] - bl[p]) * gain;
+      const v = clamp8(128 + r);
+      const i = p*4;
+      out.data[i]=v; out.data[i+1]=v; out.data[i+2]=v; out.data[i+3]=255;
+    }
+    return out;
+  }
+
+  // --- Laplacian sharpness map
+  function sharpnessMap(baseImageData, gain) {
+    const { width:w, height:h, data } = baseImageData;
+    const gray = new Float32Array(w*h);
+    for (let p=0; p<w*h; p++) {
+      const i=p*4;
+      gray[p] = toGray(data[i], data[i+1], data[i+2]);
+    }
+
+    // laplacian 3x3: [-1 -1 -1; -1 8 -1; -1 -1 -1]
+    const mag = new Float32Array(w*h);
+    let sum = 0;
+
+    for (let y=0; y<h; y++) {
+      for (let x=0; x<w; x++) {
+        const c = gray[y*w + x];
+        let acc = 8*c;
+
+        for (let yy=-1; yy<=1; yy++) {
+          for (let xx=-1; xx<=1; xx++) {
+            if (xx===0 && yy===0) continue;
+            const nx = Math.min(w-1, Math.max(0, x+xx));
+            const ny = Math.min(h-1, Math.max(0, y+yy));
+            acc += -1 * gray[ny*w + nx];
+          }
+        }
+        const m = Math.abs(acc) * gain;
+        mag[y*w + x] = m;
+        sum += m;
+      }
+    }
+
+    // normalize using approx 99th percentile (sampling)
+    const p99 = approxPercentile(mag, 0.99);
+    const out = new ImageData(w,h);
+    for (let p=0; p<w*h; p++) {
+      const v = clamp8((mag[p] / (p99 || 1)) * 255);
+      const i=p*4;
+      out.data[i]=v; out.data[i+1]=v; out.data[i+2]=v; out.data[i+3]=255;
+    }
+
+    const avg = sum / (w*h);
+    return { out, score: avg, p99 };
+  }
+
+  function approxPercentile(arr, q) {
+    const n = arr.length;
+    if (n === 0) return 1;
+    const step = Math.max(1, Math.floor(n / 50000)); // sample up to ~50k
+    const sample = [];
+    for (let i=0; i<n; i+=step) sample.push(arr[i]);
+    sample.sort((a,b)=>a-b);
+    const idx = Math.min(sample.length-1, Math.max(0, Math.floor(sample.length*q)));
+    return sample[idx] || 1;
+  }
+
+  // --- HSV and YCbCr split
+  function hsvAndYCbCr(baseImageData) {
+    const { width:w, height:h, data } = baseImageData;
+    const outH = new ImageData(w,h);
+    const outS = new ImageData(w,h);
+    const outV = new ImageData(w,h);
+    const outCb = new ImageData(w,h);
+    const outCr = new ImageData(w,h);
+
+    for (let i=0; i<data.length; i+=4) {
+      const r = data[i] / 255, g = data[i+1] / 255, b = data[i+2] / 255;
+      const max = Math.max(r,g,b), min = Math.min(r,g,b);
+      const d = max - min;
+
+      // HSV
+      let hVal = 0;
+      if (d !== 0) {
+        if (max === r) hVal = ((g - b) / d) % 6;
+        else if (max === g) hVal = ((b - r) / d) + 2;
+        else hVal = ((r - g) / d) + 4;
+        hVal *= 60;
+        if (hVal < 0) hVal += 360;
+      }
+      const sVal = (max === 0) ? 0 : (d / max);
+      const vVal = max;
+
+      const H = clamp8((hVal / 360) * 255);
+      const S = clamp8(sVal * 255);
+      const V = clamp8(vVal * 255);
+
+      outH.data[i]=H; outH.data[i+1]=H; outH.data[i+2]=H; outH.data[i+3]=255;
+      outS.data[i]=S; outS.data[i+1]=S; outS.data[i+2]=S; outS.data[i+3]=255;
+      outV.data[i]=V; outV.data[i+1]=V; outV.data[i+2]=V; outV.data[i+3]=255;
+
+      // YCbCr (BT.601 full-range style)
+      const R = data[i], G = data[i+1], B = data[i+2];
+      const Cb = 128 - 0.168736*R - 0.331264*G + 0.5*B;
+      const Cr = 128 + 0.5*R - 0.418688*G - 0.081312*B;
+
+      const cb = clamp8(Cb);
+      const cr = clamp8(Cr);
+      outCb.data[i]=cb; outCb.data[i+1]=cb; outCb.data[i+2]=cb; outCb.data[i+3]=255;
+      outCr.data[i]=cr; outCr.data[i+1]=cr; outCr.data[i+2]=cr; outCr.data[i+3]=255;
+    }
+
+    return { outH, outS, outV, outCb, outCr };
+  }
+
+  function clamp8(v) {
+    v = Math.round(v);
+    return v < 0 ? 0 : (v > 255 ? 255 : v);
+  }
+
+  async function rerun() {
+    const base = state.imageData;
+    if (!base) return;
+
+    // draw original
+    drawImageDataToCanvas(base, el.cvOriginal);
+    el.sizeInfo.textContent = `${base.width}×${base.height}`;
+
+    // channel split
+    const ch = channelSplit(base);
+    drawImageDataToCanvas(ch.outR, el.cvR);
+    drawImageDataToCanvas(ch.outG, el.cvG);
+    drawImageDataToCanvas(ch.outB, el.cvB);
+
+    // ELA
+    const q = Number(el.elaQ.value) / 100;
+    const eg = Number(el.elaGain.value);
+    el.elaInfo.textContent = `Q=${Math.round(q*100)} / gain=${eg}`;
+    const ela = await computeELA(base, q, eg);
+    drawImageDataToCanvas(ela.out, el.cvELA);
+
+    // Noise residual
+    const ng = Number(el.noiseGain.value);
+    const nz = noiseResidual(base, ng);
+    drawImageDataToCanvas(nz, el.cvNoise);
+
+    // Sharpness map
+    const sg = Number(el.sharpGain.value);
+    const sh = sharpnessMap(base, sg);
+    drawImageDataToCanvas(sh.out, el.cvSharp);
+    el.sharpScore.textContent = `평균 고주파 강도≈ ${sh.score.toFixed(2)} / p99≈ ${sh.p99.toFixed(2)}`;
+
+    // HSV + YCbCr
+    const cs = hsvAndYCbCr(base);
+    drawImageDataToCanvas(cs.outH, el.cvH);
+    drawImageDataToCanvas(cs.outS, el.cvS);
+    drawImageDataToCanvas(cs.outV, el.cvV);
+    drawImageDataToCanvas(cs.outCb, el.cvCb);
+    drawImageDataToCanvas(cs.outCr, el.cvCr);
+  }
+
+})();
+</script>
+</body>
+</html>
