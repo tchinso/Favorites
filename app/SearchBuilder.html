@@ -16,6 +16,7 @@
   .hint{color:var(--muted);font-size:13px;margin:6px 0 14px}
   .list{border:1px solid var(--line);border-radius:12px;padding:8px;background:var(--bg)}
   .item{display:grid;grid-template-columns:28px 1fr 1.3fr auto;gap:8px;align-items:center;background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px;margin:8px 0}
+  .item.selected{border-color:var(--pri);box-shadow:0 0 0 2px rgba(45,108,223,.18)}
   .item.engine{grid-template-columns:28px 1fr 1.8fr auto}
   .item.category{grid-template-columns:28px 1fr auto}
   .handle{user-select:none;text-align:center;color:#999;cursor:grab}
@@ -45,7 +46,7 @@
     <input type="file" id="file" class="file" accept=".json,application/json" />
   </div>
 
-  <div class="hint">정렬 순서가 “소속”을 결정해. <b>카테고리</b>가 먼저 나오고, 그 아래로 이어지는 <b>검색엔진</b>들이 그 카테고리에 속해. 드래그해서 위치를 바꿀 수 있어.</div>
+  <div class="hint">정렬 순서가 “소속”을 결정해. <b>카테고리</b>가 먼저 나오고, 그 아래로 이어지는 <b>검색엔진</b>들이 그 카테고리에 속해. 드래그해서 위치를 바꿀 수 있고, 항목을 선택한 뒤 방향키로도 이동할 수 있어.</div>
 
   <div class="legend">
     <span class="pill">카테고리</span>
@@ -96,12 +97,20 @@
   const statusEl = $('#status');
   const outEl = $('#out');
 
+  let selectedIndex = null;
+
+  function setSelected(idx){
+    selectedIndex = typeof idx === 'number' ? idx : null;
+  }
+
   // 렌더링
   function render(){
+    if(selectedIndex !== null && selectedIndex >= items.length) selectedIndex = null;
     listEl.innerHTML = '';
     items.forEach((it, idx) => {
       const li = document.createElement('div');
       li.className = 'item ' + it.type;
+      if(idx === selectedIndex) li.classList.add('selected');
       li.setAttribute('draggable','true');
       li.dataset.index = idx;
 
@@ -147,6 +156,8 @@
         li.appendChild(del);
       }
 
+      li.addEventListener('mousedown', () => setSelected(idx));
+
       // DnD
       li.addEventListener('dragstart', onDragStart);
       li.addEventListener('dragover', onDragOver);
@@ -158,12 +169,15 @@
 
   function removeAt(i){
     items.splice(i,1);
+    if(selectedIndex === i) selectedIndex = null;
+    else if(selectedIndex > i) selectedIndex -= 1;
     render();
   }
 
   let dragIndex = null;
   function onDragStart(e){
     dragIndex = +e.currentTarget.dataset.index;
+    setSelected(dragIndex);
     e.dataTransfer.effectAllowed = 'move';
   }
   function onDragOver(e){
@@ -177,9 +191,29 @@
     if(dragIndex === null || to === dragIndex) return;
     const moved = items.splice(dragIndex,1)[0];
     items.splice(to,0,moved);
+    selectedIndex = to;
     dragIndex = null;
     render();
   }
+
+  document.addEventListener('keydown', (e) => {
+    if(selectedIndex === null) return;
+    const active = document.activeElement;
+    if(active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) return;
+    if(e.key === 'ArrowUp' && selectedIndex > 0){
+      const moved = items.splice(selectedIndex,1)[0];
+      items.splice(selectedIndex - 1,0,moved);
+      selectedIndex -= 1;
+      render();
+      e.preventDefault();
+    }else if(e.key === 'ArrowDown' && selectedIndex < items.length - 1){
+      const moved = items.splice(selectedIndex,1)[0];
+      items.splice(selectedIndex + 1,0,moved);
+      selectedIndex += 1;
+      render();
+      e.preventDefault();
+    }
+  });
 
   // 카테고리/엔진 추가
   $('#addCat').addEventListener('click', () => {
