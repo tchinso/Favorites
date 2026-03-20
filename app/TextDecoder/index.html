@@ -1,0 +1,261 @@
+﻿<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>뷁어번역기</title>
+<style>
+:root {
+	--bg-top: #fdf5e6;
+	--bg-bottom: #e3f5f0;
+	--panel: rgba(255, 255, 255, 0.9);
+	--border: rgba(30, 69, 60, 0.16);
+	--text-main: #1f2a2a;
+	--text-sub: #4f6361;
+	--accent: #00796b;
+	--focus: #ff8f3f;
+	--shadow: 0 20px 45px rgba(0, 0, 0, 0.08);
+}
+* {
+	box-sizing: border-box;
+}
+body {
+	margin: 0;
+	min-height: 100vh;
+	font-family: "SUIT Variable", "Pretendard Variable", "Noto Sans KR", sans-serif;
+	color: var(--text-main);
+	background: linear-gradient(145deg, var(--bg-top), var(--bg-bottom));
+}
+body::before {
+	content: "";
+	position: fixed;
+	inset: 0;
+	pointer-events: none;
+	background:
+		radial-gradient(circle at 12% 20%, rgba(255, 165, 0, 0.18), transparent 45%),
+		radial-gradient(circle at 82% 18%, rgba(0, 121, 107, 0.16), transparent 42%),
+		radial-gradient(circle at 72% 85%, rgba(255, 205, 123, 0.2), transparent 45%);
+}
+main {
+	position: relative;
+	max-width: 960px;
+	margin: 0 auto;
+	padding: 32px 16px 40px;
+}
+.hero {
+	background: rgba(255, 255, 255, 0.72);
+	border: 1px solid var(--border);
+	border-radius: 24px;
+	padding: 24px;
+	backdrop-filter: blur(5px);
+	box-shadow: var(--shadow);
+	animation: float-in 380ms ease-out;
+}
+.hero h1 {
+	margin: 0 0 10px;
+	font-size: clamp(1.75rem, 3vw, 2.4rem);
+	letter-spacing: -0.02em;
+}
+.hero p {
+	margin: 0;
+	line-height: 1.55;
+	color: var(--text-sub);
+}
+form {
+	margin-top: 18px;
+	display: grid;
+	gap: 14px;
+}
+.panel {
+	background: var(--panel);
+	border: 1px solid var(--border);
+	border-radius: 20px;
+	padding: 18px;
+	box-shadow: var(--shadow);
+	animation: float-in 460ms ease-out;
+}
+.panel:nth-of-type(2) {
+	animation-delay: 80ms;
+}
+.panel h2 {
+	margin: 0 0 12px;
+	font-size: 1.05rem;
+}
+.field-row {
+	display: grid;
+	grid-template-columns: 72px 1fr auto;
+	gap: 10px;
+	align-items: center;
+}
+label {
+	font-size: 0.92rem;
+	color: var(--text-sub);
+}
+select,
+textarea {
+	width: 100%;
+	border: 1px solid rgba(0, 0, 0, 0.15);
+	border-radius: 12px;
+	font: inherit;
+	color: var(--text-main);
+	background: rgba(255, 255, 255, 0.95);
+}
+select {
+	height: 40px;
+	padding: 0 10px;
+}
+textarea {
+	margin-top: 10px;
+	padding: 12px;
+	resize: vertical;
+	min-height: 132px;
+	line-height: 1.45;
+}
+input[type="checkbox"] {
+	accent-color: var(--accent);
+}
+select:focus,
+textarea:focus,
+button:focus-visible {
+	outline: 2px solid var(--focus);
+	outline-offset: 2px;
+}
+.inline-toggle {
+	display: inline-flex;
+	gap: 6px;
+	align-items: center;
+	white-space: nowrap;
+	user-select: none;
+}
+.toolbar {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+	align-items: center;
+	justify-content: space-between;
+	margin-top: 4px;
+}
+#copy-btn {
+	border: 0;
+	height: 40px;
+	padding: 0 14px;
+	border-radius: 999px;
+	font: inherit;
+	font-weight: 700;
+	color: #fff;
+	background: linear-gradient(120deg, #00796b, #249a7f);
+	cursor: pointer;
+	transition: transform 120ms ease, filter 120ms ease;
+}
+#copy-btn:hover {
+	filter: brightness(1.03);
+	transform: translateY(-1px);
+}
+#copy-btn:active {
+	transform: translateY(0);
+}
+#status {
+	min-height: 1.3em;
+	margin: 0;
+	font-size: 0.9rem;
+	color: var(--text-sub);
+}
+@keyframes float-in {
+	from {
+		opacity: 0;
+		transform: translateY(10px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+@media (max-width: 720px) {
+	.hero {
+		padding: 20px;
+	}
+	.field-row {
+		grid-template-columns: 1fr;
+		gap: 8px;
+	}
+	.field-row > label:first-child {
+		font-weight: 700;
+	}
+}
+</style>
+<script src="./trans.js" defer></script>
+</head>
+<body>
+<main>
+	<section class="hero">
+		<h1>뷁어번역기</h1>
+		<p>"뷁어번역기"는 텍스트 인코딩 오류로 읽을 수 없게 된 문자열을 바로잡는 도구입니다.</p>
+	</section>
+
+	<form id="translator-form" method="post">
+		<section class="panel">
+			<h2>뷁어</h2>
+			<div class="field-row">
+				<label for="source-encoding">인코딩</label>
+				<select name="e" id="source-encoding">
+					<option value="windows-1252">ANSI (windows-1252)</option>
+					<option value="cp949">EUC-KR (cp949)</option>
+					<option value="shift-jis">Shift-JIS</option>
+					<option value="cp932">EUC-JP (cp932)</option>
+					<option value="cp936">EUC-CN (cp936)</option>
+					<option value="utf-8">UTF-8</option>
+					<option value="utf-16le">UTF-16LE</option>
+					<option value="utf-16be">UTF-16BE</option>
+					<option value="basehangul">basehangul</option>
+					<option value="gzipbasehangul">GZip (basehangul)</option>
+					<option value="base64" selected>base64</option>
+					<option value="gzipbase64">GZip (base64)</option>
+					<option value="quoted-printable">quoted-printable</option>
+					<option value="unicode">\uNNNN</option>
+					<option value="monitable">모니위키 표</option>
+				</select>
+				<label class="inline-toggle" for="source-url">
+					<input id="source-url" type="checkbox" name="u">
+					URL decode
+				</label>
+			</div>
+			<textarea id="source-text" name="q" placeholder="한글날"></textarea>
+		</section>
+
+		<section class="panel">
+			<h2>자연어</h2>
+			<div class="field-row">
+				<label for="target-encoding">인코딩</label>
+				<select name="t" id="target-encoding">
+					<option value="windows-1252">ANSI (windows-1252)</option>
+					<option value="cp949">EUC-KR (cp949)</option>
+					<option value="shift-jis">Shift-JIS</option>
+					<option value="cp932">EUC-JP (cp932)</option>
+					<option value="cp936">EUC-CN (cp936)</option>
+					<option value="utf-8">UTF-8</option>
+					<option value="utf-16le">UTF-16LE</option>
+					<option value="utf-16be">UTF-16BE</option>
+					<option value="basehangul" selected>basehangul</option>
+					<option value="gzipbasehangul">GZip (basehangul)</option>
+					<option value="base64">base64</option>
+					<option value="gzipbase64">GZip (base64)</option>
+					<option value="quoted-printable">quoted-printable</option>
+					<option value="unicode">\uNNNN</option>
+					<option value="mwtable">미디어위키 표</option>
+				</select>
+				<label class="inline-toggle" for="target-url">
+					<input id="target-url" type="checkbox" name="r">
+					URL encode
+				</label>
+			</div>
+			<textarea id="target-text" readonly placeholder="벴녀몃렷두렷깅흐"></textarea>
+		</section>
+
+		<div class="toolbar">
+			<button type="button" id="copy-btn">결과 복사</button>
+			<p id="status" aria-live="polite"></p>
+		</div>
+	</form>
+</main>
+</body>
+</html>
