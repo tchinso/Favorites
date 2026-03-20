@@ -1,0 +1,231 @@
+﻿<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>세계 시뮬레이션</title>
+<style>
+:root{--bg:#111827;--panel:#1f2937;--line:#374151;--txt:#e5e7eb;--dim:#9ca3af}
+*{box-sizing:border-box}
+body{margin:0;padding:16px;min-height:100vh;font-family:"Segoe UI","Noto Sans KR",sans-serif;color:var(--txt);background:radial-gradient(circle at 15% 10%,#1f3550,transparent 40%),radial-gradient(circle at 75% 85%,#1a3c34,transparent 35%),var(--bg)}
+.app{max-width:1300px;margin:0 auto;display:flex;flex-direction:column;gap:12px}
+.toolbar{background:rgba(31,41,55,.9);border:1px solid var(--line);border-radius:12px;padding:10px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+button,select{border:1px solid #4b617b;border-radius:8px;background:#273449;color:var(--txt);padding:8px 10px;font-size:14px;cursor:pointer}
+.play{background:#1f6c4e;border-color:#2f8c67;font-weight:600}
+.status{margin-left:auto;color:var(--dim);font-size:13px;white-space:nowrap}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:12px;align-items:start}
+.board,.rank{background:rgba(31,41,55,.9);border:1px solid var(--line);border-radius:12px}
+.board{padding:10px}
+#map{width:100%;height:auto;display:block;border-radius:8px;border:1px solid #4b5563;image-rendering:pixelated;background:#2f495f}
+.rank{overflow:hidden}
+.rankHead{display:flex;justify-content:space-between;align-items:center;padding:10px;background:rgba(55,65,81,.55);border-bottom:1px solid var(--line);font-size:14px;font-weight:600}
+#rankList{list-style:decimal;margin:0;padding:8px 16px 14px 28px;max-height:520px;overflow:auto}
+#rankList li{margin:7px 0;font-size:13px;display:grid;grid-template-columns:18px minmax(0,1fr);gap:4px;align-items:center}
+.dot{width:12px;height:12px;border-radius:50%;border:1px solid rgba(255,255,255,.45);display:inline-block;vertical-align:middle;margin-right:4px}
+.meta{color:var(--dim);font-size:12px}
+.rank.fold #rankList{display:none}
+.hint{padding:0 12px 10px;color:var(--dim);font-size:12px}
+@media (max-width:980px){.layout{grid-template-columns:1fr}.status{margin-left:0;width:100%}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="toolbar">
+    <button id="play" class="play">플레이 (새 지도)</button>
+    <button id="pause" disabled>일시정지</button>
+    <label for="speed">배속</label>
+    <select id="speed">
+      <option>1</option><option>2</option><option>4</option><option>8</option>
+      <option selected>16</option><option>32</option><option>64</option><option>128</option>
+    </select>
+    <div id="status" class="status">플레이 버튼을 눌러 지도를 생성하세요.</div>
+  </div>
+  <div class="layout">
+    <div class="board"><canvas id="map" width="900" height="408"></canvas></div>
+    <aside id="rank" class="rank">
+      <div class="rankHead"><span>영토+영해 랭킹 TOP 7</span><button id="toggle">접기</button></div>
+      <ol id="rankList"></ol>
+      <div class="hint">영토는 육지칸, 영해는 바다칸 관할입니다.</div>
+    </aside>
+  </div>
+</div>
+<script>
+(()=>{"use strict";
+const W=75,H=34,N=W*H,CELL=12,COUNTRY_N=20;
+const SEA=0,LAND=1;
+const MAJOR=[
+{id:0,t:135,r:[2,2,19,15]},{id:1,t:140,r:[21,5,38,19]},{id:2,t:130,r:[10,19,30,33]},
+{id:3,t:140,r:[43,2,60,14]},{id:4,t:145,r:[58,10,74,24]},{id:5,t:140,r:[34,22,54,34]}
+];
+const BRIDGES=[[0,1],[1,2],[3,4]],ISLAND_N=20,ISLAND_CELLS=175;
+const canvas=document.getElementById("map"),ctx=canvas.getContext("2d",{alpha:false});
+canvas.width=W*CELL;canvas.height=H*CELL;ctx.imageSmoothingEnabled=false;
+const mini=document.createElement("canvas");mini.width=W;mini.height=H;
+const mctx=mini.getContext("2d",{alpha:false}),img=mctx.createImageData(W,H);
+const playBtn=document.getElementById("play"),pauseBtn=document.getElementById("pause"),speedSel=document.getElementById("speed");
+const statusEl=document.getElementById("status"),rankEl=document.getElementById("rank"),rankList=document.getElementById("rankList"),toggle=document.getElementById("toggle");
+const terr=new Uint8Array(N),own=new Int16Array(N),seaOwn=new Int16Array(N),tag=new Int16Array(N);
+const X=new Uint8Array(N),Y=new Uint8Array(N),nb=Array.from({length:N},()=>[]);
+const dist=new Int16Array(N),src=new Int16Array(N),q=new Int32Array(N);
+for(let y=0;y<H;y++)for(let x=0;x<W;x++){const i=y*W+x;X[i]=x;Y[i]=y;if(x>0)nb[i].push(i-1);if(x<W-1)nb[i].push(i+1);if(y>0)nb[i].push(i-W);if(y<H-1)nb[i].push(i+W)}
+const countries=[],wars=new Map(),usedName=new Set();
+let nextId=0,alive=[],running=false,paused=false,speed=16,turn=0,acc=0,lastT=0,lastR=0,ready=false;
+const SEA_BASE=[55,98,128],LAND_BASE=[112,126,100];
+const N1=["Ar","Bel","Cor","Dor","Eld","Fen","Gal","Hel","Ira","Jor","Kal","Lor","Mor","Nor","Or","Pel","Quel","Rav","Sol","Tor","Ul","Vor","Wen","Xan","Yor","Zel"];
+const N2=["ia","on","ar","en","or","is","an","eth","um","ora","ea","ell","ith","ara","os","uin","yr","or","and","ene"];
+const N3=["","","",""," Republic"," Union"," Realm"," State"];
+const ri=(a,b)=>(Math.random()*(b-a+1)|0)+a,cl=(v,a,b)=>Math.max(a,Math.min(b,v)),ix=(x,y)=>y*W+x;
+const key=(a,b)=>a<b?`${a}|${b}`:`${b}|${a}`;
+function h2r(h,s,l){s/=100;l/=100;const c=(1-Math.abs(2*l-1))*s,hp=h/60,x=c*(1-Math.abs(hp%2-1));let r=0,g=0,b=0;if(hp<1){r=c;g=x}else if(hp<2){r=x;g=c}else if(hp<3){g=c;b=x}else if(hp<4){g=x;b=c}else if(hp<5){r=x;b=c}else{r=c;b=x}const m=l-c/2;return [Math.round((r+m)*255),Math.round((g+m)*255),Math.round((b+m)*255)]}
+function cname(){for(let t=0;t<120;t++){const n=`${N1[ri(0,N1.length-1)]}${N2[ri(0,N2.length-1)]}${N3[ri(0,N3.length-1)]}`;if(!usedName.has(n)){usedName.add(n);return n}}const n=`Nation-${usedName.size+1}`;usedName.add(n);return n}
+function mkCountry(base=null){const id=nextId++,h=base==null?(id*137.5+ri(0,30))%360:(base+ri(22,96))%360,lr=h2r(h,64,56),sr=h2r(h,48,35);countries[id]={id,name:cname(),h,lr,sr,lc:`rgb(${lr[0]},${lr[1]},${lr[2]})`,land:0,sea:0,sx:0,sy:0,cx:0,cy:0,st:ri(45,78),wars:new Set(),cells:[],alive:true};return countries[id]}
+function reset(){terr.fill(SEA);own.fill(-1);seaOwn.fill(-1);tag.fill(-1);countries.length=0;wars.clear();usedName.clear();nextId=0;alive=[];turn=0;acc=0;ready=false}
+function foreignAdj(i,my){for(const n of nb[i])if(terr[n]===LAND&&tag[n]!==my)return true;return false}
+function blob(spec){const [x0,y0,x1,y1]=spec.r,t=spec.t,my=spec.id,F=[],seen=new Uint8Array(N),out=[];const sx=ri(x0+2,x1-3),sy=ri(y0+2,y1-3),seed=ix(sx,sy);
+  const can=i=>{if(terr[i]===LAND)return false;const x=X[i],y=Y[i];if(x<x0||x>=x1||y<y0||y>=y1)return false;return !foreignAdj(i,my)};
+  const push=i=>{for(const n of nb[i])if(!seen[n]&&terr[n]===SEA){const x=X[n],y=Y[n];if(x>=x0&&x<x1&&y>=y0&&y<y1){seen[n]=1;F.push(n)}}};
+  if(!can(seed))return null;terr[seed]=LAND;tag[seed]=my;out.push(seed);push(seed);
+  for(let g=0;out.length<t&&F.length&&g<t*40;g++){const p=ri(0,F.length-1),i=F[p];F[p]=F[F.length-1];F.pop();if(!can(i))continue;
+    const b=1-(Math.abs(X[i]-sx)+Math.abs(Y[i]-sy))/Math.max(1,(x1-x0+y1-y0)),ch=cl(.2+b*.9,.18,.95);if(Math.random()>ch)continue;
+    terr[i]=LAND;tag[i]=my;out.push(i);push(i)
+  }
+  if(out.length<Math.floor(t*.9)){for(const i of out){terr[i]=SEA;tag[i]=-1}return null}
+  return out
+}
+function edge(c){const e=[];for(const i of c){for(const n of nb[i])if(terr[n]===SEA){e.push(i);break}}return e}
+function bridge(a,b,m){const ea=edge(m[a]),eb=edge(m[b]);if(!ea.length||!eb.length)return false;let A=-1,B=-1,best=1e9;
+  const sa=Math.min(140,ea.length),sb=Math.min(140,eb.length);
+  for(let i=0;i<sa;i++){const x=ea[ri(0,ea.length-1)];for(let j=0;j<sb;j++){const y=eb[ri(0,eb.length-1)],d=Math.abs(X[x]-X[y])+Math.abs(Y[x]-Y[y]);if(d<best){best=d;A=x;B=y}}}
+  if(A<0||B<0)return false;let x=X[A],y=Y[A],tx=X[B],ty=Y[B];
+  for(let g=0;(x!==tx||y!==ty)&&g<300;g++){if(x!==tx&&y!==ty){if(Math.random()<.5)x+=Math.sign(tx-x);else y+=Math.sign(ty-y)}else if(x!==tx)x+=Math.sign(tx-x);else y+=Math.sign(ty-y);
+    const i=ix(x,y);if(terr[i]===LAND){if(tag[i]!==a&&tag[i]!==b)return false}else{terr[i]=LAND;tag[i]=a;m[a].push(i)}}
+  return true
+}
+function majorShapeOK(){const g=Array.from({length:6},()=>new Set());
+  for(let i=0;i<N;i++){if(terr[i]!==LAND)continue;const t=tag[i];if(t<0||t>5)continue;for(const n of nb[i])if(terr[n]===LAND){const nt=tag[n];if(nt>=0&&nt<=5&&nt!==t){g[t].add(nt);g[nt].add(t)}}}
+  const v=new Uint8Array(6),sizes=[];for(let i=0;i<6;i++)if(!v[i]){let s=0,st=[i];v[i]=1;while(st.length){const c=st.pop();s++;for(const nx of g[c])if(!v[nx]){v[nx]=1;st.push(nx)}}sizes.push(s)}
+  sizes.sort((a,b)=>a-b);return sizes.length===3&&sizes[0]===1&&sizes[1]===2&&sizes[2]===3
+}
+function majorDist(){dist.fill(32767);let h=0,t=0;for(let i=0;i<N;i++)if(terr[i]===LAND&&tag[i]>=0&&tag[i]<6){dist[i]=0;q[t++]=i}
+  while(h<t){const c=q[h++],nd=dist[c]+1;for(const n of nb[c])if(nd<dist[n]){dist[n]=nd;q[t++]=n}}
+}
+function island(seed,size,my){const F=[],seen=new Uint8Array(N),out=[],sx=X[seed],sy=Y[seed];
+  const can=i=>{if(terr[i]===LAND)return false;const d=dist[i];if(d<2||d>8)return false;if(foreignAdj(i,my))return false;return Math.abs(X[i]-sx)+Math.abs(Y[i]-sy)<=7};
+  const push=i=>{for(const n of nb[i])if(!seen[n]&&terr[n]===SEA){seen[n]=1;F.push(n)}};
+  if(!can(seed))return null;terr[seed]=LAND;tag[seed]=my;out.push(seed);push(seed);
+  for(let g=0;out.length<size&&F.length&&g<size*35;g++){const p=ri(0,F.length-1),i=F[p];F[p]=F[F.length-1];F.pop();if(!can(i))continue;
+    const ch=cl(.25+(1-(Math.abs(X[i]-sx)+Math.abs(Y[i]-sy))/9)*.9,.2,.95);if(Math.random()>ch)continue;terr[i]=LAND;tag[i]=my;out.push(i);push(i)}
+  if(out.length<Math.max(3,size-2)){for(const i of out){terr[i]=SEA;tag[i]=-1}return null}return out
+}
+function genLand(){const m=[];for(const s of MAJOR){const b=blob(s);if(!b)return false;m[s.id]=b}
+  for(const [a,b] of BRIDGES)if(!bridge(a,b,m))return false;if(!majorShapeOK())return false;majorDist();
+  const sizes=Array(ISLAND_N).fill(5);let rem=ISLAND_CELLS-ISLAND_N*5;while(rem>0){const p=ri(0,ISLAND_N-1);if(sizes[p]<12){sizes[p]++;rem--}}
+  for(let k=0;k<ISLAND_N;k++){let ok=false;for(let tr=0;tr<140;tr++){const cand=[];for(let i=0;i<N;i++)if(terr[i]===SEA&&dist[i]>=2&&dist[i]<=6){let adj=false;for(const n of nb[i])if(terr[n]===LAND){adj=true;break}if(!adj)cand.push(i)}
+      if(!cand.length)break;const s=cand[ri(0,cand.length-1)],is=island(s,sizes[k],6+k);if(is){ok=true;break}}
+    if(!ok)return false}
+  let land=0;for(let i=0;i<N;i++)if(terr[i]===LAND)land++;return land>=Math.floor(N*.38)&&land<=Math.ceil(N*.42)
+}
+function seedCountries(land,count){const seeds=[land[ri(0,land.length-1)]];while(seeds.length<count){let best=-1,bscore=-1;
+  for(let t=0;t<450;t++){const c=land[ri(0,land.length-1)];let near=1e9;for(const s of seeds){const d=Math.abs(X[c]-X[s])+Math.abs(Y[c]-Y[s]);if(d<near)near=d;if(near<=bscore)break}if(near>bscore){bscore=near;best=c}}
+  seeds.push(best<0?land[ri(0,land.length-1)]:best)}return seeds
+}
+function assignCountries(){const land=[];for(let i=0;i<N;i++)if(terr[i]===LAND)land.push(i);if(land.length<COUNTRY_N*5)return false;
+  const seeds=seedCountries(land,COUNTRY_N);for(let i=0;i<COUNTRY_N;i++)mkCountry();own.fill(-1);
+  for(const c of land){let bi=0,bs=1e9;for(let i=0;i<COUNTRY_N;i++){const s=seeds[i],d=Math.abs(X[c]-X[s])+Math.abs(Y[c]-Y[s]),n=((c*73856093+i*19349663)>>>0)%13/100,sc=d+n;if(sc<bs){bs=sc;bi=i}}own[c]=bi}
+  return true
+}
+function seaFill(){dist.fill(32767);src.fill(-1);let h=0,t=0;for(let i=0;i<N;i++)if(terr[i]===LAND){const c=own[i];if(c>=0&&countries[c]&&countries[c].alive){dist[i]=0;src[i]=c;q[t++]=i}}
+  while(h<t){const c=q[h++],nd=dist[c]+1,s=src[c];for(const n of nb[c]){if(nd<dist[n]){dist[n]=nd;src[n]=s;q[t++]=n}else if(nd===dist[n]&&s!==-1&&(src[n]===-1||s<src[n]))src[n]=s}}
+  for(let i=0;i<N;i++)seaOwn[i]=terr[i]===SEA?src[i]:-1
+}
+function rebuildWarSets(){for(const c of countries)if(c)c.wars.clear();for(const w of wars.values()){const a=countries[w.a],b=countries[w.b];if(a&&b&&a.alive&&b.alive){a.wars.add(b.id);b.wars.add(a.id)}}}
+function stats(){alive=[];for(const c of countries)if(c){c.land=0;c.sea=0;c.sx=0;c.sy=0;c.cells.length=0}
+  for(let i=0;i<N;i++)if(terr[i]===LAND){const c=countries[own[i]];if(c&&c.alive){c.land++;c.sx+=X[i];c.sy+=Y[i];c.cells.push(i)}else own[i]=-1}
+  for(let i=0;i<N;i++)if(terr[i]===SEA){const c=countries[seaOwn[i]];if(c&&c.alive)c.sea++}
+  for(const c of countries)if(c&&c.alive){if(c.land<=0){c.alive=false;c.wars.clear()}else{c.cx=c.sx/c.land;c.cy=c.sy/c.land;alive.push(c.id)}}
+  for(const [k,w] of wars){const a=countries[w.a],b=countries[w.b];if(!a||!b||!a.alive||!b.alive)wars.delete(k)}
+  rebuildWarSets()
+}
+const ownAt=i=>terr[i]===LAND?own[i]:seaOwn[i];
+function borderPairs(){const m=new Map();for(let y=0;y<H;y++)for(let x=0;x<W;x++){const i=ix(x,y),a=ownAt(i);if(a<0)continue;
+  if(x<W-1){const j=i+1,b=ownAt(j);if(b>=0&&a!==b){const k=key(a,b);let p=m.get(k);if(!p){p={a:Math.min(a,b),b:Math.max(a,b),land:false,sea:false};m.set(k,p)}if(terr[i]===LAND&&terr[j]===LAND)p.land=true;else p.sea=true}}
+  if(y<H-1){const j=i+W,b=ownAt(j);if(b>=0&&a!==b){const k=key(a,b);let p=m.get(k);if(!p){p={a:Math.min(a,b),b:Math.max(a,b),land:false,sea:false};m.set(k,p)}if(terr[i]===LAND&&terr[j]===LAND)p.land=true;else p.sea=true}}
+}return m}
+const cdist=(a,b)=>{const A=countries[a],B=countries[b];return(!A||!B||!A.alive||!B.alive)?0:Math.hypot(A.cx-B.cx,A.cy-B.cy)};
+function startWar(a,b,mode){const k=key(a,b);if(wars.has(k))return;const x=Math.min(a,b),y=Math.max(a,b);wars.set(k,{a:x,b:y,mode,d:cdist(x,y)});countries[x].wars.add(y);countries[y].wars.add(x)}
+function maybeWars(bp){for(const [k,p] of bp){if(wars.has(k))continue;const A=countries[p.a],B=countries[p.b];if(!A||!B||!A.alive||!B.alive)continue;const big=A.land>=B.land?A:B,small=big.id===A.id?B:A;if(big.st<30)continue;if(Math.random()<.01)startWar(big.id,small.id,p.land?"land":"sea")}}
+function pwr(c,o,w){let p=Math.max(3,c.land*1+c.sea*.24);p*=.48+c.st/92;p/=1+Math.max(0,c.wars.size-1)*.42;
+  if(w.mode==="sea"&&c.land<o.land){const b=1+Math.min(1.85,(w.d||cdist(c.id,o.id))/14*.72);p*=b}
+  return p*(.9+Math.random()*.2)
+}
+function captureCand(win,lose,mode){const L=countries[lose],out=[];if(!L||!L.alive)return out;
+  for(const cell of L.cells){if(own[cell]!==lose)continue;let ok=false;for(const n of nb[cell]){if(terr[n]===LAND){if(own[n]===win){ok=true;break}}else if(mode==="sea"&&seaOwn[n]===win){ok=true;break}}if(ok)out.push(cell)}
+  if(out.length||mode!=="sea")return out;const F=[],Wc=countries[win];for(const cell of L.cells){if(own[cell]!==lose)continue;for(const n of nb[cell])if(terr[n]===SEA){F.push(cell);break}}
+  F.sort((a,b)=>Math.hypot(X[a]-Wc.cx,Y[a]-Wc.cy)-Math.hypot(X[b]-Wc.cx,Y[b]-Wc.cy));return F.slice(0,18)
+}
+function transfer(win,lose,amount,mode){const Wc=countries[win],Lc=countries[lose];if(!Wc||!Lc||!Wc.alive||!Lc.alive)return 0;const c=captureCand(win,lose,mode);if(!c.length)return 0;
+  let got=0;for(let i=0;i<amount&&c.length;i++){const p=ri(0,c.length-1),cell=c[p];c[p]=c[c.length-1];c.pop();if(own[cell]!==lose)continue;own[cell]=win;Wc.land++;Lc.land--;got++}return got
+}
+function absorb(win,lose){const Wc=countries[win],Lc=countries[lose];if(!Wc||!Lc||!Wc.alive||!Lc.alive)return;
+  for(let i=0;i<N;i++)if(terr[i]===LAND&&own[i]===lose){own[i]=win;Wc.land++;Lc.land--}Lc.alive=false;Lc.st=0;Lc.wars.clear()
+}
+function resolveWars(bp){for(const w of wars.values()){const A=countries[w.a],B=countries[w.b];if(!A||!B||!A.alive||!B.alive)continue;const p=bp.get(key(w.a,w.b));if(p)w.mode=p.land?"land":"sea";w.d=cdist(w.a,w.b);
+  const pa=pwr(A,B,w),pb=pwr(B,A,w),winner=Math.random()*(pa+pb)<pa?A.id:B.id,loser=winner===A.id?B.id:A.id;
+  let gain=ri(1,3);if(Math.max(pa,pb)/Math.max(1,Math.min(pa,pb))>1.7&&Math.random()<.38)gain++;
+  let got=transfer(winner,loser,gain,w.mode);if(!got&&w.mode==="land")got=transfer(winner,loser,1,"sea");
+  const L=countries[loser];if(L&&L.alive&&L.land<=0)absorb(winner,loser)
+}
+  for(const [k,w] of wars){const a=countries[w.a],b=countries[w.b];if(!a||!b||!a.alive||!b.alive)wars.delete(k)}
+  rebuildWarSets()
+}
+function drift(){for(const id of alive){const c=countries[id],w=c.wars.size;let d=0;if(w===0)d=.24;else if(w===1)d=.03;else if(w===2)d=-.03;else if(w===3)d=-.13;else d=-.34;c.st=cl(c.st+d,0,100)}}
+function splitOne(id){const c=countries[id];if(!c||!c.alive||c.land<=210)return false;const arr=[];for(let i=0;i<N;i++)if(terr[i]===LAND&&own[i]===id)arr.push(i);if(arr.length<40)return false;
+  let a=arr[ri(0,arr.length-1)],b=a,m=-1;for(const i of arr){const d=Math.abs(X[a]-X[i])+Math.abs(Y[a]-Y[i]);if(d>m){m=d;b=i}}
+  const L=[],R=[];for(const i of arr){const da=Math.abs(X[i]-X[a])+Math.abs(Y[i]-Y[a]),db=Math.abs(X[i]-X[b])+Math.abs(Y[i]-Y[b]);(da<=db?L:R).push(i)}
+  if(Math.min(L.length,R.length)/Math.max(L.length,R.length)<.35)return false;const n=mkCountry(c.h);n.st=Math.max(22,c.st-6);for(const i of R)own[i]=n.id;c.st=Math.max(14,c.st-12);return true
+}
+function maybeSplit(){for(const id of alive){const c=countries[id];if(c&&c.alive&&c.land>200&&Math.random()<.012)splitOne(id)}}
+function step(){turn++;const bp=borderPairs();maybeWars(bp);resolveWars(bp);drift();maybeSplit();seaFill();stats()}
+function drawLabels(){const rows=[];for(const id of alive){const c=countries[id];if(c&&c.alive&&c.land>=8)rows.push(c)}
+  rows.sort((a,b)=>(b.land+b.sea)-(a.land+a.sea)||b.land-a.land);const placed=[];
+  ctx.font='600 12px "Segoe UI","Noto Sans KR",sans-serif';ctx.textAlign="center";ctx.textBaseline="middle";ctx.lineJoin="round";ctx.lineWidth=3;
+  for(const c of rows){const short=c.name.replace(/\s+(Republic|Union|Realm|State)$/,""),opts=short&&short!==c.name?[c.name,short]:[c.name];let pick=null;
+    for(const name of opts){const w=Math.ceil(ctx.measureText(name).width)+8,h=15,x=Math.round((c.cx+.5)*CELL),y=Math.round((c.cy+.5)*CELL),bx=x-w/2,by=y-h/2;
+      let over=false;for(const p of placed){if(!(bx+w<p.x||p.x+p.w<bx||by+h<p.y||p.y+p.h<by)){over=true;break}}if(over)continue;pick={name,x,y,w,h,bx,by};break}
+    if(!pick)continue;placed.push({x:pick.bx,y:pick.by,w:pick.w,h:pick.h});
+    ctx.fillStyle="rgba(15,23,42,.35)";ctx.fillRect(pick.bx,pick.by,pick.w,pick.h);
+    ctx.strokeStyle="rgba(2,6,23,.9)";ctx.fillStyle="#f8fafc";ctx.strokeText(pick.name,pick.x,pick.y+.5);ctx.fillText(pick.name,pick.x,pick.y+.5)
+  }
+}
+function draw(){const d=img.data;for(let i=0;i<N;i++){const p=i*4;if(terr[i]===LAND){const c=countries[own[i]],rgb=c&&c.alive?c.lr:LAND_BASE;d[p]=rgb[0];d[p+1]=rgb[1];d[p+2]=rgb[2];d[p+3]=255}else{const c=countries[seaOwn[i]],rgb=c&&c.alive?c.sr:SEA_BASE;d[p]=rgb[0];d[p+1]=rgb[1];d[p+2]=rgb[2];d[p+3]=255}}
+  mctx.putImageData(img,0,0);ctx.clearRect(0,0,canvas.width,canvas.height);ctx.drawImage(mini,0,0,canvas.width,canvas.height);
+  ctx.fillStyle="rgba(10,15,25,.62)";
+  for(let y=0;y<H;y++)for(let x=0;x<W;x++){const i=ix(x,y),a=ownAt(i);if(a<0)continue;
+    if(x<W-1){const j=i+1,b=ownAt(j);if(b>=0&&b!==a)ctx.fillRect((x+1)*CELL-.5,y*CELL,1,CELL+1)}
+    if(y<H-1){const j=i+W,b=ownAt(j);if(b>=0&&b!==a)ctx.fillRect(x*CELL,(y+1)*CELL-.5,CELL+1,1)}
+  }
+  drawLabels()
+}
+function rank(){if(!ready){rankList.innerHTML="";return}const rows=[];for(const id of alive){const c=countries[id];rows.push({name:c.name,land:c.land,sea:c.sea,total:c.land+c.sea,st:c.st,color:c.lc})}
+  rows.sort((a,b)=>b.total-a.total||b.land-a.land);rankList.innerHTML=rows.slice(0,7).map((r,i)=>`<li><span>${i+1}.</span><div><span class="dot" style="background:${r.color}"></span><span>${r.name}</span> <span class="meta">총 ${r.total}칸 (영토 ${r.land}, 영해 ${r.sea}) · 안정도 ${r.st.toFixed(1)}</span></div></li>`).join("")
+}
+function statText(){if(!ready){statusEl.textContent="플레이 버튼을 눌러 지도를 생성하세요.";return}statusEl.textContent=`턴 ${turn.toLocaleString()} | 생존국 ${alive.length} | 진행중 전쟁 ${wars.size} | 육지 ${Math.round(N*.4)} / 바다 ${N-Math.round(N*.4)}`}
+function build(){reset();let ok=false;for(let a=0;a<110;a++){terr.fill(SEA);own.fill(-1);seaOwn.fill(-1);tag.fill(-1);countries.length=0;wars.clear();usedName.clear();nextId=0;if(!genLand())continue;if(!assignCountries())continue;seaFill();stats();ok=true;break}
+  if(!ok)return false;ready=true;turn=0;return true
+}
+function start(){statusEl.textContent="지도 생성 중...";if(!build()){ready=false;running=false;paused=false;pauseBtn.disabled=true;statusEl.textContent="지도 생성에 실패했습니다. 다시 플레이를 눌러주세요.";return}
+  running=true;paused=false;pauseBtn.disabled=false;pauseBtn.textContent="일시정지";statText();rank();draw()
+}
+function loop(ts){if(!lastT)lastT=ts;const dt=Math.min(.25,(ts-lastT)/1000);lastT=ts;
+  if(running&&!paused&&ready){acc+=dt*speed;let s=0;while(acc>=1&&s<320){step();acc-=1;s++}if(s>=320)acc=0}
+  if(ts-lastR>33){if(ready){draw();rank()}statText();lastR=ts}requestAnimationFrame(loop)
+}
+playBtn.addEventListener("click",start);
+pauseBtn.addEventListener("click",()=>{if(!running||!ready)return;paused=!paused;pauseBtn.textContent=paused?"재시작":"일시정지"});
+speedSel.addEventListener("change",()=>{speed=Number(speedSel.value)||16});
+toggle.addEventListener("click",()=>{rankEl.classList.toggle("fold");toggle.textContent=rankEl.classList.contains("fold")?"펼치기":"접기"});
+draw();statText();requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
