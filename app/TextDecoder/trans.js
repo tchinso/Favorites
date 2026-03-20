@@ -19,13 +19,34 @@
 	var decoderEncodingMap = {
 		"windows-1252": "windows-1252",
 		"cp949": "euc-kr",
-		"shift-jis": "shift_jis",
-		"cp932": "shift_jis",
+		"shift-jis": "shift-jis",
+		"cp932": "shift-jis",
 		"cp936": "gbk",
 		"utf-8": "utf-8",
 		"utf-16le": "utf-16le",
 		"utf-16be": "utf-16be"
 	};
+
+	var legacyEncodingByteRanges = {
+		"cp949": {
+			leadRanges: [[0x81, 0xFE]],
+			trailRanges: [[0x41, 0x5A], [0x61, 0x7A], [0x81, 0xFE]]
+		},
+		"shift-jis": {
+			leadRanges: [[0x81, 0x9F], [0xE0, 0xFC]],
+			trailRanges: [[0x40, 0x7E], [0x80, 0xFC]]
+		},
+		"cp932": {
+			leadRanges: [[0x81, 0x9F], [0xE0, 0xFC]],
+			trailRanges: [[0x40, 0x7E], [0x80, 0xFC]]
+		},
+		"cp936": {
+			leadRanges: [[0x81, 0xFE]],
+			trailRanges: [[0x40, 0x7E], [0x80, 0xFE]]
+		}
+	};
+
+	var reverseEncoderCache = Object.create(null);
 
 	var forcedTargetBySource = {
 		"base64": "utf-8",
@@ -37,9 +58,10 @@
 		"monitable": "mwtable"
 	};
 
-	function UnsupportedConversionError(message) {
+	function UnsupportedConversionError(message, options) {
 		this.name = "UnsupportedConversionError";
 		this.message = message;
+		this.retryable = !!(options && options.retryable);
 	}
 	UnsupportedConversionError.prototype = Object.create(Error.prototype);
 	UnsupportedConversionError.prototype.constructor = UnsupportedConversionError;
@@ -296,6 +318,100 @@
 		return bytes;
 	}
 
+	function getLegacyCacheKey(encoding) {
+		return encoding === "cp932" ? "shift-jis" : encoding;
+	}
+
+	function tryStoreDecodedChar(charToBytesMap, decoder, byteArray) {
+		var decoded;
+		try {
+			decoded = decoder.decode(byteArray);
+		} catch (error) {
+			return;
+		}
+		if (decoded.length !== 1 || decoded.charCodeAt(0) === 0xFFFD) {
+			return;
+		}
+		if (charToBytesMap[decoded] === undefined) {
+			charToBytesMap[decoded] = byteArray;
+		}
+	}
+
+	function buildLegacyEncoderMap(encoding) {
+		var cacheKey = getLegacyCacheKey(encoding);
+		if (reverseEncoderCache[cacheKey]) {
+			return reverseEncoderCache[cacheKey];
+		}
+
+		var decoderName = decoderEncodingMap[encoding];
+		var byteRange = legacyEncodingByteRanges[encoding];
+		if (!decoderName || !byteRange) {
+			throw new UnsupportedConversionError("로컬에서 지원하지 않는 입력 인코딩입니다: " + encoding, { retryable: true });
+		}
+
+		var decoder;
+		try {
+			decoder = new TextDecoder(decoderName, { fatal: true });
+		} catch (error) {
+			throw new UnsupportedConversionError("브라우저가 해당 인코딩(" + encoding + ")을 지원하지 않습니다.", { retryable: true });
+		}
+
+		var charToBytesMap = Object.create(null);
+		var singleByte = 0;
+		for (singleByte = 0; singleByte <= 255; singleByte += 1) {
+			tryStoreDecodedChar(charToBytesMap, decoder, new Uint8Array([singleByte]));
+		}
+
+		var leadRangeIndex;
+		var trailRangeIndex;
+		var leadByte;
+		var trailByte;
+		for (leadRangeIndex = 0; leadRangeIndex < byteRange.leadRanges.length; leadRangeIndex += 1) {
+			var leadRange = byteRange.leadRanges[leadRangeIndex];
+			for (leadByte = leadRange[0]; leadByte <= leadRange[1]; leadByte += 1) {
+				for (trailRangeIndex = 0; trailRangeIndex < byteRange.trailRanges.length; trailRangeIndex += 1) {
+					var trailRange = byteRange.trailRanges[trailRangeIndex];
+					for (trailByte = trailRange[0]; trailByte <= trailRange[1]; trailByte += 1) {
+						tryStoreDecodedChar(charToBytesMap, decoder, new Uint8Array([leadByte, trailByte]));
+					}
+				}
+			}
+		}
+
+		reverseEncoderCache[cacheKey] = charToBytesMap;
+		return charToBytesMap;
+	}
+
+	function encodeLegacyText(text, encoding) {
+		var source = text || "";
+		var charToBytesMap = buildLegacyEncoderMap(encoding);
+		var bytes = [];
+		var i = 0;
+		while (i < source.length) {
+			var char = source.charAt(i);
+			var firstCode = source.charCodeAt(i);
+			if (firstCode >= 0xD800 && firstCode <= 0xDBFF && i + 1 < source.length) {
+				var secondCode = source.charCodeAt(i + 1);
+				if (secondCode >= 0xDC00 && secondCode <= 0xDFFF) {
+					char = source.substring(i, i + 2);
+					i += 2;
+				} else {
+					i += 1;
+				}
+			} else {
+				i += 1;
+			}
+			var mapped = charToBytesMap[char];
+			if (!mapped) {
+				throw new UnsupportedConversionError("\"" + char + "\" 문자는 " + encoding + "로 표현할 수 없습니다.");
+			}
+			for (var j = 0; j < mapped.length; j += 1) {
+				bytes.push(mapped[j]);
+			}
+		}
+		return new Uint8Array(bytes);
+	}
+
 	function decodeBytes(bytes, encoding) {
 		var decoderName = decoderEncodingMap[encoding];
 		if (!decoderName) {
@@ -304,7 +420,7 @@
 		try {
 			return new TextDecoder(decoderName).decode(bytes);
 		} catch (error) {
-			throw new UnsupportedConversionError("브라우저가 해당 인코딩(" + encoding + ")을 지원하지 않습니다.");
+			throw new UnsupportedConversionError("브라우저가 해당 인코딩(" + encoding + ")을 지원하지 않습니다.", { retryable: true });
 		}
 	}
 
@@ -321,12 +437,15 @@
 		if (encoding === "windows-1252") {
 			return encodeWindows1252(text);
 		}
-		throw new UnsupportedConversionError("로컬에서 지원하지 않는 입력 인코딩입니다: " + encoding);
+		if (legacyEncodingByteRanges[encoding]) {
+			return encodeLegacyText(text, encoding);
+		}
+		throw new UnsupportedConversionError("로컬에서 지원하지 않는 입력 인코딩입니다: " + encoding, { retryable: true });
 	}
 
 	async function maybeGunzip(bytes) {
 		if (typeof DecompressionStream === "undefined") {
-			throw new UnsupportedConversionError("이 브라우저는 GZip 해제를 지원하지 않습니다.");
+			throw new UnsupportedConversionError("이 브라우저는 GZip 해제를 지원하지 않습니다.", { retryable: true });
 		}
 		var stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
 		var buffer = await new Response(stream).arrayBuffer();
@@ -335,7 +454,7 @@
 
 	async function maybeGzip(bytes) {
 		if (typeof CompressionStream === "undefined") {
-			throw new UnsupportedConversionError("이 브라우저는 GZip 압축을 지원하지 않습니다.");
+			throw new UnsupportedConversionError("이 브라우저는 GZip 압축을 지원하지 않습니다.", { retryable: true });
 		}
 		var stream = new Blob([bytes]).stream().pipeThrough(new CompressionStream("gzip"));
 		var buffer = await new Response(stream).arrayBuffer();
@@ -626,7 +745,7 @@
 				result = await convertLocally(input, source, target);
 				result = normalizeOutput(result, targetUrl);
 			} catch (error) {
-				if (!(error instanceof UnsupportedConversionError)) {
+				if (!(error instanceof UnsupportedConversionError) || !error.retryable) {
 					throw error;
 				}
 				result = await requestServerFallback(rawValue, source, target, sourceUrl, targetUrl);
