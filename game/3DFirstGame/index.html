@@ -1283,8 +1283,8 @@ button:hover {
     });
     lookPadEl.addEventListener("pointermove", (event) => {
       if (event.pointerId !== input.look.pointerId) return;
-      input.lookDX += (event.clientX - input.look.x) * 0.85;
-      input.lookDY += (event.clientY - input.look.y) * 0.85;
+      input.lookDX += (event.clientX - input.look.x) * 2.55;
+      input.lookDY += (event.clientY - input.look.y) * 2.55;
       input.look.x = event.clientX;
       input.look.y = event.clientY;
     });
