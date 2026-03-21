@@ -1,0 +1,1327 @@
+﻿<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Corridor Hunt FPS</title>
+<style>
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+  color: #d7d7d7;
+  font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+  touch-action: none;
+}
+
+canvas {
+  display: block;
+}
+
+#view {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+}
+
+#hud {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+#minimap {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  width: 150px;
+  height: 150px;
+  border: 1px solid #323232;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 15;
+}
+
+#prompt {
+  position: fixed;
+  left: 50%;
+  bottom: 105px;
+  transform: translateX(-50%);
+  padding: 8px 18px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #e3e3e3;
+  font-size: 14px;
+  letter-spacing: 0.05em;
+  pointer-events: none;
+  z-index: 20;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.screen {
+  position: fixed;
+  inset: 0;
+  background: linear-gradient(180deg, #050505 0%, #101219 100%);
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+  text-align: center;
+  padding: 24px;
+}
+
+.screen.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.screen h1 {
+  font-size: clamp(34px, 7vw, 66px);
+  letter-spacing: 0.1em;
+  color: #f0f0f0;
+  margin-bottom: 14px;
+}
+
+.screen p {
+  color: #aab0c4;
+  line-height: 1.6;
+  max-width: 640px;
+  margin-bottom: 20px;
+}
+
+button {
+  border: 1px solid #5b6e9a;
+  background: rgba(12, 20, 42, 0.85);
+  color: #f1f5ff;
+  padding: 12px 22px;
+  font-size: 15px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+button:hover {
+  background: rgba(36, 58, 110, 0.85);
+}
+
+.help {
+  margin-top: 18px;
+  color: #8c8c8c;
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+#mobileUi {
+  position: fixed;
+  inset: 0;
+  z-index: 35;
+  pointer-events: none;
+}
+
+#mobileUi.hidden {
+  display: none;
+}
+
+#joystick {
+  position: fixed;
+  left: 18px;
+  bottom: calc(18px + env(safe-area-inset-bottom));
+  width: 128px;
+  height: 128px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  pointer-events: auto;
+}
+
+#stick {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(255, 255, 255, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+}
+
+#lookPad {
+  position: fixed;
+  right: 16px;
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  width: 47vw;
+  max-width: 330px;
+  height: 160px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.05);
+  pointer-events: auto;
+  color: rgba(235, 240, 255, 0.5);
+  font-size: 12px;
+  letter-spacing: 0.2em;
+  display: grid;
+  place-items: center;
+}
+
+#shootBtn {
+  position: fixed;
+  right: 26px;
+  bottom: calc(190px + env(safe-area-inset-bottom));
+  width: 94px;
+  height: 94px;
+  border-radius: 50%;
+  border-color: #8e3640;
+  background: rgba(92, 18, 26, 0.78);
+  pointer-events: auto;
+}
+
+#useBtn {
+  position: fixed;
+  right: 130px;
+  bottom: calc(212px + env(safe-area-inset-bottom));
+  width: 80px;
+  height: 64px;
+  border-radius: 14px;
+  border-color: #4a825f;
+  background: rgba(22, 70, 42, 0.82);
+  pointer-events: auto;
+  font-size: 13px;
+}
+
+@media (max-width: 900px) {
+  #minimap {
+    width: 128px;
+    height: 128px;
+  }
+
+  #prompt {
+    bottom: 95px;
+    font-size: 12px;
+  }
+}
+</style>
+</head>
+<body>
+<canvas id="view"></canvas>
+<canvas id="hud"></canvas>
+<canvas id="minimap" width="150" height="150"></canvas>
+<div id="prompt"></div>
+
+<div id="titleScreen" class="screen visible">
+  <h1>CORRIDOR HUNT</h1>
+  <p>Procedural FPS with rooms, corridors, doors, stairs, and enemies only.</p>
+  <button id="startBtn">Start</button>
+  <div class="help">
+    Desktop: `WASD` move, mouse look, `Left Click` shoot, `E` use door/stairs, `Shift` sprint<br>
+    Mobile: left joystick move, right pad look, `FIRE` shoot, `USE` interact
+  </div>
+</div>
+
+<div id="deathScreen" class="screen">
+  <h1>YOU DIED</h1>
+  <p id="deathStats"></p>
+  <button id="retryBtn">Retry</button>
+</div>
+
+<div id="mobileUi" class="hidden">
+  <div id="joystick"><div id="stick"></div></div>
+  <div id="lookPad">LOOK</div>
+  <button id="shootBtn">FIRE</button>
+  <button id="useBtn">USE</button>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  const TILE = Object.freeze({ FLOOR: 0, WALL: 1, DOOR: 2, STAIR: 3 });
+  const FOV = Math.PI / 3;
+  const PLAYER_SPEED = 3;
+  const SPRINT_MULTIPLIER = 1.6;
+  const TURN_SENSITIVITY = 0.0018;
+  const COLLISION_RADIUS = 0.2;
+  const MINIMAP_SCALE = 3;
+  const CONTACT_KILL_RADIUS = 0.45;
+  const FIRE_INTERVAL = 0.18;
+  const MAX_RAY_STEPS = 96;
+  const ENEMY_SPAWN_MULTIPLIER = 9;
+  const ENEMY_COUNT_CAP = 660;
+  const ENEMY_VISION_SAMPLE_OFFSET = 0.12;
+
+  const viewCanvas = document.getElementById("view");
+  const viewCtx = viewCanvas.getContext("2d");
+  const hudCanvas = document.getElementById("hud");
+  const hudCtx = hudCanvas.getContext("2d");
+  const minimapCanvas = document.getElementById("minimap");
+  const minimapCtx = minimapCanvas.getContext("2d");
+
+  const titleScreen = document.getElementById("titleScreen");
+  const deathScreen = document.getElementById("deathScreen");
+  const deathStats = document.getElementById("deathStats");
+  const promptEl = document.getElementById("prompt");
+  const mobileUi = document.getElementById("mobileUi");
+  const joystickEl = document.getElementById("joystick");
+  const stickEl = document.getElementById("stick");
+  const lookPadEl = document.getElementById("lookPad");
+  const shootBtn = document.getElementById("shootBtn");
+  const useBtn = document.getElementById("useBtn");
+
+  const isMobile = window.matchMedia("(pointer: coarse)").matches || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+  const keyState = {};
+  const input = {
+    lookDX: 0,
+    lookDY: 0,
+    mouseFire: false,
+    touchFire: false,
+    joystick: { pointerId: null, x: 0, y: 0 },
+    look: { pointerId: null, x: 0, y: 0 }
+  };
+
+  const enemyTypes = [
+    { name: "Runner", speed: 1.6, color: [188, 74, 74], radius: 0.24, sight: 8.0 },
+    { name: "Ghoul", speed: 1.2, color: [110, 154, 96], radius: 0.28, sight: 8.0 },
+    { name: "Specter", speed: 2.1, color: [105, 105, 188], radius: 0.23, sight: 9.0 },
+    { name: "Brute", speed: 0.9, color: [158, 116, 72], radius: 0.32, sight: 7.0 }
+  ];
+
+  const game = {
+    running: false,
+    floor: 1,
+    dungeon: null,
+    lastTime: 0,
+    shotFlash: 0,
+    statusText: "",
+    statusTime: 0,
+    viewWidth: 320,
+    viewHeight: 240,
+    zBuffer: new Float32Array(320),
+    player: {
+      x: 1.5,
+      y: 1.5,
+      angle: 0,
+      pitch: 0,
+      alive: true,
+      kills: 0,
+      shotCooldown: 0,
+      bobTime: 0,
+      bobAmount: 0
+    }
+  };
+
+  function clamp(v, a, b) {
+    return Math.max(a, Math.min(b, v));
+  }
+
+  function randInt(max) {
+    return Math.floor(Math.random() * max);
+  }
+
+  function normalizeAngle(a) {
+    while (a > Math.PI) a -= Math.PI * 2;
+    while (a < -Math.PI) a += Math.PI * 2;
+    return a;
+  }
+
+  function setStatus(text, time = 1.25) {
+    game.statusText = text;
+    game.statusTime = time;
+  }
+
+  function generateDungeon(level, width = 50, height = 50) {
+    const map = Array.from({ length: height }, () => Array(width).fill(TILE.WALL));
+    const rooms = [];
+
+    const carveRoom = (x1, y1, x2, y2) => {
+      for (let y = y1; y <= y2; y++) {
+        for (let x = x1; x <= x2; x++) {
+          if (x > 0 && x < width - 1 && y > 0 && y < height - 1) {
+            map[y][x] = TILE.FLOOR;
+          }
+        }
+      }
+      rooms.push({ x1, y1, x2, y2, cx: (x1 + x2) >> 1, cy: (y1 + y2) >> 1 });
+    };
+
+    const carveHall = (x1, y1, x2, y2) => {
+      let cx = x1;
+      let cy = y1;
+      while (cx !== x2) {
+        if (cx > 0 && cx < width - 1 && cy > 0 && cy < height - 1) {
+          map[cy][cx] = TILE.FLOOR;
+          if (Math.random() < 0.22) {
+            const side = Math.random() < 0.5 ? -1 : 1;
+            const ny = cy + side;
+            if (ny > 0 && ny < height - 1) map[ny][cx] = TILE.FLOOR;
+          }
+        }
+        cx += cx < x2 ? 1 : -1;
+      }
+      while (cy !== y2) {
+        if (cx > 0 && cx < width - 1 && cy > 0 && cy < height - 1) {
+          map[cy][cx] = TILE.FLOOR;
+          if (Math.random() < 0.22) {
+            const side = Math.random() < 0.5 ? -1 : 1;
+            const nx = cx + side;
+            if (nx > 0 && nx < width - 1) map[cy][nx] = TILE.FLOOR;
+          }
+        }
+        cy += cy < y2 ? 1 : -1;
+      }
+      if (x2 > 0 && x2 < width - 1 && y2 > 0 && y2 < height - 1) map[y2][x2] = TILE.FLOOR;
+    };
+
+    const desiredRooms = 9 + Math.floor(level * 0.7) + randInt(4);
+    let attempts = 0;
+    while (rooms.length < desiredRooms && attempts < 700) {
+      attempts++;
+      const rw = 4 + randInt(6);
+      const rh = 4 + randInt(5);
+      const rx = 2 + randInt(Math.max(1, width - rw - 4));
+      const ry = 2 + randInt(Math.max(1, height - rh - 4));
+
+      let overlap = false;
+      for (const room of rooms) {
+        if (rx - 2 <= room.x2 && rx + rw + 2 >= room.x1 && ry - 2 <= room.y2 && ry + rh + 2 >= room.y1) {
+          overlap = true;
+          break;
+        }
+      }
+      if (!overlap) carveRoom(rx, ry, rx + rw, ry + rh);
+    }
+
+    if (rooms.length < 2) {
+      carveRoom(4, 4, 11, 11);
+      carveRoom(18, 16, 28, 25);
+    }
+
+    for (let i = 1; i < rooms.length; i++) {
+      const a = rooms[i - 1];
+      const b = rooms[i];
+      if (Math.random() < 0.5) {
+        carveHall(a.cx, a.cy, b.cx, a.cy);
+        carveHall(b.cx, a.cy, b.cx, b.cy);
+      } else {
+        carveHall(a.cx, a.cy, a.cx, b.cy);
+        carveHall(a.cx, b.cy, b.cx, b.cy);
+      }
+    }
+
+    for (let i = 0; i < Math.floor(rooms.length / 3); i++) {
+      const a = rooms[randInt(rooms.length)];
+      const b = rooms[randInt(rooms.length)];
+      if (a !== b) carveHall(a.cx, a.cy, b.cx, b.cy);
+    }
+
+    for (let y = 2; y < height - 2; y++) {
+      for (let x = 2; x < width - 2; x++) {
+        if (map[y][x] !== TILE.FLOOR) continue;
+        const horizontalDoor = map[y][x - 1] === TILE.WALL && map[y][x + 1] === TILE.WALL && map[y - 1][x] === TILE.FLOOR && map[y + 1][x] === TILE.FLOOR;
+        const verticalDoor = map[y - 1][x] === TILE.WALL && map[y + 1][x] === TILE.WALL && map[y][x - 1] === TILE.FLOOR && map[y][x + 1] === TILE.FLOOR;
+        if ((horizontalDoor || verticalDoor) && Math.random() < 0.25) {
+          map[y][x] = TILE.DOOR;
+        }
+      }
+    }
+
+    const startRoom = rooms[0];
+    const endRoom = rooms[rooms.length - 1];
+    map[endRoom.cy][endRoom.cx] = TILE.STAIR;
+
+    const dungeon = {
+      width,
+      height,
+      map,
+      rooms,
+      start: { x: startRoom.cx, y: startRoom.cy },
+      stairs: { x: endRoom.cx, y: endRoom.cy },
+      explored: Array.from({ length: height }, () => Array(width).fill(false)),
+      enemies: []
+    };
+
+    spawnEnemies(dungeon, level);
+    return dungeon;
+  }
+
+  function spawnEnemies(dungeon, level) {
+    const baselineCount = 5 + level * 1.6 + Math.random() * 3;
+    const enemyCount = Math.min(ENEMY_COUNT_CAP, Math.floor(baselineCount * ENEMY_SPAWN_MULTIPLIER));
+    let attempts = 0;
+
+    while (dungeon.enemies.length < enemyCount && attempts < enemyCount * 30) {
+      attempts++;
+      const room = dungeon.rooms[1 + randInt(Math.max(1, dungeon.rooms.length - 1))];
+      const ex = room.x1 + 1 + randInt(Math.max(1, room.x2 - room.x1 - 1)) + 0.5;
+      const ey = room.y1 + 1 + randInt(Math.max(1, room.y2 - room.y1 - 1)) + 0.5;
+
+      const tile = dungeon.map[Math.floor(ey)][Math.floor(ex)];
+      const distanceFromStart = Math.hypot(ex - (dungeon.start.x + 0.5), ey - (dungeon.start.y + 0.5));
+      if (tile !== TILE.FLOOR || distanceFromStart < 4) continue;
+
+      let overlap = false;
+      for (const enemy of dungeon.enemies) {
+        if (Math.hypot(enemy.x - ex, enemy.y - ey) < 0.55) {
+          overlap = true;
+          break;
+        }
+      }
+      if (overlap) continue;
+
+      const base = enemyTypes[randInt(enemyTypes.length)];
+      const speedScale = 1 + level * 0.03;
+      dungeon.enemies.push({
+        name: base.name,
+        x: ex,
+        y: ey,
+        speed: base.speed * speedScale,
+        color: base.color,
+        radius: base.radius,
+        sight: base.sight,
+        alive: true,
+        mode: "wander",
+        targetX: ex,
+        targetY: ey,
+        think: 0,
+        alert: 0
+      });
+    }
+  }
+
+  function currentDungeon() {
+    return game.dungeon;
+  }
+
+  function getTileAt(x, y) {
+    const d = currentDungeon();
+    const gx = Math.floor(x);
+    const gy = Math.floor(y);
+    if (!d || gx < 0 || gx >= d.width || gy < 0 || gy >= d.height) return TILE.WALL;
+    return d.map[gy][gx];
+  }
+
+  function isBlocked(x, y) {
+    const t = getTileAt(x, y);
+    return t === TILE.WALL || t === TILE.DOOR;
+  }
+
+  function canOccupy(x, y, radius) {
+    const checks = [
+      [0, 0],
+      [radius, 0],
+      [-radius, 0],
+      [0, radius],
+      [0, -radius],
+      [radius, radius],
+      [radius, -radius],
+      [-radius, radius],
+      [-radius, -radius]
+    ];
+    for (const [ox, oy] of checks) {
+      if (isBlocked(x + ox, y + oy)) return false;
+    }
+    return true;
+  }
+
+  function moveEntity(entity, dx, dy, radius) {
+    const nx = entity.x + dx;
+    if (canOccupy(nx, entity.y, radius)) entity.x = nx;
+    const ny = entity.y + dy;
+    if (canOccupy(entity.x, ny, radius)) entity.y = ny;
+  }
+
+  function revealExplored() {
+    const d = currentDungeon();
+    if (!d) return;
+    const px = Math.floor(game.player.x);
+    const py = Math.floor(game.player.y);
+    for (let dy = -3; dy <= 3; dy++) {
+      for (let dx = -3; dx <= 3; dx++) {
+        const x = px + dx;
+        const y = py + dy;
+        if (x >= 0 && x < d.width && y >= 0 && y < d.height) {
+          d.explored[y][x] = true;
+        }
+      }
+    }
+  }
+
+  function hasLineOfSight(x0, y0, x1, y1) {
+    const d = currentDungeon();
+    if (!d) return false;
+
+    const dx = x1 - x0;
+    const dy = y1 - y0;
+    const dist = Math.hypot(dx, dy);
+    if (dist < 0.0001) return true;
+
+    const rayDirX = dx / dist;
+    const rayDirY = dy / dist;
+
+    let mapX = Math.floor(x0);
+    let mapY = Math.floor(y0);
+    const targetX = Math.floor(x1);
+    const targetY = Math.floor(y1);
+
+    const deltaDistX = Math.abs(1 / (rayDirX || 1e-9));
+    const deltaDistY = Math.abs(1 / (rayDirY || 1e-9));
+
+    let stepX;
+    let stepY;
+    let sideDistX;
+    let sideDistY;
+
+    if (rayDirX < 0) {
+      stepX = -1;
+      sideDistX = (x0 - mapX) * deltaDistX;
+    } else {
+      stepX = 1;
+      sideDistX = (mapX + 1 - x0) * deltaDistX;
+    }
+
+    if (rayDirY < 0) {
+      stepY = -1;
+      sideDistY = (y0 - mapY) * deltaDistY;
+    } else {
+      stepY = 1;
+      sideDistY = (mapY + 1 - y0) * deltaDistY;
+    }
+
+    const maxSteps = Math.max(1, Math.ceil(dist * 3));
+    for (let i = 0; i < maxSteps; i++) {
+      if (mapX === targetX && mapY === targetY) return true;
+
+      if (sideDistX < sideDistY) {
+        sideDistX += deltaDistX;
+        mapX += stepX;
+      } else {
+        sideDistY += deltaDistY;
+        mapY += stepY;
+      }
+
+      if (mapX < 0 || mapX >= d.width || mapY < 0 || mapY >= d.height) return false;
+      if (mapX === targetX && mapY === targetY) return true;
+
+      const tile = d.map[mapY][mapX];
+      if (tile === TILE.WALL || tile === TILE.DOOR) return false;
+    }
+    return true;
+  }
+
+  function enemyCanSeePlayer(enemy, toPlayerX, toPlayerY, playerDist) {
+    if (playerDist > enemy.sight) return false;
+
+    const px = game.player.x;
+    const py = game.player.y;
+    if (hasLineOfSight(enemy.x, enemy.y, px, py)) return true;
+
+    // Door frames/corners can clip center rays. Sample both shoulders as a fallback.
+    const invDist = 1 / Math.max(0.0001, playerDist);
+    const normalX = -toPlayerY * invDist;
+    const normalY = toPlayerX * invDist;
+    const enemyOffset = Math.min(enemy.radius * 0.6, ENEMY_VISION_SAMPLE_OFFSET);
+    const playerOffset = Math.min(COLLISION_RADIUS * 0.9, ENEMY_VISION_SAMPLE_OFFSET);
+
+    return (
+      hasLineOfSight(
+        enemy.x + normalX * enemyOffset,
+        enemy.y + normalY * enemyOffset,
+        px + normalX * playerOffset,
+        py + normalY * playerOffset
+      ) ||
+      hasLineOfSight(
+        enemy.x - normalX * enemyOffset,
+        enemy.y - normalY * enemyOffset,
+        px - normalX * playerOffset,
+        py - normalY * playerOffset
+      )
+    );
+  }
+
+  function getForwardTile() {
+    const p = game.player;
+    const tx = Math.floor(p.x + Math.cos(p.angle) * 0.8);
+    const ty = Math.floor(p.y + Math.sin(p.angle) * 0.8);
+    const d = currentDungeon();
+    if (!d) return null;
+    if (tx < 0 || tx >= d.width || ty < 0 || ty >= d.height) return null;
+    return { x: tx, y: ty, tile: d.map[ty][tx] };
+  }
+
+  function updatePrompt() {
+    const front = getForwardTile();
+    if (!front || !game.running) {
+      promptEl.style.opacity = "0";
+      promptEl.textContent = "";
+      return;
+    }
+    if (front.tile === TILE.DOOR) {
+      promptEl.textContent = "E / USE : Open door";
+      promptEl.style.opacity = "1";
+      return;
+    }
+    if (front.tile === TILE.STAIR) {
+      promptEl.textContent = "E / USE : Go to next floor";
+      promptEl.style.opacity = "1";
+      return;
+    }
+    promptEl.style.opacity = "0";
+    promptEl.textContent = "";
+  }
+
+  function loadFloor(level) {
+    game.floor = level;
+    game.dungeon = generateDungeon(level);
+    game.player.x = game.dungeon.start.x + 0.5;
+    game.player.y = game.dungeon.start.y + 0.5;
+    game.player.angle = 0;
+    game.player.pitch = 0;
+    game.player.shotCooldown = 0;
+    game.player.bobTime = 0;
+    game.player.bobAmount = 0;
+    setStatus(`Floor ${level}`, 1.7);
+    revealExplored();
+  }
+
+  function startGame() {
+    game.running = true;
+    game.player.alive = true;
+    game.player.kills = 0;
+    game.shotFlash = 0;
+    deathScreen.classList.remove("visible");
+    titleScreen.classList.remove("visible");
+    loadFloor(1);
+    if (!isMobile) viewCanvas.requestPointerLock?.();
+  }
+
+  function handlePlayerDeath() {
+    if (!game.player.alive) return;
+    game.player.alive = false;
+    game.running = false;
+    document.exitPointerLock?.();
+    deathStats.textContent = `Floor reached: ${game.floor} | Kills: ${game.player.kills}`;
+    deathScreen.classList.add("visible");
+  }
+
+  function interact() {
+    if (!game.running) return;
+    const front = getForwardTile();
+    if (!front) return;
+    if (front.tile === TILE.DOOR) {
+      game.dungeon.map[front.y][front.x] = TILE.FLOOR;
+      setStatus("Door opened", 1.0);
+      return;
+    }
+    if (front.tile === TILE.STAIR) {
+      loadFloor(game.floor + 1);
+    }
+  }
+
+  function shoot() {
+    if (!game.running || !game.player.alive) return;
+    if (game.player.shotCooldown > 0) return;
+    game.player.shotCooldown = FIRE_INTERVAL;
+    game.shotFlash = 0.2;
+
+    let bestTarget = null;
+    let bestDistance = Infinity;
+    for (const enemy of game.dungeon.enemies) {
+      if (!enemy.alive) continue;
+      const dx = enemy.x - game.player.x;
+      const dy = enemy.y - game.player.y;
+      const dist = Math.hypot(dx, dy);
+      const angleToEnemy = Math.atan2(dy, dx);
+      const delta = normalizeAngle(angleToEnemy - game.player.angle);
+      const tolerance = Math.atan2(enemy.radius, Math.max(0.001, dist)) + 0.008;
+      if (Math.abs(delta) > tolerance) continue;
+      if (!hasLineOfSight(game.player.x, game.player.y, enemy.x, enemy.y)) continue;
+      if (dist < bestDistance) {
+        bestDistance = dist;
+        bestTarget = enemy;
+      }
+    }
+
+    if (bestTarget) {
+      bestTarget.alive = false;
+      game.player.kills++;
+      setStatus(`${bestTarget.name} down`, 0.7);
+    }
+  }
+
+  function randomWalkTarget(x, y, radius = 4) {
+    const d = currentDungeon();
+    for (let i = 0; i < 20; i++) {
+      const nx = x + (Math.random() * 2 - 1) * radius;
+      const ny = y + (Math.random() * 2 - 1) * radius;
+      const gx = Math.floor(nx);
+      const gy = Math.floor(ny);
+      if (gx < 0 || gx >= d.width || gy < 0 || gy >= d.height) continue;
+      if (d.map[gy][gx] !== TILE.FLOOR) continue;
+      if (canOccupy(nx, ny, 0.22)) return { x: nx, y: ny };
+    }
+    return { x, y };
+  }
+
+  function updateEnemies(dt) {
+    for (const enemy of game.dungeon.enemies) {
+      if (!enemy.alive) continue;
+
+      const toPlayerX = game.player.x - enemy.x;
+      const toPlayerY = game.player.y - enemy.y;
+      const playerDist = Math.hypot(toPlayerX, toPlayerY);
+
+      if (playerDist < CONTACT_KILL_RADIUS + enemy.radius) {
+        handlePlayerDeath();
+        return;
+      }
+
+      enemy.think -= dt;
+      if (enemy.think <= 0) {
+        enemy.think = 0.14 + Math.random() * 0.13;
+        const canSee = enemyCanSeePlayer(enemy, toPlayerX, toPlayerY, playerDist);
+        if (canSee) {
+          enemy.mode = "chase";
+          enemy.alert = 1.4;
+        } else {
+          enemy.alert = Math.max(0, enemy.alert - 0.22);
+          if (enemy.alert <= 0) enemy.mode = "wander";
+        }
+
+        if (enemy.mode !== "chase") {
+          const needNewTarget = Math.hypot(enemy.targetX - enemy.x, enemy.targetY - enemy.y) < 0.5 || Math.random() < 0.28;
+          if (needNewTarget) {
+            const p = randomWalkTarget(enemy.x, enemy.y, 4.6);
+            enemy.targetX = p.x;
+            enemy.targetY = p.y;
+          }
+        }
+      }
+
+      let targetX;
+      let targetY;
+      let speed;
+      if (enemy.mode === "chase" || enemy.alert > 0.01) {
+        targetX = game.player.x;
+        targetY = game.player.y;
+        speed = enemy.speed;
+        enemy.alert = Math.max(0, enemy.alert - dt * 0.32);
+      } else {
+        targetX = enemy.targetX;
+        targetY = enemy.targetY;
+        speed = enemy.speed * 0.5;
+      }
+
+      const dx = targetX - enemy.x;
+      const dy = targetY - enemy.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist > 0.001) {
+        const step = speed * dt;
+        moveEntity(enemy, (dx / dist) * step, (dy / dist) * step, enemy.radius * 0.8);
+      }
+    }
+  }
+
+  function getMoveInput() {
+    let forward = 0;
+    let strafe = 0;
+
+    if (keyState.KeyW) forward += 1;
+    if (keyState.KeyS) forward -= 1;
+    if (keyState.KeyA) strafe -= 1;
+    if (keyState.KeyD) strafe += 1;
+
+    forward += -input.joystick.y;
+    strafe += input.joystick.x;
+
+    const length = Math.hypot(forward, strafe);
+    if (length > 1) {
+      forward /= length;
+      strafe /= length;
+    }
+    return { forward, strafe };
+  }
+
+  function update(dt) {
+    if (game.player.shotCooldown > 0) game.player.shotCooldown = Math.max(0, game.player.shotCooldown - dt);
+    if (game.shotFlash > 0) game.shotFlash = Math.max(0, game.shotFlash - dt * 4.8);
+    if (game.statusTime > 0) game.statusTime = Math.max(0, game.statusTime - dt);
+
+    if (!game.running || !game.player.alive || !game.dungeon) return;
+
+    game.player.angle = normalizeAngle(game.player.angle + input.lookDX * TURN_SENSITIVITY);
+    game.player.pitch = clamp(game.player.pitch - input.lookDY * TURN_SENSITIVITY, -0.5, 0.5);
+    input.lookDX = 0;
+    input.lookDY = 0;
+
+    const move = getMoveInput();
+    const sprint = (keyState.ShiftLeft || keyState.ShiftRight) && !isMobile;
+    const speed = PLAYER_SPEED * (sprint ? SPRINT_MULTIPLIER : 1);
+    const step = speed * dt;
+    const dx = (Math.cos(game.player.angle) * move.forward + Math.cos(game.player.angle + Math.PI * 0.5) * move.strafe) * step;
+    const dy = (Math.sin(game.player.angle) * move.forward + Math.sin(game.player.angle + Math.PI * 0.5) * move.strafe) * step;
+    moveEntity(game.player, dx, dy, COLLISION_RADIUS);
+
+    if (Math.abs(move.forward) > 0.0001 || Math.abs(move.strafe) > 0.0001) {
+      game.player.bobAmount = Math.min(4, game.player.bobAmount + dt * 12);
+      game.player.bobTime += dt * (sprint ? 16 : 11);
+    } else {
+      game.player.bobAmount = Math.max(0, game.player.bobAmount - dt * 8);
+    }
+
+    if (input.mouseFire || input.touchFire) shoot();
+
+    revealExplored();
+    updateEnemies(dt);
+    updatePrompt();
+  }
+
+  function castRay(rayAngle) {
+    const d = currentDungeon();
+    const px = game.player.x;
+    const py = game.player.y;
+    const rayDirX = Math.cos(rayAngle);
+    const rayDirY = Math.sin(rayAngle);
+
+    let mapX = Math.floor(px);
+    let mapY = Math.floor(py);
+    const deltaDistX = Math.abs(1 / (rayDirX || 1e-9));
+    const deltaDistY = Math.abs(1 / (rayDirY || 1e-9));
+
+    let stepX;
+    let stepY;
+    let sideDistX;
+    let sideDistY;
+
+    if (rayDirX < 0) {
+      stepX = -1;
+      sideDistX = (px - mapX) * deltaDistX;
+    } else {
+      stepX = 1;
+      sideDistX = (mapX + 1 - px) * deltaDistX;
+    }
+
+    if (rayDirY < 0) {
+      stepY = -1;
+      sideDistY = (py - mapY) * deltaDistY;
+    } else {
+      stepY = 1;
+      sideDistY = (mapY + 1 - py) * deltaDistY;
+    }
+
+    let side = 0;
+    let hitTile = TILE.WALL;
+    let hit = false;
+    for (let i = 0; i < MAX_RAY_STEPS; i++) {
+      if (sideDistX < sideDistY) {
+        sideDistX += deltaDistX;
+        mapX += stepX;
+        side = 0;
+      } else {
+        sideDistY += deltaDistY;
+        mapY += stepY;
+        side = 1;
+      }
+      if (mapX < 0 || mapX >= d.width || mapY < 0 || mapY >= d.height) {
+        hit = true;
+        hitTile = TILE.WALL;
+        break;
+      }
+      const t = d.map[mapY][mapX];
+      if (t === TILE.WALL || t === TILE.DOOR) {
+        hit = true;
+        hitTile = t;
+        break;
+      }
+    }
+
+    if (!hit) return { distance: 22, side: 0, tile: TILE.WALL };
+
+    let distance;
+    if (side === 0) distance = (mapX - px + (1 - stepX) * 0.5) / (rayDirX || 1e-9);
+    else distance = (mapY - py + (1 - stepY) * 0.5) / (rayDirY || 1e-9);
+    return { distance: Math.max(0.1, Math.abs(distance)), side, tile: hitTile };
+  }
+
+  function drawWorld() {
+    const w = game.viewWidth;
+    const h = game.viewHeight;
+    const p = game.player;
+    const horizonOffset = Math.floor(p.pitch * h * 0.5 + Math.abs(Math.cos(p.bobTime)) * p.bobAmount * 0.5);
+    const horizonY = Math.floor(h * 0.5 + horizonOffset);
+
+    viewCtx.fillStyle = "#101724";
+    viewCtx.fillRect(0, 0, w, horizonY);
+    viewCtx.fillStyle = "#1e1913";
+    viewCtx.fillRect(0, horizonY, w, h - horizonY);
+
+    for (let x = 0; x < w; x++) {
+      const rayAngle = p.angle - FOV * 0.5 + (x / w) * FOV;
+      const hit = castRay(rayAngle);
+      const corrected = hit.distance * Math.cos(rayAngle - p.angle);
+      game.zBuffer[x] = corrected;
+      const wallHeight = Math.floor(h / Math.max(0.0001, corrected));
+      const top = Math.floor(h * 0.5 - wallHeight * 0.5 + horizonOffset);
+
+      const base = hit.tile === TILE.DOOR ? [138, 97, 44] : [82, 90, 104];
+      let light = Math.max(0.16, 1 - corrected / 11);
+      if (hit.side === 1) light *= 0.78;
+
+      const r = Math.floor(base[0] * light);
+      const g = Math.floor(base[1] * light);
+      const b = Math.floor(base[2] * light);
+      viewCtx.fillStyle = `rgb(${r},${g},${b})`;
+      viewCtx.fillRect(x, top, 1, wallHeight);
+      if (hit.tile === TILE.DOOR && wallHeight > 6) {
+        viewCtx.fillStyle = `rgb(${Math.floor(r * 0.55)},${Math.floor(g * 0.45)},${Math.floor(b * 0.3)})`;
+        viewCtx.fillRect(x, top + Math.floor(wallHeight * 0.45), 1, Math.floor(wallHeight * 0.08));
+      }
+    }
+
+    drawSprites(horizonOffset);
+  }
+
+  function drawSprites(horizonOffset) {
+    const p = game.player;
+    const sprites = [];
+    for (const enemy of game.dungeon.enemies) {
+      if (!enemy.alive) continue;
+      const dx = enemy.x - p.x;
+      const dy = enemy.y - p.y;
+      sprites.push({
+        kind: "enemy",
+        x: enemy.x,
+        y: enemy.y,
+        color: enemy.color,
+        radius: enemy.radius,
+        dist: Math.hypot(dx, dy)
+      });
+    }
+
+    sprites.push({
+      kind: "stair",
+      x: game.dungeon.stairs.x + 0.5,
+      y: game.dungeon.stairs.y + 0.5,
+      color: [36, 196, 150],
+      radius: 0.25,
+      dist: Math.hypot(game.dungeon.stairs.x + 0.5 - p.x, game.dungeon.stairs.y + 0.5 - p.y)
+    });
+
+    sprites.sort((a, b) => b.dist - a.dist);
+
+    const w = game.viewWidth;
+    const h = game.viewHeight;
+    for (const sprite of sprites) {
+      if (sprite.dist < 0.2 || sprite.dist > 26) continue;
+      const rel = normalizeAngle(Math.atan2(sprite.y - p.y, sprite.x - p.x) - p.angle);
+      if (Math.abs(rel) > FOV * 0.72) continue;
+
+      const screenX = Math.floor(w * 0.5 + (rel / (FOV * 0.5)) * (w * 0.5));
+      const scale = sprite.kind === "enemy" ? 0.9 : 0.68;
+      const spriteSize = Math.max(2, Math.floor((h * scale) / sprite.dist));
+      const top = Math.floor(h * 0.5 - spriteSize * 0.5 + horizonOffset);
+      const left = screenX - (spriteSize >> 1);
+
+      for (let sx = 0; sx < spriteSize; sx++) {
+        const px = left + sx;
+        if (px < 0 || px >= w) continue;
+        if (sprite.dist >= game.zBuffer[px]) continue;
+
+        const fog = Math.min(0.78, sprite.dist / 18);
+        const sideShade = sx / spriteSize < 0.5 ? 1 : 0.83;
+        const rr = Math.floor(sprite.color[0] * sideShade * (1 - fog));
+        const gg = Math.floor(sprite.color[1] * sideShade * (1 - fog));
+        const bb = Math.floor(sprite.color[2] * sideShade * (1 - fog));
+
+        if (sprite.kind === "enemy") {
+          viewCtx.fillStyle = `rgb(${rr},${gg},${bb})`;
+          viewCtx.fillRect(px, top, 1, spriteSize);
+          if (spriteSize > 12) {
+            const eyeY = top + Math.floor(spriteSize * 0.33);
+            const leftEye = Math.floor(spriteSize * 0.34);
+            const rightEye = Math.floor(spriteSize * 0.64);
+            if (sx === leftEye || sx === rightEye) {
+              viewCtx.fillStyle = "rgb(242, 224, 95)";
+              viewCtx.fillRect(px, eyeY, 1, 2);
+            }
+          }
+        } else {
+          viewCtx.fillStyle = `rgb(${rr},${gg},${bb})`;
+          viewCtx.fillRect(px, top + Math.floor(spriteSize * 0.15), 1, Math.floor(spriteSize * 0.7));
+          viewCtx.fillStyle = "rgba(200,255,230,0.7)";
+          viewCtx.fillRect(px, top + Math.floor(spriteSize * 0.22), 1, 1);
+        }
+      }
+    }
+  }
+
+  function drawHud() {
+    const w = hudCanvas.width;
+    const h = hudCanvas.height;
+    hudCtx.clearRect(0, 0, w, h);
+    if (!game.dungeon) return;
+
+    if (game.shotFlash > 0) {
+      hudCtx.fillStyle = `rgba(255,255,255,${game.shotFlash * 0.18})`;
+      hudCtx.fillRect(0, 0, w, h);
+    }
+
+    const aliveEnemies = game.dungeon.enemies.reduce((sum, e) => sum + (e.alive ? 1 : 0), 0);
+    hudCtx.fillStyle = "rgba(0,0,0,0.45)";
+    hudCtx.fillRect(10, h - 64, 250, 52);
+    hudCtx.fillStyle = "#f2f2f2";
+    hudCtx.font = "15px Trebuchet MS";
+    hudCtx.fillText(`Floor ${game.floor}`, 20, h - 38);
+    hudCtx.fillText(`Kills ${game.player.kills}`, 20, h - 18);
+    hudCtx.fillText(`Enemies ${aliveEnemies}`, 120, h - 18);
+
+    const cx = w * 0.5;
+    const cy = h * 0.5;
+    hudCtx.strokeStyle = "rgba(232,232,232,0.48)";
+    hudCtx.lineWidth = 1;
+    hudCtx.beginPath();
+    hudCtx.moveTo(cx - 9, cy);
+    hudCtx.lineTo(cx - 3, cy);
+    hudCtx.moveTo(cx + 3, cy);
+    hudCtx.lineTo(cx + 9, cy);
+    hudCtx.moveTo(cx, cy - 9);
+    hudCtx.lineTo(cx, cy - 3);
+    hudCtx.moveTo(cx, cy + 3);
+    hudCtx.lineTo(cx, cy + 9);
+    hudCtx.stroke();
+
+    if (game.statusTime > 0 && game.statusText) {
+      hudCtx.fillStyle = "rgba(0,0,0,0.46)";
+      hudCtx.fillRect(w * 0.5 - 95, 20, 190, 28);
+      hudCtx.fillStyle = "#dbe8ff";
+      hudCtx.font = "16px Trebuchet MS";
+      hudCtx.textAlign = "center";
+      hudCtx.fillText(game.statusText, w * 0.5, 40);
+      hudCtx.textAlign = "left";
+    }
+  }
+
+  function drawMinimap() {
+    const d = currentDungeon();
+    if (!d) return;
+    minimapCtx.clearRect(0, 0, minimapCanvas.width, minimapCanvas.height);
+    minimapCtx.fillStyle = "rgba(0,0,0,0.62)";
+    minimapCtx.fillRect(0, 0, minimapCanvas.width, minimapCanvas.height);
+
+    const ox = Math.floor(minimapCanvas.width * 0.5 - game.player.x * MINIMAP_SCALE);
+    const oy = Math.floor(minimapCanvas.height * 0.5 - game.player.y * MINIMAP_SCALE);
+
+    for (let y = 0; y < d.height; y++) {
+      for (let x = 0; x < d.width; x++) {
+        if (!d.explored[y][x]) continue;
+        const tile = d.map[y][x];
+        if (tile === TILE.WALL) minimapCtx.fillStyle = "#2a3039";
+        else if (tile === TILE.DOOR) minimapCtx.fillStyle = "#8f6a35";
+        else if (tile === TILE.STAIR) minimapCtx.fillStyle = "#28c69a";
+        else minimapCtx.fillStyle = "#171d25";
+
+        const dx = ox + x * MINIMAP_SCALE;
+        const dy = oy + y * MINIMAP_SCALE;
+        if (dx < -MINIMAP_SCALE || dy < -MINIMAP_SCALE || dx > minimapCanvas.width || dy > minimapCanvas.height) continue;
+        minimapCtx.fillRect(dx, dy, MINIMAP_SCALE - 0.45, MINIMAP_SCALE - 0.45);
+      }
+    }
+
+    for (const enemy of d.enemies) {
+      if (!enemy.alive) continue;
+      const ex = ox + enemy.x * MINIMAP_SCALE;
+      const ey = oy + enemy.y * MINIMAP_SCALE;
+      if (Math.hypot(enemy.x - game.player.x, enemy.y - game.player.y) > 9.5) continue;
+      if (ex < 0 || ey < 0 || ex >= minimapCanvas.width || ey >= minimapCanvas.height) continue;
+      minimapCtx.fillStyle = "#f04f4f";
+      minimapCtx.fillRect(ex - 1, ey - 1, 2.5, 2.5);
+    }
+
+    const px = minimapCanvas.width * 0.5;
+    const py = minimapCanvas.height * 0.5;
+    minimapCtx.fillStyle = "#42ff92";
+    minimapCtx.fillRect(px - 1, py - 1, 3, 3);
+    minimapCtx.strokeStyle = "#42ff92";
+    minimapCtx.beginPath();
+    minimapCtx.moveTo(px, py);
+    minimapCtx.lineTo(px + Math.cos(game.player.angle) * 7, py + Math.sin(game.player.angle) * 7);
+    minimapCtx.stroke();
+  }
+
+  function render() {
+    if (!game.dungeon) {
+      viewCtx.fillStyle = "#000";
+      viewCtx.fillRect(0, 0, game.viewWidth, game.viewHeight);
+      hudCtx.clearRect(0, 0, hudCanvas.width, hudCanvas.height);
+      minimapCtx.clearRect(0, 0, minimapCanvas.width, minimapCanvas.height);
+      return;
+    }
+    drawWorld();
+    drawHud();
+    drawMinimap();
+  }
+
+  function loop(ts) {
+    if (!game.lastTime) game.lastTime = ts;
+    const dt = Math.min(0.05, (ts - game.lastTime) / 1000);
+    game.lastTime = ts;
+    update(dt);
+    render();
+    requestAnimationFrame(loop);
+  }
+
+  function resize() {
+    game.viewWidth = clamp(Math.floor(window.innerWidth * 0.5), 320, 960);
+    game.viewHeight = clamp(Math.floor(window.innerHeight * 0.5), 240, 540);
+    viewCanvas.width = game.viewWidth;
+    viewCanvas.height = game.viewHeight;
+    viewCanvas.style.width = "100%";
+    viewCanvas.style.height = "100%";
+    hudCanvas.width = window.innerWidth;
+    hudCanvas.height = window.innerHeight;
+    game.zBuffer = new Float32Array(game.viewWidth);
+  }
+
+  function bindDesktopInput() {
+    window.addEventListener("keydown", (event) => {
+      keyState[event.code] = true;
+      if (event.code === "KeyE") interact();
+      if (event.code === "Space") shoot();
+      event.preventDefault();
+    });
+    window.addEventListener("keyup", (event) => {
+      keyState[event.code] = false;
+    });
+
+    window.addEventListener("contextmenu", (event) => event.preventDefault());
+
+    viewCanvas.addEventListener("mousedown", (event) => {
+      if (event.button === 0) {
+        input.mouseFire = true;
+        if (!isMobile && document.pointerLockElement !== viewCanvas && game.running) {
+          viewCanvas.requestPointerLock?.();
+        }
+      }
+    });
+    window.addEventListener("mouseup", (event) => {
+      if (event.button === 0) input.mouseFire = false;
+    });
+
+    window.addEventListener("mousemove", (event) => {
+      if (document.pointerLockElement !== viewCanvas) return;
+      input.lookDX += event.movementX;
+      input.lookDY += event.movementY;
+    });
+  }
+
+  function bindMobileInput() {
+    if (!isMobile) return;
+    mobileUi.classList.remove("hidden");
+
+    const updateStickVisual = () => {
+      const rect = joystickEl.getBoundingClientRect();
+      const max = rect.width * 0.34;
+      const sx = input.joystick.x * max;
+      const sy = input.joystick.y * max;
+      stickEl.style.transform = `translate(calc(-50% + ${sx}px), calc(-50% + ${sy}px))`;
+    };
+
+    const setJoystick = (event) => {
+      const rect = joystickEl.getBoundingClientRect();
+      const cx = rect.left + rect.width * 0.5;
+      const cy = rect.top + rect.height * 0.5;
+      const max = rect.width * 0.34;
+      const dx = event.clientX - cx;
+      const dy = event.clientY - cy;
+      const len = Math.hypot(dx, dy);
+      const m = len > max ? max / len : 1;
+      input.joystick.x = clamp((dx * m) / max, -1, 1);
+      input.joystick.y = clamp((dy * m) / max, -1, 1);
+      updateStickVisual();
+    };
+
+    joystickEl.addEventListener("pointerdown", (event) => {
+      input.joystick.pointerId = event.pointerId;
+      joystickEl.setPointerCapture(event.pointerId);
+      setJoystick(event);
+    });
+    joystickEl.addEventListener("pointermove", (event) => {
+      if (event.pointerId !== input.joystick.pointerId) return;
+      setJoystick(event);
+    });
+    const endJoystick = (event) => {
+      if (event.pointerId !== input.joystick.pointerId) return;
+      input.joystick.pointerId = null;
+      input.joystick.x = 0;
+      input.joystick.y = 0;
+      updateStickVisual();
+    };
+    joystickEl.addEventListener("pointerup", endJoystick);
+    joystickEl.addEventListener("pointercancel", endJoystick);
+
+    lookPadEl.addEventListener("pointerdown", (event) => {
+      input.look.pointerId = event.pointerId;
+      input.look.x = event.clientX;
+      input.look.y = event.clientY;
+      lookPadEl.setPointerCapture(event.pointerId);
+    });
+    lookPadEl.addEventListener("pointermove", (event) => {
+      if (event.pointerId !== input.look.pointerId) return;
+      input.lookDX += (event.clientX - input.look.x) * 0.85;
+      input.lookDY += (event.clientY - input.look.y) * 0.85;
+      input.look.x = event.clientX;
+      input.look.y = event.clientY;
+    });
+    const endLook = (event) => {
+      if (event.pointerId !== input.look.pointerId) return;
+      input.look.pointerId = null;
+    };
+    lookPadEl.addEventListener("pointerup", endLook);
+    lookPadEl.addEventListener("pointercancel", endLook);
+
+    shootBtn.addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+      input.touchFire = true;
+      shoot();
+    });
+    const endShoot = () => {
+      input.touchFire = false;
+    };
+    shootBtn.addEventListener("pointerup", endShoot);
+    shootBtn.addEventListener("pointercancel", endShoot);
+    shootBtn.addEventListener("pointerleave", endShoot);
+
+    useBtn.addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+      interact();
+    });
+  }
+
+  document.getElementById("startBtn").addEventListener("click", startGame);
+  document.getElementById("retryBtn").addEventListener("click", startGame);
+
+  resize();
+  bindDesktopInput();
+  bindMobileInput();
+  window.addEventListener("resize", resize);
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
