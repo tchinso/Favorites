@@ -1,0 +1,429 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>브라우저 이미지 변환기</title>
+  <style>
+    :root{--bg:#f5f7fb;--card:#fff;--txt:#1f2937;--muted:#6b7280;--pri:#0b6bcb;--ok:#157f3f;--err:#b3261e;--bd:#d7dce5;--drop:#e8f1fd}
+    *{box-sizing:border-box} body{margin:0;font-family:"Segoe UI","Noto Sans KR",sans-serif;background:var(--bg);color:var(--txt)}
+    .app{max-width:980px;margin:28px auto;padding:0 16px}.panel{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:18px}
+    h1{margin:0 0 8px}.desc{margin:0 0 14px;color:var(--muted);line-height:1.45}
+    .drop{border:2px dashed #97b6e1;background:var(--drop);border-radius:12px;padding:24px 16px;text-align:center}.drop.over{border-color:var(--pri)}
+    .drop p{margin:0}.hint{margin-top:6px;color:#4f6484;font-size:.92rem}.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:14px}
+    button,select{border:1px solid var(--bd);border-radius:9px;padding:10px 12px;background:#fff}button{cursor:pointer;font-weight:600}
+    .pri{background:var(--pri);color:#fff;border-color:var(--pri)} button:disabled{opacity:.6;cursor:not-allowed}
+    .list-wrap{margin-top:16px;border:1px solid var(--bd);border-radius:10px;overflow:hidden;background:#fff}
+    .head,.item{display:grid;grid-template-columns:1fr 120px 100px;gap:8px;padding:10px 12px;align-items:center}
+    .head{background:#f2f5fa;font-weight:700}.item{border-top:1px solid #edf1f7;font-size:.93rem}.name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .st{font-size:.82rem;font-weight:700;border-radius:999px;padding:4px 8px;border:1px solid;display:inline-block}
+    .w{color:#44566f;border-color:#b4c3d8;background:#eef3fb}.p{color:#7a4b03;border-color:#f0cb86;background:#fff4dd}.d{color:var(--ok);border-color:#88c79f;background:#e9f8ef}
+    .u{color:#5c3f9b;border-color:#bca5ef;background:#f2edff}.e{color:var(--err);border-color:#ef9f98;background:#fdebe9}
+    .log{margin-top:14px;border:1px solid var(--bd);border-radius:10px;background:#f8fafc;padding:10px;max-height:220px;overflow:auto;font-size:.9rem}
+    .log p{margin:0 0 6px}.legend{margin-top:8px;color:var(--muted);font-size:.85rem}
+    @media (max-width:740px){.head,.item{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <main class="app">
+    <section class="panel">
+      <h1>이미지 변환 앱 (브라우저 전용)</h1>
+      <p class="desc">ffmpeg 없이 동작합니다. 드래그앤드롭, 다중 파일 변환, Animated → 정지 변환 시 프레임 선택 팝업을 지원합니다.</p>
+
+      <div id="drop" class="drop">
+        <p>파일을 드래그해서 놓으세요.</p>
+        <p class="hint">또는 파일 선택 버튼으로 여러 개를 추가할 수 있습니다.</p>
+        <div class="row" style="justify-content:center">
+          <button id="pickBtn" type="button">파일 선택</button>
+          <input id="fileInput" type="file" multiple hidden accept=".bmp,.cur,.gif,.ico,.jpg,.jpeg,.png,.apng,.webp,image/*" />
+        </div>
+      </div>
+
+      <div class="row">
+        <label for="fmt"><b>출력 형식</b></label>
+        <select id="fmt">
+          <option value="bmp">bmp</option>
+          <option value="cur">cur</option>
+          <option value="gif">gif (정지)</option>
+          <option value="gif_anim">gif (Animated)</option>
+          <option value="ico">ico</option>
+          <option value="jpg">jpg</option>
+          <option value="png" selected>png (정지)</option>
+          <option value="apng">png (Animated/APNG)</option>
+          <option value="webp">webp (정지)</option>
+          <option value="webp_anim">webp (Animated)</option>
+        </select>
+        <button id="convertBtn" class="pri" type="button">변환 시작</button>
+        <button id="clearBtn" type="button">목록 비우기</button>
+      </div>
+
+      <div class="list-wrap">
+        <div class="head"><div>파일명</div><div>크기</div><div>상태</div></div>
+        <ul id="list" style="list-style:none;margin:0;padding:0"></ul>
+      </div>
+
+      <div id="log" class="log"></div>
+      <p class="legend">Animated 파일을 정지 형식으로 바꾸면 새 창에서 전체 프레임을 보고 선택 다운로드할 수 있습니다.</p>
+    </section>
+  </main>
+
+  <script type="module">
+    const STATIC = new Set(["bmp","cur","gif","ico","jpg","png","webp"]);
+    const ANIM = new Set(["gif_anim","apng","webp_anim"]);
+    const META = {
+      bmp:{ext:"bmp",mime:"image/bmp"},cur:{ext:"cur",mime:"image/x-icon"},gif:{ext:"gif",mime:"image/gif"},gif_anim:{ext:"gif",mime:"image/gif"},
+      ico:{ext:"ico",mime:"image/x-icon"},jpg:{ext:"jpg",mime:"image/jpeg"},png:{ext:"png",mime:"image/png"},apng:{ext:"apng",mime:"image/apng"},
+      webp:{ext:"webp",mime:"image/webp"},webp_anim:{ext:"webp",mime:"image/webp"}
+    };
+    const EXT_MIME = {bmp:"image/bmp",cur:"image/x-icon",gif:"image/gif",ico:"image/x-icon",jpg:"image/jpeg",jpeg:"image/jpeg",png:"image/png",apng:"image/png",webp:"image/webp"};
+    const mods = {gifenc:null, upng:null, webp:null};
+
+    const drop = document.getElementById("drop");
+    const pickBtn = document.getElementById("pickBtn");
+    const fileInput = document.getElementById("fileInput");
+    const fmt = document.getElementById("fmt");
+    const convertBtn = document.getElementById("convertBtn");
+    const clearBtn = document.getElementById("clearBtn");
+    const listEl = document.getElementById("list");
+    const logEl = document.getElementById("log");
+
+    const files = new Map();
+    const pendingJobs = new Map();
+    let busy = false;
+
+    window.addEventListener("message", (ev) => {
+      const d = ev.data;
+      if (!d || d.type !== "frame-viewer-ready") return;
+      const job = pendingJobs.get(d.jobId);
+      if (!job) return;
+      if (ev.source && typeof ev.source.postMessage === "function") {
+        ev.source.postMessage({ type: "frame-job-data", jobId: d.jobId, payload: job }, "*");
+      }
+      pendingJobs.delete(d.jobId);
+    });
+
+    pickBtn.addEventListener("click", () => fileInput.click());
+    fileInput.addEventListener("change", () => { addFiles(fileInput.files); fileInput.value = ""; });
+
+    clearBtn.addEventListener("click", () => {
+      if (busy) return log("변환 중에는 목록을 비울 수 없습니다.");
+      files.clear(); render(); log("파일 목록을 비웠습니다.");
+    });
+
+    convertBtn.addEventListener("click", async () => {
+      if (busy) return;
+      if (!files.size) return log("변환할 파일을 먼저 추가해 주세요.");
+      busy = true; setBusy(true);
+      try {
+        const out = fmt.value;
+        const arr = [...files.values()];
+        for (let i = 0; i < arr.length; i++) {
+          const it = arr[i], tag = `[${i + 1}/${arr.length}]`;
+          upd(it.id, "p", "처리 중"); log(`${tag} ${it.file.name} 처리 시작`);
+          try {
+            const bytes = await readU8(it.file);
+            const animated = detectAnimated(it.file, bytes);
+            if (animated && STATIC.has(out)) {
+              await animatedToStaticPopup(it.file, bytes, out);
+              upd(it.id, "u", "프레임 창"); log(`${tag} ${it.file.name}: 프레임 선택 창으로 이동`);
+            } else {
+              await convertDirect(it.file, bytes, out);
+              upd(it.id, "d", "완료"); log(`${tag} ${it.file.name}: 변환 완료`);
+            }
+          } catch (e) {
+            upd(it.id, "e", "실패"); log(`${tag} ${it.file.name}: 실패 - ${e.message}`);
+          }
+        }
+      } finally {
+        busy = false; setBusy(false);
+      }
+    });
+
+    ["dragenter","dragover"].forEach((n) => drop.addEventListener(n, (e) => { e.preventDefault(); e.stopPropagation(); drop.classList.add("over"); }));
+    ["dragleave","drop"].forEach((n) => drop.addEventListener(n, (e) => { e.preventDefault(); e.stopPropagation(); drop.classList.remove("over"); }));
+    drop.addEventListener("drop", (e) => addFiles(e.dataTransfer.files));
+
+    function addFiles(fileList) {
+      if (!fileList?.length) return;
+      let added = 0;
+      for (const file of [...fileList]) {
+        const id = `${file.name}__${file.size}__${file.lastModified}`;
+        if (files.has(id)) continue;
+        files.set(id, { id, file, cls: "w", txt: "대기" }); added++;
+      }
+      render(); log(`${added}개 파일이 추가되었습니다. (총 ${files.size}개)`);
+    }
+
+    function render() {
+      listEl.innerHTML = "";
+      if (!files.size) {
+        const li = document.createElement("li");
+        li.className = "item";
+        li.innerHTML = "<div class='name'>추가된 파일이 없습니다.</div><div>-</div><div><span class='st w'>대기</span></div>";
+        listEl.appendChild(li); return;
+      }
+      for (const it of files.values()) {
+        const li = document.createElement("li");
+        li.className = "item";
+        li.innerHTML = `<div class="name" title="${esc(it.file.name)}">${esc(it.file.name)}</div><div>${fmtBytes(it.file.size)}</div><div><span class="st ${it.cls}">${it.txt}</span></div>`;
+        listEl.appendChild(li);
+      }
+    }
+    function upd(id, cls, txt) { const it = files.get(id); if (!it) return; it.cls = cls; it.txt = txt; render(); }
+    function setBusy(v) { [pickBtn, clearBtn, convertBtn, fmt].forEach((el) => el.disabled = v); }
+    function log(msg) {
+      const t = new Date().toLocaleTimeString("ko-KR",{hour12:false,hour:"2-digit",minute:"2-digit",second:"2-digit"});
+      const p = document.createElement("p"); p.textContent = `${t}  ${msg}`; logEl.appendChild(p); logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    async function convertDirect(file, bytes, target) {
+      if (ANIM.has(target)) {
+        const seq = await decodeFrames(file, bytes);
+        let blob;
+        if (target === "gif_anim") blob = await encodeGif(seq, true);
+        else if (target === "apng") blob = await encodeApng(seq);
+        else blob = await encodeWebpAnim(seq);
+        save(blob, outName(file.name, target));
+        return;
+      }
+      const first = (await decodeFrames(file, bytes))[0];
+      const blob = await frameToStatic(first, target);
+      save(blob, outName(file.name, target));
+    }
+
+    async function animatedToStaticPopup(file, bytes, target) {
+      const seq = await decodeFrames(file, bytes);
+      if (!seq.length) throw new Error("프레임을 추출하지 못했습니다.");
+      const frames = [];
+      for (let i = 0; i < seq.length; i++) {
+        frames.push({ name: `frame_${String(i).padStart(5,"0")}.png`, blob: await frameToPng(seq[i]) });
+      }
+      const jobId = rid();
+      pendingJobs.set(jobId, { sourceName: file.name, targetFormat: target, frames });
+      const url = new URL("frame-viewer.html", location.href); url.searchParams.set("job", jobId);
+      const pop = window.open(url.toString(), "_blank", "width=1200,height=820");
+      if (!pop) { pendingJobs.delete(jobId); throw new Error("팝업이 차단되었습니다. 팝업을 허용해 주세요."); }
+      setTimeout(() => pendingJobs.delete(jobId), 15000);
+    }
+
+    async function frameToStatic(frame, target) {
+      if (target === "png") return frameToPng(frame);
+      if (target === "jpg") return toBlob(frameCanvas(frame, true), "image/jpeg", 0.92);
+      if (target === "bmp") return canvasToBmp(frameCanvas(frame));
+      if (target === "ico" || target === "cur") return canvasToIcoCur(frameCanvas(frame), target);
+      if (target === "gif") return encodeGif([frame], false);
+      if (target === "webp") {
+        try {
+          const { encodeRGBA } = await needWebp();
+          const out = await encodeRGBA(new Uint8Array(frame.rgba), frame.width, frame.height, 92);
+          if (out) return new Blob([out], { type: "image/webp" });
+        } catch (_) {}
+        return toBlob(frameCanvas(frame), "image/webp", 0.92);
+      }
+      throw new Error("지원하지 않는 정지 출력 형식");
+    }
+
+    async function decodeFrames(file, bytes) {
+      const type = file.type?.startsWith("image/") ? file.type : (EXT_MIME[ext(file.name)] || "image/png");
+      const blob = new Blob([bytes], { type });
+      if ("ImageDecoder" in window) {
+        try {
+          const dec = new ImageDecoder({ data: bytes, type });
+          await dec.tracks.ready;
+          const fc = Number.isFinite(dec.tracks.selectedTrack?.frameCount) ? dec.tracks.selectedTrack.frameCount : 1;
+          const out = [];
+          for (let i = 0; i < fc; i++) {
+            const { image } = await dec.decode({ frameIndex: i });
+            const fr = vfToFrame(image); fr.duration = normDur(image.duration);
+            out.push(fr); image.close();
+          }
+          dec.close(); return out;
+        } catch (_) {}
+      }
+      const one = await decodeStatic(blob);
+      return [one];
+    }
+
+    async function decodeStatic(blob) {
+      if ("createImageBitmap" in window) {
+        try {
+          const bmp = await createImageBitmap(blob);
+          const c = document.createElement("canvas"); c.width = bmp.width; c.height = bmp.height;
+          const ctx = c.getContext("2d"); ctx.drawImage(bmp, 0, 0); bmp.close();
+          const d = ctx.getImageData(0, 0, c.width, c.height).data;
+          return { width: c.width, height: c.height, rgba: new Uint8Array(d), duration: 100 };
+        } catch (_) {}
+      }
+      const img = await imgFromBlob(blob), w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+      const c = document.createElement("canvas"); c.width = w; c.height = h;
+      const ctx = c.getContext("2d"); ctx.drawImage(img, 0, 0);
+      const d = ctx.getImageData(0, 0, w, h).data;
+      return { width: w, height: h, rgba: new Uint8Array(d), duration: 100 };
+    }
+
+    function vfToFrame(vf) {
+      const w = vf.displayWidth || vf.codedWidth, h = vf.displayHeight || vf.codedHeight;
+      const c = document.createElement("canvas"); c.width = w; c.height = h;
+      const ctx = c.getContext("2d"); ctx.drawImage(vf, 0, 0, w, h);
+      const d = ctx.getImageData(0, 0, w, h).data;
+      return { width: w, height: h, rgba: new Uint8Array(d), duration: 100 };
+    }
+
+    async function encodeGif(srcFrames, loop) {
+      const frames = normFrames(srcFrames);
+      const { GIFEncoder, quantize, applyPalette } = await needGifenc();
+      const gif = GIFEncoder();
+      for (let i = 0; i < frames.length; i++) {
+        const fr = frames[i];
+        const pal = quantize(fr.rgba, 256, { format: "rgba4444", oneBitAlpha: true });
+        const idx = applyPalette(fr.rgba, pal, "rgba4444");
+        const opt = { palette: pal, delay: normDur(fr.duration), transparent: true };
+        if (loop && i === 0) opt.repeat = 0;
+        gif.writeFrame(idx, frames[0].width, frames[0].height, opt);
+      }
+      gif.finish();
+      return new Blob([gif.bytesView()], { type: "image/gif" });
+    }
+
+    async function encodeApng(srcFrames) {
+      const frames = normFrames(srcFrames), UPNG = await needUPNG();
+      const w = frames[0].width, h = frames[0].height;
+      const imgs = frames.map((f) => new Uint8Array(f.rgba).buffer);
+      const dels = frames.map((f) => normDur(f.duration));
+      return new Blob([UPNG.encode(imgs, w, h, 0, dels)], { type: "image/apng" });
+    }
+
+    async function encodeWebpAnim(srcFrames) {
+      const frames = normFrames(srcFrames), { encodeAnimation } = await needWebp();
+      const w = frames[0].width, h = frames[0].height;
+      const out = await encodeAnimation(w, h, true, frames.map((f) => ({ data: new Uint8Array(f.rgba), duration: normDur(f.duration) })));
+      if (!out) throw new Error("Animated WebP 인코딩 실패");
+      return new Blob([out], { type: "image/webp" });
+    }
+
+    async function needGifenc() {
+      if (!mods.gifenc) { log("gifenc 모듈 로딩 중..."); mods.gifenc = import("https://esm.sh/gifenc@1.0.3"); }
+      return mods.gifenc;
+    }
+    async function needUPNG() {
+      if (!mods.upng) { log("UPNG 모듈 로딩 중..."); mods.upng = import("https://esm.sh/upng-js@2.1.0").then((m) => m.default || m); }
+      return mods.upng;
+    }
+    async function needWebp() {
+      if (!mods.webp) { log("wasm-webp 모듈 로딩 중..."); mods.webp = import("https://esm.sh/wasm-webp@0.0.2"); }
+      return mods.webp;
+    }
+
+    function normFrames(frames) {
+      if (!frames.length) throw new Error("프레임 없음");
+      const w = frames[0].width, h = frames[0].height;
+      return frames.map((f) => {
+        if (f.width === w && f.height === h) return { width: w, height: h, rgba: new Uint8Array(f.rgba), duration: normDur(f.duration) };
+        const src = frameCanvas(f), dst = document.createElement("canvas"); dst.width = w; dst.height = h;
+        const ctx = dst.getContext("2d"); ctx.clearRect(0,0,w,h); ctx.drawImage(src,0,0,w,h);
+        const d = ctx.getImageData(0,0,w,h).data;
+        return { width:w, height:h, rgba:new Uint8Array(d), duration:normDur(f.duration) };
+      });
+    }
+
+    function frameCanvas(f, opaque = false) {
+      const c = document.createElement("canvas"); c.width = f.width; c.height = f.height;
+      const ctx = c.getContext("2d");
+      if (opaque) { ctx.fillStyle = "#fff"; ctx.fillRect(0,0,f.width,f.height); }
+      ctx.putImageData(new ImageData(f.rgba instanceof Uint8ClampedArray ? f.rgba : new Uint8ClampedArray(f.rgba), f.width, f.height), 0, 0);
+      return c;
+    }
+
+    function frameToPng(frame) { return toBlob(frameCanvas(frame), "image/png"); }
+
+    async function canvasToIcoCur(canvas, type) {
+      const w = Math.min(canvas.width, 256), h = Math.min(canvas.height, 256);
+      const cc = document.createElement("canvas"); cc.width = w; cc.height = h; cc.getContext("2d").drawImage(canvas, 0, 0, w, h);
+      const png = new Uint8Array(await (await toBlob(cc, "image/png")).arrayBuffer());
+      const out = new Uint8Array(6 + 16 + png.length), dv = new DataView(out.buffer);
+      dv.setUint16(0, 0, true); dv.setUint16(2, type === "cur" ? 2 : 1, true); dv.setUint16(4, 1, true);
+      out[6] = w === 256 ? 0 : w; out[7] = h === 256 ? 0 : h; out[8] = 0; out[9] = 0;
+      if (type === "cur") { dv.setUint16(10, Math.floor(w / 2), true); dv.setUint16(12, Math.floor(h / 2), true); }
+      else { dv.setUint16(10, 1, true); dv.setUint16(12, 32, true); }
+      dv.setUint32(14, png.length, true); dv.setUint32(18, 22, true); out.set(png, 22);
+      return new Blob([out], { type: "image/x-icon" });
+    }
+
+    async function canvasToBmp(canvas) {
+      const { width:w, height:h } = canvas;
+      const rgba = canvas.getContext("2d").getImageData(0,0,w,h).data;
+      const row = Math.ceil((w * 3) / 4) * 4, pix = row * h, head = 54, size = head + pix;
+      const buf = new ArrayBuffer(size), dv = new DataView(buf), b = new Uint8Array(buf);
+      b[0]=0x42; b[1]=0x4d; dv.setUint32(2,size,true); dv.setUint32(10,head,true); dv.setUint32(14,40,true); dv.setInt32(18,w,true); dv.setInt32(22,h,true);
+      dv.setUint16(26,1,true); dv.setUint16(28,24,true); dv.setUint32(34,pix,true); dv.setInt32(38,2835,true); dv.setInt32(42,2835,true);
+      let o = head;
+      for (let y = h - 1; y >= 0; y--) {
+        for (let x = 0; x < w; x++) {
+          const i = (y * w + x) * 4; b[o++] = rgba[i + 2]; b[o++] = rgba[i + 1]; b[o++] = rgba[i];
+        }
+        for (let p = 0; p < row - w * 3; p++) b[o++] = 0;
+      }
+      return new Blob([buf], { type: "image/bmp" });
+    }
+
+    function detectAnimated(file, bytes) {
+      const e = ext(file.name);
+      if (e === "gif") return isGifAnim(bytes);
+      if (e === "png" || e === "apng") return isPngAnim(bytes);
+      if (e === "webp") return isWebpAnim(bytes);
+      return false;
+    }
+    function isGifAnim(b) {
+      if (b.length < 13) return false;
+      const head = String.fromCharCode(...b.slice(0,6)); if (head !== "GIF89a" && head !== "GIF87a") return false;
+      let p = 6, packed = b[p + 4]; p += 7;
+      if (packed & 0x80) p += 3 * (2 ** ((packed & 7) + 1));
+      let fc = 0;
+      while (p < b.length) {
+        const id = b[p++]; if (id === 0x3b) break;
+        if (id === 0x2c) {
+          if (++fc > 1) return true;
+          p += 8; const lp = b[p++]; if (lp & 0x80) p += 3 * (2 ** ((lp & 7) + 1)); p++;
+          while (p < b.length) { const s = b[p++]; if (s === 0) break; p += s; } continue;
+        }
+        if (id === 0x21) { p++; while (p < b.length) { const s = b[p++]; if (s === 0) break; p += s; } continue; }
+        break;
+      }
+      return false;
+    }
+    function isPngAnim(b) {
+      if (b.length < 8) return false;
+      const sig = [137,80,78,71,13,10,26,10]; for (let i=0;i<8;i++) if (b[i] !== sig[i]) return false;
+      let p = 8; while (p + 8 <= b.length) { const len = u32be(b,p); const type = String.fromCharCode(b[p+4],b[p+5],b[p+6],b[p+7]); if (type === "acTL") return true; p += 12 + len; }
+      return false;
+    }
+    function isWebpAnim(b) {
+      if (b.length < 16) return false;
+      if (String.fromCharCode(b[0],b[1],b[2],b[3]) !== "RIFF" || String.fromCharCode(b[8],b[9],b[10],b[11]) !== "WEBP") return false;
+      let p = 12;
+      while (p + 8 <= b.length) {
+        const t = String.fromCharCode(b[p],b[p+1],b[p+2],b[p+3]), sz = u32le(b,p+4);
+        if (t === "VP8X" && p + 9 <= b.length && (b[p+8] & 0x02)) return true;
+        if (t === "ANIM") return true;
+        p += 8 + sz + (sz % 2);
+      }
+      return false;
+    }
+
+    function u32be(b,o){return (((b[o]<<24)|(b[o+1]<<16)|(b[o+2]<<8)|b[o+3])>>>0);}
+    function u32le(b,o){return ((b[o]|(b[o+1]<<8)|(b[o+2]<<16)|(b[o+3]<<24))>>>0);}
+    function normDur(us){ const ms = typeof us === "number" ? Math.round(us/1000) : 100; return Number.isFinite(ms) && ms > 0 ? Math.max(10, ms) : 100; }
+    function ext(name){ const i = name.lastIndexOf("."); if (i < 0) return "png"; const e = name.slice(i+1).toLowerCase(); return e === "jpeg" ? "jpg" : e; }
+    function outName(name,target){ const i = name.lastIndexOf("."), base = i > -1 ? name.slice(0,i) : name; return `${base}_converted.${META[target].ext}`; }
+    function save(blob, name){ const u = URL.createObjectURL(blob), a = document.createElement("a"); a.href = u; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(u),1000); }
+    function rid(){ return crypto?.randomUUID ? crypto.randomUUID().replace(/-/g,"") : `${Date.now()}_${Math.random().toString(16).slice(2)}`; }
+    function fmtBytes(n){ if (n < 1024) return `${n} B`; if (n < 1048576) return `${(n/1024).toFixed(1)} KB`; return `${(n/1048576).toFixed(2)} MB`; }
+    function esc(s){ return String(s).replace(/[&<>\"']/g, (ch) => ({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[ch])); }
+    function readU8(file){ return new Promise((res,rej)=>{ const r = new FileReader(); r.onload = () => res(new Uint8Array(r.result)); r.onerror = () => rej(new Error("파일 읽기 실패")); r.readAsArrayBuffer(file); }); }
+    function toBlob(c,m,q){ return new Promise((res,rej)=>c.toBlob((b)=>b?res(b):rej(new Error(`캔버스 변환 실패 (${m})`)),m,q)); }
+    async function imgFromBlob(blob){ const u = URL.createObjectURL(blob); try { const img = new Image(); img.decoding = "async"; await new Promise((res,rej)=>{img.onload=res;img.onerror=()=>rej(new Error("이미지 로드 실패"));img.src=u;}); return img; } finally { URL.revokeObjectURL(u); } }
+
+    render(); log("파일을 추가하고 출력 형식을 선택한 뒤 변환을 시작하세요.");
+  </script>
+</body>
+</html>

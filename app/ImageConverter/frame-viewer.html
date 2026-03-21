@@ -1,0 +1,657 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>프레임 선택 다운로드</title>
+  <style>
+    :root {
+      --bg: #f4f6fb;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #5e6a7d;
+      --border: #d6dde8;
+      --primary: #0b6bcb;
+      --primary-strong: #0957a4;
+      --accent: #1f8f4a;
+      --warn: #7d4f00;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "Noto Sans KR", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 10% 15%, #eaf1ff, transparent 44%),
+        radial-gradient(circle at 90% 2%, #f7ece4, transparent 34%),
+        var(--bg);
+    }
+
+    .wrap {
+      max-width: 1220px;
+      margin: 24px auto;
+      padding: 0 16px;
+    }
+
+    .panel {
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: var(--card);
+      box-shadow: 0 14px 28px rgba(31, 41, 55, 0.08);
+      overflow: hidden;
+    }
+
+    .head {
+      border-bottom: 1px solid var(--border);
+      padding: 16px 18px;
+      background: #f8fbff;
+    }
+
+    .head h1 {
+      margin: 0 0 6px;
+      font-size: 1.35rem;
+    }
+
+    .meta {
+      color: var(--muted);
+      font-size: 0.92rem;
+      line-height: 1.4;
+    }
+
+    .toolbar {
+      padding: 12px 18px;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+      border-bottom: 1px solid var(--border);
+      background: #fcfdff;
+    }
+
+    button {
+      border: 1px solid var(--border);
+      background: #fff;
+      color: var(--text);
+      border-radius: 10px;
+      padding: 8px 12px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.15s ease, background 0.2s ease, border-color 0.2s ease;
+    }
+
+    button:hover:not(:disabled) {
+      transform: translateY(-1px);
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .primary {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #fff;
+    }
+
+    .primary:hover:not(:disabled) {
+      background: var(--primary-strong);
+      border-color: var(--primary-strong);
+    }
+
+    .accent {
+      color: var(--accent);
+      border-color: #9ed8b1;
+      background: #ecfbf1;
+    }
+
+    .info {
+      margin-left: auto;
+      color: var(--muted);
+      font-size: 0.88rem;
+    }
+
+    .status {
+      padding: 10px 18px 0;
+      color: var(--warn);
+      font-size: 0.9rem;
+      min-height: 28px;
+    }
+
+    .grid {
+      padding: 14px 18px 18px;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 12px;
+    }
+
+    .card {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      background: #fff;
+      display: grid;
+      grid-template-rows: 145px auto auto;
+    }
+
+    .thumb {
+      width: 100%;
+      height: 145px;
+      object-fit: contain;
+      background:
+        linear-gradient(45deg, #f2f4f8 25%, transparent 25%, transparent 75%, #f2f4f8 75%, #f2f4f8),
+        linear-gradient(45deg, #f2f4f8 25%, transparent 25%, transparent 75%, #f2f4f8 75%, #f2f4f8),
+        #fff;
+      background-size: 16px 16px;
+      background-position: 0 0, 8px 8px;
+      border-bottom: 1px solid var(--border);
+      padding: 6px;
+    }
+
+    .card-meta {
+      padding: 8px 10px 6px;
+      font-size: 0.85rem;
+      color: #3f4d60;
+    }
+
+    .card-actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      padding: 8px 10px 10px;
+    }
+
+    .card-actions label {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.84rem;
+      color: #334155;
+    }
+
+    .small {
+      padding: 6px 8px;
+      font-size: 0.78rem;
+      border-radius: 8px;
+    }
+
+    @media (max-width: 720px) {
+      .info {
+        margin-left: 0;
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="panel">
+      <header class="head">
+        <h1>애니메이션 프레임 선택</h1>
+        <div id="meta" class="meta">프레임 데이터를 기다리는 중...</div>
+      </header>
+
+      <div class="toolbar">
+        <button id="selectAllBtn" type="button">전체 선택</button>
+        <button id="clearSelBtn" type="button">선택 해제</button>
+        <button id="downloadSelectedBtn" class="primary" type="button">선택 프레임 다운로드 (ZIP)</button>
+        <button id="downloadEachBtn" class="accent" type="button">선택 프레임 개별 다운로드</button>
+        <div id="info" class="info"></div>
+      </div>
+
+      <div id="status" class="status"></div>
+      <div id="grid" class="grid"></div>
+    </section>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script>
+    const TARGET_META = {
+      bmp: { ext: "bmp", mime: "image/bmp" },
+      cur: { ext: "cur", mime: "image/x-icon" },
+      gif: { ext: "gif", mime: "image/gif" },
+      ico: { ext: "ico", mime: "image/x-icon" },
+      jpg: { ext: "jpg", mime: "image/jpeg" },
+      png: { ext: "png", mime: "image/png" },
+      webp: { ext: "webp", mime: "image/webp" }
+    };
+
+    let gifencModulePromise = null;
+
+    const grid = document.getElementById("grid");
+    const metaEl = document.getElementById("meta");
+    const statusEl = document.getElementById("status");
+    const infoEl = document.getElementById("info");
+    const selectAllBtn = document.getElementById("selectAllBtn");
+    const clearSelBtn = document.getElementById("clearSelBtn");
+    const downloadSelectedBtn = document.getElementById("downloadSelectedBtn");
+    const downloadEachBtn = document.getElementById("downloadEachBtn");
+
+    const params = new URLSearchParams(window.location.search);
+    const jobId = params.get("job");
+
+    let sourceName = "source";
+    let targetFormat = "png";
+    let frames = [];
+
+    if (!jobId) {
+      setStatus("작업 ID가 없습니다. 메인 화면에서 다시 시도해 주세요.");
+    } else if (!window.opener) {
+      setStatus("부모 창을 찾을 수 없습니다. 메인 화면에서 다시 실행해 주세요.");
+    } else {
+      window.opener.postMessage({ type: "frame-viewer-ready", jobId }, "*");
+      setStatus("프레임 데이터를 받는 중...");
+    }
+
+    window.addEventListener("message", (event) => {
+      const data = event.data;
+      if (!data || data.type !== "frame-job-data" || data.jobId !== jobId) {
+        return;
+      }
+
+      sourceName = data.payload.sourceName || "source";
+      targetFormat = data.payload.targetFormat || "png";
+      frames = Array.isArray(data.payload.frames) ? data.payload.frames : [];
+
+      if (!TARGET_META[targetFormat]) {
+        setStatus(`지원하지 않는 대상 형식: ${targetFormat}`);
+        return;
+      }
+
+      renderFrames();
+    });
+
+    selectAllBtn.addEventListener("click", () => {
+      setAllChecks(true);
+      refreshInfo();
+    });
+
+    clearSelBtn.addEventListener("click", () => {
+      setAllChecks(false);
+      refreshInfo();
+    });
+
+    downloadSelectedBtn.addEventListener("click", async () => {
+      const selected = getSelectedFrames();
+      if (selected.length === 0) {
+        setStatus("선택된 프레임이 없습니다.");
+        return;
+      }
+      await downloadAsZip(selected);
+    });
+
+    downloadEachBtn.addEventListener("click", async () => {
+      const selected = getSelectedFrames();
+      if (selected.length === 0) {
+        setStatus("선택된 프레임이 없습니다.");
+        return;
+      }
+
+      setBusy(true);
+      try {
+        for (const frame of selected) {
+          const converted = await convertFrame(frame.blob, targetFormat);
+          const name = makeFrameFileName(frame.index, targetFormat);
+          triggerDownload(converted, name);
+        }
+        setStatus(`선택된 ${selected.length}개 프레임을 개별 다운로드했습니다.`);
+      } catch (error) {
+        setStatus(`다운로드 중 오류: ${error.message}`);
+      } finally {
+        setBusy(false);
+      }
+    });
+
+    grid.addEventListener("change", (event) => {
+      if (event.target.matches("input[type='checkbox'][data-index]")) {
+        refreshInfo();
+      }
+    });
+
+    grid.addEventListener("click", async (event) => {
+      const btn = event.target.closest("button[data-download]");
+      if (!btn) {
+        return;
+      }
+
+      const idx = Number(btn.dataset.download);
+      const frame = frames.find((item) => item.index === idx);
+      if (!frame) {
+        return;
+      }
+
+      setBusy(true);
+      try {
+        const converted = await convertFrame(frame.blob, targetFormat);
+        triggerDownload(converted, makeFrameFileName(frame.index, targetFormat));
+        setStatus(`프레임 ${frame.index} 다운로드 완료`);
+      } catch (error) {
+        setStatus(`프레임 ${idx} 다운로드 실패: ${error.message}`);
+      } finally {
+        setBusy(false);
+      }
+    });
+
+    window.addEventListener("beforeunload", () => {
+      for (const frame of frames) {
+        if (frame.url) {
+          URL.revokeObjectURL(frame.url);
+        }
+      }
+    });
+
+    function renderFrames() {
+      for (const frame of frames) {
+        if (frame.url) {
+          URL.revokeObjectURL(frame.url);
+        }
+      }
+
+      frames = frames.map((frame, i) => ({
+        index: i + 1,
+        blob: frame.blob,
+        url: URL.createObjectURL(frame.blob)
+      }));
+
+      grid.innerHTML = "";
+
+      if (frames.length === 0) {
+        setStatus("표시할 프레임이 없습니다.");
+        metaEl.textContent = "프레임이 비어 있습니다.";
+        return;
+      }
+
+      const targetLabel = `${targetFormat} (정지 이미지)`;
+      metaEl.textContent = `원본: ${sourceName} | 추출 프레임: ${frames.length}개 | 다운로드 형식: ${targetLabel}`;
+
+      for (const frame of frames) {
+        const card = document.createElement("article");
+        card.className = "card";
+        card.innerHTML = `
+          <img class="thumb" src="${frame.url}" alt="frame ${frame.index}" loading="lazy" />
+          <div class="card-meta">Frame #${frame.index}</div>
+          <div class="card-actions">
+            <label><input type="checkbox" data-index="${frame.index}" checked /> 선택</label>
+            <button type="button" class="small" data-download="${frame.index}">다운로드</button>
+          </div>
+        `;
+        grid.appendChild(card);
+      }
+
+      setStatus(`총 ${frames.length}개 프레임을 불러왔습니다.`);
+      refreshInfo();
+    }
+
+    async function downloadAsZip(selectedFrames) {
+      if (typeof JSZip === "undefined") {
+        setStatus("ZIP 라이브러리를 불러오지 못했습니다.");
+        return;
+      }
+
+      setBusy(true);
+      setStatus(`ZIP 생성 중... (${selectedFrames.length}개 프레임)`);
+      try {
+        const zip = new JSZip();
+
+        for (const frame of selectedFrames) {
+          const converted = await convertFrame(frame.blob, targetFormat);
+          const name = makeFrameFileName(frame.index, targetFormat);
+          zip.file(name, converted);
+        }
+
+        const zipBlob = await zip.generateAsync({ type: "blob" });
+        const base = stripExt(sourceName);
+        const zipName = `${base}_${targetFormat}_frames.zip`;
+        triggerDownload(zipBlob, zipName);
+        setStatus(`ZIP 다운로드 완료: ${zipName}`);
+      } catch (error) {
+        setStatus(`ZIP 생성 실패: ${error.message}`);
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    function getSelectedFrames() {
+      const checks = Array.from(grid.querySelectorAll("input[type='checkbox'][data-index]"));
+      const selectedIndexes = checks
+        .filter((el) => el.checked)
+        .map((el) => Number(el.dataset.index));
+
+      return frames.filter((frame) => selectedIndexes.includes(frame.index));
+    }
+
+    function setAllChecks(value) {
+      const checks = grid.querySelectorAll("input[type='checkbox'][data-index]");
+      checks.forEach((el) => {
+        el.checked = value;
+      });
+    }
+
+    function refreshInfo() {
+      const selected = getSelectedFrames().length;
+      infoEl.textContent = `선택 ${selected} / 전체 ${frames.length}`;
+    }
+
+    function setBusy(flag) {
+      selectAllBtn.disabled = flag;
+      clearSelBtn.disabled = flag;
+      downloadSelectedBtn.disabled = flag;
+      downloadEachBtn.disabled = flag;
+    }
+
+    function setStatus(message) {
+      statusEl.textContent = message;
+    }
+
+    async function convertFrame(frameBlob, target) {
+      if (target === "png") {
+        return frameBlob;
+      }
+
+      const img = await loadImageFromBlob(frameBlob);
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0);
+
+      if (target === "jpg") {
+        return canvasToBlob(canvas, "image/jpeg", 0.92);
+      }
+      if (target === "webp") {
+        return canvasToBlob(canvas, "image/webp", 0.92);
+      }
+      if (target === "gif") {
+        return encodeStaticGif(canvas);
+      }
+      if (target === "bmp") {
+        return canvasToBmpBlob(canvas);
+      }
+      if (target === "ico" || target === "cur") {
+        return canvasToIcoOrCurBlob(canvas, target);
+      }
+
+      throw new Error(`지원하지 않는 형식: ${target}`);
+    }
+
+    async function encodeStaticGif(canvas) {
+      const { GIFEncoder, quantize, applyPalette } = await ensureGifenc();
+      const ctx = canvas.getContext("2d");
+      const rgba = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+
+      const palette = quantize(rgba, 256, {
+        format: "rgba4444",
+        oneBitAlpha: true
+      });
+      const indexed = applyPalette(rgba, palette, "rgba4444");
+      const gif = GIFEncoder();
+
+      gif.writeFrame(indexed, canvas.width, canvas.height, {
+        palette,
+        delay: 100,
+        transparent: true
+      });
+      gif.finish();
+
+      return new Blob([gif.bytesView()], { type: "image/gif" });
+    }
+
+    async function ensureGifenc() {
+      if (!gifencModulePromise) {
+        gifencModulePromise = import("https://esm.sh/gifenc@1.0.3");
+      }
+      return gifencModulePromise;
+    }
+
+    async function loadImageFromBlob(blob) {
+      const url = URL.createObjectURL(blob);
+      try {
+        const img = new Image();
+        img.decoding = "async";
+        await new Promise((resolve, reject) => {
+          img.onload = resolve;
+          img.onerror = () => reject(new Error("이미지를 불러오지 못했습니다."));
+          img.src = url;
+        });
+        return img;
+      } finally {
+        URL.revokeObjectURL(url);
+      }
+    }
+
+    function canvasToBlob(canvas, mimeType, quality) {
+      return new Promise((resolve, reject) => {
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) {
+              reject(new Error("캔버스 변환 실패"));
+              return;
+            }
+            resolve(blob);
+          },
+          mimeType,
+          quality
+        );
+      });
+    }
+
+    async function canvasToIcoOrCurBlob(canvas, type) {
+      const max = 256;
+      const width = Math.min(canvas.width, max);
+      const height = Math.min(canvas.height, max);
+
+      const iconCanvas = document.createElement("canvas");
+      iconCanvas.width = width;
+      iconCanvas.height = height;
+      const iconCtx = iconCanvas.getContext("2d");
+      iconCtx.drawImage(canvas, 0, 0, width, height);
+
+      const pngBlob = await canvasToBlob(iconCanvas, "image/png");
+      const pngBuffer = await pngBlob.arrayBuffer();
+      const pngBytes = new Uint8Array(pngBuffer);
+
+      const out = new Uint8Array(6 + 16 + pngBytes.length);
+      const view = new DataView(out.buffer);
+
+      view.setUint16(0, 0, true);
+      view.setUint16(2, type === "cur" ? 2 : 1, true);
+      view.setUint16(4, 1, true);
+
+      out[6] = width === 256 ? 0 : width;
+      out[7] = height === 256 ? 0 : height;
+      out[8] = 0;
+      out[9] = 0;
+
+      if (type === "cur") {
+        view.setUint16(10, Math.floor(width / 2), true);
+        view.setUint16(12, Math.floor(height / 2), true);
+      } else {
+        view.setUint16(10, 1, true);
+        view.setUint16(12, 32, true);
+      }
+
+      view.setUint32(14, pngBytes.length, true);
+      view.setUint32(18, 22, true);
+      out.set(pngBytes, 22);
+
+      return new Blob([out], { type: "image/x-icon" });
+    }
+
+    async function canvasToBmpBlob(canvas) {
+      const ctx = canvas.getContext("2d");
+      const { width, height } = canvas;
+      const imageData = ctx.getImageData(0, 0, width, height);
+      const rgba = imageData.data;
+
+      const rowSize = Math.ceil((width * 3) / 4) * 4;
+      const pixelDataSize = rowSize * height;
+      const headerSize = 54;
+      const fileSize = headerSize + pixelDataSize;
+
+      const buffer = new ArrayBuffer(fileSize);
+      const view = new DataView(buffer);
+      const bytes = new Uint8Array(buffer);
+
+      bytes[0] = 0x42;
+      bytes[1] = 0x4d;
+      view.setUint32(2, fileSize, true);
+      view.setUint32(10, headerSize, true);
+      view.setUint32(14, 40, true);
+      view.setInt32(18, width, true);
+      view.setInt32(22, height, true);
+      view.setUint16(26, 1, true);
+      view.setUint16(28, 24, true);
+      view.setUint32(34, pixelDataSize, true);
+      view.setInt32(38, 2835, true);
+      view.setInt32(42, 2835, true);
+
+      let offset = headerSize;
+      for (let y = height - 1; y >= 0; y -= 1) {
+        for (let x = 0; x < width; x += 1) {
+          const src = (y * width + x) * 4;
+          bytes[offset] = rgba[src + 2];
+          bytes[offset + 1] = rgba[src + 1];
+          bytes[offset + 2] = rgba[src];
+          offset += 3;
+        }
+        const rowPadding = rowSize - width * 3;
+        for (let p = 0; p < rowPadding; p += 1) {
+          bytes[offset] = 0;
+          offset += 1;
+        }
+      }
+
+      return new Blob([buffer], { type: "image/bmp" });
+    }
+
+    function makeFrameFileName(index, target) {
+      const base = stripExt(sourceName);
+      const seq = String(index).padStart(4, "0");
+      const ext = TARGET_META[target].ext;
+      return `${base}_frame_${seq}.${ext}`;
+    }
+
+    function stripExt(name) {
+      const dot = name.lastIndexOf(".");
+      return dot > -1 ? name.slice(0, dot) : name;
+    }
+
+    function triggerDownload(blob, fileName) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+  </script>
+</body>
+</html>
