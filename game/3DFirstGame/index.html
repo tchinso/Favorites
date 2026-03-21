@@ -462,7 +462,7 @@ button:hover {
   }
 
   function spawnEnemies(dungeon, level) {
-    const baselineCount = 5 + level * 1.6 + Math.random() * 3;
+    const baselineCount = 5.5 + level * 0.12 + Math.random() * 3;
     const enemyCount = Math.min(ENEMY_COUNT_CAP, Math.floor(baselineCount * ENEMY_SPAWN_MULTIPLIER));
     let attempts = 0;
 
