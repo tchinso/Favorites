@@ -13,8 +13,62 @@
 	var sourceUrlCheckbox = form.querySelector('[name="u"]');
 	var targetUrlCheckbox = form.querySelector('[name="r"]');
 	var copyButton = document.getElementById("copy-btn");
+	var keyboardSourceTextarea = document.getElementById("keyboard-source-text");
+	var keyboardTargetTextarea = document.getElementById("keyboard-target-text");
+	var keyboardCopyButton = document.getElementById("keyboard-copy-btn");
 	var statusNode = document.getElementById("status");
 	var runToken = 0;
+
+	var keyboardMap = {
+		"r": "ㄱ", "R": "ㄲ", "s": "ㄴ", "e": "ㄷ", "E": "ㄸ", "f": "ㄹ",
+		"a": "ㅁ", "q": "ㅂ", "Q": "ㅃ", "t": "ㅅ", "T": "ㅆ", "d": "ㅇ",
+		"w": "ㅈ", "W": "ㅉ", "c": "ㅊ", "z": "ㅋ", "x": "ㅌ", "v": "ㅍ",
+		"g": "ㅎ", "k": "ㅏ", "o": "ㅐ", "i": "ㅑ", "O": "ㅒ", "j": "ㅓ",
+		"p": "ㅔ", "u": "ㅕ", "P": "ㅖ", "h": "ㅗ", "y": "ㅛ", "n": "ㅜ",
+		"b": "ㅠ", "m": "ㅡ", "l": "ㅣ"
+	};
+
+	var choseongList = ["ㄱ", "ㄲ", "ㄴ", "ㄷ", "ㄸ", "ㄹ", "ㅁ", "ㅂ", "ㅃ", "ㅅ", "ㅆ", "ㅇ", "ㅈ", "ㅉ", "ㅊ", "ㅋ", "ㅌ", "ㅍ", "ㅎ"];
+	var jungseongList = ["ㅏ", "ㅐ", "ㅑ", "ㅒ", "ㅓ", "ㅔ", "ㅕ", "ㅖ", "ㅗ", "ㅘ", "ㅙ", "ㅚ", "ㅛ", "ㅜ", "ㅝ", "ㅞ", "ㅟ", "ㅠ", "ㅡ", "ㅢ", "ㅣ"];
+	var jongseongList = ["", "ㄱ", "ㄲ", "ㄳ", "ㄴ", "ㄵ", "ㄶ", "ㄷ", "ㄹ", "ㄺ", "ㄻ", "ㄼ", "ㄽ", "ㄾ", "ㄿ", "ㅀ", "ㅁ", "ㅂ", "ㅄ", "ㅅ", "ㅆ", "ㅇ", "ㅈ", "ㅊ", "ㅋ", "ㅌ", "ㅍ", "ㅎ"];
+	var complexVowelMap = {
+		"ㅗㅏ": "ㅘ",
+		"ㅗㅐ": "ㅙ",
+		"ㅗㅣ": "ㅚ",
+		"ㅜㅓ": "ㅝ",
+		"ㅜㅔ": "ㅞ",
+		"ㅜㅣ": "ㅟ",
+		"ㅡㅣ": "ㅢ"
+	};
+	var complexFinalMap = {
+		"ㄱㅅ": "ㄳ",
+		"ㄴㅈ": "ㄵ",
+		"ㄴㅎ": "ㄶ",
+		"ㄹㄱ": "ㄺ",
+		"ㄹㅁ": "ㄻ",
+		"ㄹㅂ": "ㄼ",
+		"ㄹㅅ": "ㄽ",
+		"ㄹㅌ": "ㄾ",
+		"ㄹㅍ": "ㄿ",
+		"ㄹㅎ": "ㅀ",
+		"ㅂㅅ": "ㅄ"
+	};
+	var finalSplitMap = {
+		"ㄳ": ["ㄱ", "ㅅ"],
+		"ㄵ": ["ㄴ", "ㅈ"],
+		"ㄶ": ["ㄴ", "ㅎ"],
+		"ㄺ": ["ㄹ", "ㄱ"],
+		"ㄻ": ["ㄹ", "ㅁ"],
+		"ㄼ": ["ㄹ", "ㅂ"],
+		"ㄽ": ["ㄹ", "ㅅ"],
+		"ㄾ": ["ㄹ", "ㅌ"],
+		"ㄿ": ["ㄹ", "ㅍ"],
+		"ㅀ": ["ㄹ", "ㅎ"],
+		"ㅄ": ["ㅂ", "ㅅ"]
+	};
+	var choseongIndex = createIndexMap(choseongList);
+	var jungseongIndex = createIndexMap(jungseongList);
+	var jongseongIndex = createIndexMap(jongseongList);
 
 	var decoderEncodingMap = {
 		"windows-1252": "windows-1252",
@@ -72,6 +126,142 @@
 		}
 		statusNode.textContent = message || "";
 		statusNode.style.color = isError ? "#b42318" : "";
+	}
+
+	function createIndexMap(list) {
+		var map = Object.create(null);
+		for (var i = 0; i < list.length; i += 1) {
+			map[list[i]] = i;
+		}
+		return map;
+	}
+
+	function isConsonant(char) {
+		return Object.prototype.hasOwnProperty.call(choseongIndex, char);
+	}
+
+	function isVowel(char) {
+		return Object.prototype.hasOwnProperty.call(jungseongIndex, char);
+	}
+
+	function combineSyllable(initial, medial, final) {
+		if (!initial && !medial && !final) {
+			return "";
+		}
+		if (!initial && medial) {
+			return medial;
+		}
+		if (initial && !medial) {
+			return initial;
+		}
+		var initialIndex = choseongIndex[initial];
+		var medialIndex = jungseongIndex[medial];
+		var finalIndex = jongseongIndex[final || ""];
+		if (initialIndex === undefined || medialIndex === undefined || finalIndex === undefined) {
+			return (initial || "") + (medial || "") + (final || "");
+		}
+		return String.fromCharCode(0xAC00 + (initialIndex * 21 + medialIndex) * 28 + finalIndex);
+	}
+
+	function convertKeyboardToHangul(text) {
+		var mapped = [];
+		var i;
+		for (i = 0; i < text.length; i += 1) {
+			var original = text.charAt(i);
+			mapped.push(keyboardMap[original] || original);
+		}
+
+		var result = "";
+		var initial = "";
+		var medial = "";
+		var final = "";
+
+		function flush() {
+			result += combineSyllable(initial, medial, final);
+			initial = "";
+			medial = "";
+			final = "";
+		}
+
+		for (i = 0; i < mapped.length; i += 1) {
+			var current = mapped[i];
+			var next = mapped[i + 1];
+
+			if (!isConsonant(current) && !isVowel(current)) {
+				flush();
+				result += current;
+				continue;
+			}
+
+			if (isVowel(current)) {
+				if (!initial) {
+					initial = "ㅇ";
+				}
+
+				if (!medial) {
+					medial = current;
+					continue;
+				}
+
+				var combinedMedial = complexVowelMap[medial + current];
+				if (combinedMedial) {
+					medial = combinedMedial;
+					continue;
+				}
+
+				if (final) {
+					var splitFinal = finalSplitMap[final];
+					if (splitFinal) {
+						result += combineSyllable(initial, medial, splitFinal[0]);
+						initial = splitFinal[1];
+					} else {
+						result += combineSyllable(initial, medial, "");
+						initial = final;
+					}
+					medial = current;
+					final = "";
+					continue;
+				}
+
+				flush();
+				initial = "ㅇ";
+				medial = current;
+				continue;
+			}
+
+			if (!initial) {
+				initial = current;
+				continue;
+			}
+
+			if (!medial) {
+				result += initial;
+				initial = current;
+				continue;
+			}
+
+			if (!final) {
+				if (next && isVowel(next)) {
+					flush();
+					initial = current;
+					continue;
+				}
+				final = current;
+				continue;
+			}
+
+			var combinedFinal = complexFinalMap[final + current];
+			if (combinedFinal && !(next && isVowel(next))) {
+				final = combinedFinal;
+				continue;
+			}
+
+			flush();
+			initial = current;
+		}
+
+		flush();
+		return result;
 	}
 
 	function normalizeInput(text, decodeUrl) {
@@ -785,6 +975,39 @@
 		});
 	}
 
+	function installKeyboardConverter() {
+		if (!keyboardSourceTextarea || !keyboardTargetTextarea) {
+			return;
+		}
+
+		function updateKeyboardResult() {
+			keyboardTargetTextarea.value = convertKeyboardToHangul(keyboardSourceTextarea.value || "");
+		}
+
+		keyboardSourceTextarea.addEventListener("input", updateKeyboardResult);
+		keyboardSourceTextarea.addEventListener("change", updateKeyboardResult);
+		updateKeyboardResult();
+
+		if (!keyboardCopyButton) {
+			return;
+		}
+
+		keyboardCopyButton.addEventListener("click", async function () {
+			if (!keyboardTargetTextarea.value) {
+				setStatus("복사할 영타 변환 결과가 없습니다.", true);
+				return;
+			}
+			try {
+				await navigator.clipboard.writeText(keyboardTargetTextarea.value);
+				setStatus("영타 변환 결과를 클립보드에 복사했습니다.");
+			} catch (error) {
+				keyboardTargetTextarea.select();
+				document.execCommand("copy");
+				setStatus("영타 변환 결과를 클립보드에 복사했습니다.");
+			}
+		});
+	}
+
 	sourceTextarea.addEventListener("input", sendReq);
 	sourceTextarea.addEventListener("change", sendReq);
 	sourceEncoding.addEventListener("change", onSourceEncodingChanged);
@@ -792,5 +1015,6 @@
 	sourceUrlCheckbox.addEventListener("change", sendReq);
 	targetUrlCheckbox.addEventListener("change", sendReq);
 	installCopyHandler();
+	installKeyboardConverter();
 	onSourceEncodingChanged();
 })();

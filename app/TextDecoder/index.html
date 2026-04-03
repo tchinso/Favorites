@@ -135,7 +135,13 @@ button:focus-visible {
 	justify-content: space-between;
 	margin-top: 4px;
 }
-#copy-btn {
+.button-row {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+}
+#copy-btn,
+#keyboard-copy-btn {
 	border: 0;
 	height: 40px;
 	padding: 0 14px;
@@ -147,11 +153,13 @@ button:focus-visible {
 	cursor: pointer;
 	transition: transform 120ms ease, filter 120ms ease;
 }
-#copy-btn:hover {
+#copy-btn:hover,
+#keyboard-copy-btn:hover {
 	filter: brightness(1.03);
 	transform: translateY(-1px);
 }
-#copy-btn:active {
+#copy-btn:active,
+#keyboard-copy-btn:active {
 	transform: translateY(0);
 }
 #status {
@@ -251,8 +259,19 @@ button:focus-visible {
 			<textarea id="target-text" readonly placeholder="벴녀몃렷두렷깅흐"></textarea>
 		</section>
 
+		<section class="panel">
+			<h2>영타변환기</h2>
+			<label for="keyboard-source-text">영문 키보드로 잘못 입력한 문장</label>
+			<textarea id="keyboard-source-text" placeholder="dlwmalgldyfl"></textarea>
+			<label for="keyboard-target-text">한글로 조합된 결과</label>
+			<textarea id="keyboard-target-text" readonly placeholder="이즈미히요리"></textarea>
+		</section>
+
 		<div class="toolbar">
-			<button type="button" id="copy-btn">결과 복사</button>
+			<div class="button-row">
+				<button type="button" id="copy-btn">결과 복사</button>
+				<button type="button" id="keyboard-copy-btn">영타 결과 복사</button>
+			</div>
 			<p id="status" aria-live="polite"></p>
 		</div>
 	</form>
