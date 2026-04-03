@@ -1,0 +1,464 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>유니코드 원클릭 복사 도구</title>
+  <style>
+    :root {
+      --bg: #f4f7f8;
+      --panel: #ffffff;
+      --ink: #11212d;
+      --muted: #4f6b77;
+      --line: #d6e0e4;
+      --brand: #0f766e;
+      --brand-2: #0c4a6e;
+      --ok: #0a7a43;
+      --chip: #e7f6f4;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      height: 100%;
+      font-family: "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", "Segoe UI", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(1200px 500px at 15% -20%, #d8f3ef 0%, transparent 60%),
+        radial-gradient(900px 500px at 85% -25%, #dbeafe 0%, transparent 55%),
+        var(--bg);
+    }
+
+    body {
+      overflow: hidden;
+    }
+
+    .app {
+      max-width: 1200px;
+      margin: 0 auto;
+      height: 100dvh;
+      display: grid;
+      grid-template-rows: auto auto 1fr auto;
+      gap: 10px;
+      padding: 14px 12px calc(12px + env(safe-area-inset-bottom));
+    }
+
+    .head {
+      background: linear-gradient(135deg, #0f766e, #0c4a6e);
+      color: #ecfeff;
+      border-radius: 16px;
+      padding: 14px 16px;
+      box-shadow: 0 10px 25px rgba(8, 42, 49, 0.15);
+    }
+
+    .head h1 {
+      margin: 0;
+      font-size: clamp(1.1rem, 2.7vw, 1.45rem);
+      letter-spacing: -0.01em;
+    }
+
+    .head p {
+      margin: 6px 0 0;
+      font-size: 0.91rem;
+      opacity: 0.95;
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 8px;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      padding-bottom: 2px;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: thin;
+    }
+
+    .tab {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      color: var(--ink);
+      border-radius: 999px;
+      font-size: 0.9rem;
+      line-height: 1;
+      padding: 10px 12px;
+      white-space: nowrap;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      min-height: 40px;
+    }
+
+    .tab.active {
+      background: var(--brand);
+      border-color: var(--brand);
+      color: #ecfeff;
+      box-shadow: 0 6px 15px rgba(15, 118, 110, 0.25);
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 10px;
+      overflow: auto;
+      min-height: 0;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 8px;
+    }
+
+    .item {
+      border: 1px solid var(--line);
+      background: #fcfeff;
+      border-radius: 12px;
+      padding: 10px 9px;
+      text-align: left;
+      cursor: pointer;
+      transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+      min-height: 92px;
+      touch-action: manipulation;
+    }
+
+    .item:hover,
+    .item:focus-visible {
+      transform: translateY(-1px);
+      border-color: #99bac4;
+      box-shadow: 0 4px 14px rgba(17, 33, 45, 0.12);
+      outline: none;
+    }
+
+    .glyph {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      min-height: 32px;
+      border-radius: 8px;
+      background: #f4f9fb;
+      color: #0a3343;
+      font-size: 1.35rem;
+      line-height: 1;
+      margin-bottom: 8px;
+      font-weight: 600;
+    }
+
+    .glyph.invisible {
+      font-size: 0.78rem;
+      color: var(--muted);
+      letter-spacing: 0.01em;
+      border: 1px dashed #a8c0c8;
+      background: #f9fcfd;
+    }
+
+    .code {
+      display: inline-block;
+      font-size: 0.74rem;
+      color: var(--brand-2);
+      background: var(--chip);
+      border-radius: 999px;
+      padding: 3px 8px;
+      margin-bottom: 6px;
+    }
+
+    .desc {
+      margin: 0;
+      font-size: 0.81rem;
+      line-height: 1.3;
+      color: #27424e;
+      word-break: keep-all;
+    }
+
+    .foot {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      min-height: 34px;
+    }
+
+    .hint {
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+
+    .toast {
+      font-size: 0.82rem;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: #e8f9ef;
+      color: var(--ok);
+      border: 1px solid #c0eecf;
+      opacity: 0;
+      transform: translateY(2px);
+      transition: all 0.18s ease;
+      pointer-events: none;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    @media (max-width: 680px) {
+      .app {
+        padding: 10px 8px calc(10px + env(safe-area-inset-bottom));
+        gap: 8px;
+      }
+
+      .panel {
+        padding: 8px;
+        border-radius: 14px;
+      }
+
+      .grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .item {
+        min-height: 96px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header class="head">
+      <h1>유니코드 원클릭 복사</h1>
+      <p>문자를 누르면 바로 복사됩니다. (모바일/데스크탑 공통)</p>
+    </header>
+
+    <nav class="toolbar" id="tabs" aria-label="카테고리"></nav>
+    <section class="panel">
+      <div class="grid" id="grid"></div>
+    </section>
+
+    <footer class="foot">
+      <span class="hint">데스크탑은 화면 내부 스크롤, 모바일은 큰 터치 버튼으로 최적화</span>
+      <span class="toast" id="toast" aria-live="polite"></span>
+    </footer>
+  </main>
+
+  <script>
+    const fromCode = (hex) => String.fromCodePoint(parseInt(hex, 16));
+
+    const categories = [
+      {
+        key: "often",
+        title: "자주 쓰이는 문자",
+        items: [
+          { char: "←", code: "U+2190", desc: "왼쪽 화살표" },
+          { char: "→", code: "U+2192", desc: "오른쪽 화살표" },
+          { char: "○", code: "U+25CB", desc: "빈 원" },
+          { char: "…", code: "U+2026", desc: "가로 줄임표(세 점)" },
+          { char: "※", code: "U+203B", desc: "참고표" },
+          { char: "`", code: "U+0060", desc: "백틱(그레이브 액센트)" },
+          { char: "|", code: "U+007C", desc: "세로 막대" },
+          { char: "♪", code: "U+266A", desc: "8분음표" },
+          { char: "♫", code: "U+266B", desc: "빔 8분음표" },
+          { char: "♩", code: "U+2669", desc: "4분음표" },
+          { char: "♬", code: "U+266C", desc: "빔 16분음표" },
+          { char: "☆", code: "U+2606", desc: "빈 별" },
+          { char: "♡", code: "U+2661", desc: "빈 하트" }
+        ]
+      },
+      {
+        key: "fullwidth",
+        title: "전각 문장 부호",
+        items: [
+          { char: "！", code: "U+FF01", desc: "전각 느낌표" },
+          { char: "＂", code: "U+FF02", desc: "전각 큰따옴표" },
+          { char: "＆", code: "U+FF06", desc: "전각 앰퍼샌드" },
+          { char: "＇", code: "U+FF07", desc: "전각 작은따옴표" },
+          { char: "（", code: "U+FF08", desc: "전각 여는 괄호" },
+          { char: "）", code: "U+FF09", desc: "전각 닫는 괄호" },
+          { char: "，", code: "U+FF0C", desc: "전각 쉼표" },
+          { char: "．", code: "U+FF0E", desc: "전각 마침표" },
+          { char: "：", code: "U+FF1A", desc: "전각 콜론" },
+          { char: "；", code: "U+FF1B", desc: "전각 세미콜론" },
+          { char: "？", code: "U+FF1F", desc: "전각 물음표" },
+          { char: "＠", code: "U+FF20", desc: "전각 골뱅이" },
+          { char: "［", code: "U+FF3B", desc: "전각 여는 대괄호" },
+          { char: "］", code: "U+FF3D", desc: "전각 닫는 대괄호" },
+          { char: "｛", code: "U+FF5B", desc: "전각 여는 중괄호" },
+          { char: "｝", code: "U+FF5D", desc: "전각 닫는 중괄호" },
+          { char: "～", code: "U+FF5E", desc: "전각 물결표" }
+        ]
+      },
+      {
+        key: "ja-punc",
+        title: "일본어 문장 부호",
+        items: [
+          { char: "、", code: "U+3001", desc: "일본어 쉼표(토텐)" },
+          { char: "。", code: "U+3002", desc: "일본어 마침표(쿠텐)" },
+          { char: "「", code: "U+300C", desc: "여는 가로 홑낫표" },
+          { char: "」", code: "U+300D", desc: "닫는 가로 홑낫표" },
+          { char: "『", code: "U+300E", desc: "여는 가로 겹낫표" },
+          { char: "』", code: "U+300F", desc: "닫는 가로 겹낫표" },
+          { char: "【", code: "U+3010", desc: "여는 검은 렌즈 괄호" },
+          { char: "】", code: "U+3011", desc: "닫는 검은 렌즈 괄호" },
+          { char: "〈", code: "U+3008", desc: "여는 홑 꺾쇠 괄호" },
+          { char: "〉", code: "U+3009", desc: "닫는 홑 꺾쇠 괄호" },
+          { char: "《", code: "U+300A", desc: "여는 겹 꺾쇠 괄호" },
+          { char: "》", code: "U+300B", desc: "닫는 겹 꺾쇠 괄호" },
+          { char: "〔", code: "U+3014", desc: "여는 거북 괄호" },
+          { char: "〕", code: "U+3015", desc: "닫는 거북 괄호" },
+          { char: "〖", code: "U+3016", desc: "여는 흰 거북 괄호" },
+          { char: "〗", code: "U+3017", desc: "닫는 흰 거북 괄호" },
+          { char: "〘", code: "U+3018", desc: "여는 흰 렌즈 괄호" },
+          { char: "〙", code: "U+3019", desc: "닫는 흰 렌즈 괄호" },
+          { char: "〚", code: "U+301A", desc: "여는 흰 대괄호" },
+          { char: "〛", code: "U+301B", desc: "닫는 흰 대괄호" }
+        ]
+      },
+      {
+        key: "ja-common",
+        title: "일본에서 많이 쓰이는 부호",
+        items: [
+          { char: "〜", code: "U+301C", desc: "물결 대시" },
+          { char: "〰", code: "U+3030", desc: "물결선" },
+          { char: "〃", code: "U+3003", desc: "반복 기호(동상 부호)" },
+          { char: "々", code: "U+3005", desc: "한자 반복 기호" },
+          { char: "〆", code: "U+3006", desc: "시메(마감 표시)" },
+          { char: "〇", code: "U+3007", desc: "한자 숫자 영(원형)" },
+          { char: "・", code: "U+30FB", desc: "가운뎃점(나카구로)" },
+          { char: "ー", code: "U+30FC", desc: "가타카나 장음 기호" },
+          { char: "…", code: "U+2026", desc: "가로 줄임표(세 점)" },
+          { char: "‥", code: "U+2025", desc: "두 점 리더" },
+          { char: "―", code: "U+2015", desc: "수평 막대" },
+          { char: "※", code: "U+203B", desc: "참고표" },
+          { char: "☆", code: "U+2606", desc: "흰 별" },
+          { char: "★", code: "U+2605", desc: "검은 별" },
+          { char: "♪", code: "U+266A", desc: "음표" },
+          { char: "♡", code: "U+2661", desc: "흰 하트" },
+          { char: "♥", code: "U+2665", desc: "검은 하트" },
+          { char: "○", code: "U+25CB", desc: "흰 원" },
+          { char: "◎", code: "U+25CE", desc: "이중 원" },
+          { char: "●", code: "U+25CF", desc: "검은 원" },
+          { char: "□", code: "U+25A1", desc: "흰 사각형" },
+          { char: "■", code: "U+25A0", desc: "검은 사각형" },
+          { char: "△", code: "U+25B3", desc: "흰 위쪽 삼각형" },
+          { char: "▲", code: "U+25B2", desc: "검은 위쪽 삼각형" },
+          { char: "▽", code: "U+25BD", desc: "흰 아래쪽 삼각형" },
+          { char: "▼", code: "U+25BC", desc: "검은 아래쪽 삼각형" }
+        ]
+      },
+      {
+        key: "blank",
+        title: "빈 문자(보이지 않는 문자)",
+        items: [
+          { char: fromCode("2800"), code: "U+2800", desc: "점자 공백(Braille Pattern Blank)", invisible: true },
+          { char: fromCode("3164"), code: "U+3164", desc: "한글 채움 문자(Hangul Filler)", invisible: true },
+          { char: fromCode("115F"), code: "U+115F", desc: "초성 채움 문자", invisible: true },
+          { char: fromCode("1160"), code: "U+1160", desc: "중성 채움 문자", invisible: true },
+          { char: fromCode("200B"), code: "U+200B", desc: "제로폭 공백(Zero Width Space)", invisible: true },
+          { char: fromCode("200C"), code: "U+200C", desc: "제로폭 비결합 문자(ZWNJ)", invisible: true },
+          { char: fromCode("200D"), code: "U+200D", desc: "제로폭 결합 문자(ZWJ)", invisible: true },
+          { char: fromCode("200E"), code: "U+200E", desc: "좌에서 우 방향 표시(LRM)", invisible: true },
+          { char: fromCode("200F"), code: "U+200F", desc: "우에서 좌 방향 표시(RLM)", invisible: true },
+          { char: fromCode("202A"), code: "U+202A", desc: "좌-우 임베딩 시작(LRE)", invisible: true },
+          { char: fromCode("202C"), code: "U+202C", desc: "방향 서식 종료(PDF)", invisible: true },
+          { char: fromCode("202D"), code: "U+202D", desc: "좌-우 강제 방향(LRO)", invisible: true },
+          { char: fromCode("202E"), code: "U+202E", desc: "우-좌 강제 방향(RLO)", invisible: true },
+          { char: fromCode("2060"), code: "U+2060", desc: "단어 결합자(Word Joiner)", invisible: true },
+          { char: fromCode("2061"), code: "U+2061", desc: "보이지 않는 함수 적용", invisible: true },
+          { char: fromCode("2062"), code: "U+2062", desc: "보이지 않는 곱셈 기호", invisible: true },
+          { char: fromCode("2063"), code: "U+2063", desc: "보이지 않는 구분자", invisible: true },
+          { char: fromCode("2064"), code: "U+2064", desc: "보이지 않는 덧셈 기호", invisible: true },
+          { char: fromCode("FEFF"), code: "U+FEFF", desc: "제로폭 줄바꿈 없음 공백(BOM)", invisible: true },
+          { char: fromCode("2002"), code: "U+2002", desc: "EN 공백", invisible: true },
+          { char: fromCode("2003"), code: "U+2003", desc: "EM 공백", invisible: true },
+          { char: fromCode("2004"), code: "U+2004", desc: "3분의 1 EM 공백", invisible: true },
+          { char: fromCode("2005"), code: "U+2005", desc: "4분의 1 EM 공백", invisible: true },
+          { char: fromCode("2006"), code: "U+2006", desc: "6분의 1 EM 공백", invisible: true },
+          { char: fromCode("2007"), code: "U+2007", desc: "숫자 폭 공백(Figure Space)", invisible: true },
+          { char: fromCode("2008"), code: "U+2008", desc: "문장 부호 폭 공백", invisible: true },
+          { char: fromCode("2009"), code: "U+2009", desc: "얇은 공백(Thin Space)", invisible: true },
+          { char: fromCode("200A"), code: "U+200A", desc: "머리카락 공백(Hair Space)", invisible: true },
+          { char: fromCode("202F"), code: "U+202F", desc: "좁은 줄바꿈 없음 공백", invisible: true },
+          { char: fromCode("205F"), code: "U+205F", desc: "중간 수학 공백", invisible: true },
+          { char: fromCode("3000"), code: "U+3000", desc: "전각 공백(Ideographic Space)", invisible: true }
+        ]
+      }
+    ];
+
+    const tabs = document.getElementById("tabs");
+    const grid = document.getElementById("grid");
+    const toast = document.getElementById("toast");
+    let activeCategory = categories[0].key;
+    let toastTimer;
+
+    function showToast(text) {
+      clearTimeout(toastTimer);
+      toast.textContent = text;
+      toast.classList.add("show");
+      toastTimer = setTimeout(() => toast.classList.remove("show"), 1300);
+    }
+
+    async function copyChar(char, code) {
+      try {
+        await navigator.clipboard.writeText(char);
+        showToast(code + " 복사됨");
+      } catch {
+        const ta = document.createElement("textarea");
+        ta.value = char;
+        ta.setAttribute("readonly", "");
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        ta.remove();
+        showToast(code + " 복사됨");
+      }
+    }
+
+    function renderTabs() {
+      tabs.innerHTML = "";
+      categories.forEach((cat) => {
+        const btn = document.createElement("button");
+        btn.className = "tab" + (cat.key === activeCategory ? " active" : "");
+        btn.type = "button";
+        btn.textContent = cat.title;
+        btn.addEventListener("click", () => {
+          activeCategory = cat.key;
+          renderTabs();
+          renderGrid();
+        });
+        tabs.appendChild(btn);
+      });
+    }
+
+    function renderGrid() {
+      const target = categories.find((c) => c.key === activeCategory);
+      grid.innerHTML = "";
+
+      target.items.forEach((item) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "item";
+        btn.title = item.code + " 복사";
+        btn.setAttribute("aria-label", `${item.desc} (${item.code}) 복사`);
+        btn.addEventListener("click", () => copyChar(item.char, item.code));
+
+        const glyphClass = item.invisible ? "glyph invisible" : "glyph";
+        const glyphText = item.invisible ? "보이지 않음" : item.char;
+        btn.innerHTML = `
+          <div class="${glyphClass}">${glyphText}</div>
+          <span class="code">${item.code}</span>
+          <p class="desc">${item.desc}</p>
+        `;
+        grid.appendChild(btn);
+      });
+    }
+
+    renderTabs();
+    renderGrid();
+  </script>
+</body>
+</html>
