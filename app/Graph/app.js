@@ -777,39 +777,46 @@ async function readStateFromUrl() {
 
 function getPackedStateFromLocation() {
   const url = new URL(window.location.href);
-  const queryPacked = url.searchParams.get("s");
-  if (queryPacked) {
-    return queryPacked;
-  }
   const rawHash = window.location.hash.startsWith("#") ? window.location.hash.slice(1) : window.location.hash;
-  if (!rawHash) {
-    return null;
+  if (rawHash) {
+    const hashPacked = new URLSearchParams(rawHash).get("s");
+    if (hashPacked) {
+      return hashPacked;
+    }
   }
-  const hashPacked = new URLSearchParams(rawHash).get("s");
-  return hashPacked || null;
+  const queryPacked = url.searchParams.get("s");
+  return queryPacked || null;
 }
 
 function writePackedStateToLocation(packed) {
-  const queryUrl = new URL(window.location.href);
-  queryUrl.hash = "";
-  queryUrl.searchParams.set("s", packed);
+  const targetHash = `#s=${packed}`;
+  const hashUrl = buildShareUrlFromPacked(packed);
 
   try {
-    window.history.replaceState({}, "", queryUrl.toString());
-    return queryUrl.toString();
+    window.history.replaceState({}, "", hashUrl);
   } catch (_) {
-    const hashUrl = new URL(window.location.href);
-    hashUrl.searchParams.delete("s");
-    hashUrl.hash = `s=${packed}`;
-    window.location.hash = `s=${packed}`;
-    return hashUrl.toString();
+    // Ignore and fallback to direct hash assignment.
   }
+
+  if (window.location.hash !== targetHash) {
+    try {
+      window.location.hash = `s=${packed}`;
+    } catch (_) {
+      // Keep going to final validation below.
+    }
+  }
+
+  if (window.location.hash !== targetHash) {
+    throw new Error("브라우저가 URL 변경을 차단하고 있습니다.");
+  }
+
+  return new URL(window.location.href).toString();
 }
 
 function buildShareUrlFromPacked(packed) {
   const url = new URL(window.location.href);
-  url.hash = "";
-  url.searchParams.set("s", packed);
+  url.searchParams.delete("s");
+  url.hash = `s=${packed}`;
   return url.toString();
 }
 
