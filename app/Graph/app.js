@@ -166,10 +166,11 @@ function defaultDataForType(type, xType) {
 
 async function renderAndSync(silent = false) {
   const state = readStateFromForm();
+  let warning = "";
   try {
-    validateState(state);
+    warning = renderChart(state);
   } catch (error) {
-    setStatus(error instanceof Error ? error.message : "데이터 검증 실패", true);
+    setStatus(error instanceof Error ? error.message : "그래프 렌더링 실패", true);
     return false;
   }
 
@@ -177,30 +178,38 @@ async function renderAndSync(silent = false) {
     const packed = await packState(state);
     lastShareUrl = writePackedStateToLocation(packed);
   } catch (error) {
-    setStatus(error instanceof Error ? `URL 반영 실패: ${error.message}` : "URL 반영 실패", true);
+    if (!silent) {
+      setStatus(
+        error instanceof Error
+          ? `그래프는 생성됐지만 URL 반영 실패: ${error.message}`
+          : "그래프는 생성됐지만 URL 반영 실패",
+        true
+      );
+    }
     return false;
   }
 
-  try {
-    const warning = renderChart(state);
-    if (!silent) {
-      if (warning) {
-        setStatus(`${warning} / URL 반영 완료`);
-      } else {
-        setStatus("그래프 생성 및 URL 반영 완료");
-      }
+  if (!silent) {
+    if (warning) {
+      setStatus(`${warning} / URL 반영 완료`);
+    } else {
+      setStatus("그래프 생성 및 URL 반영 완료");
     }
-    return true;
-  } catch (error) {
-    setStatus(error instanceof Error ? `URL은 반영됐지만 그래프 렌더링 실패: ${error.message}` : "그래프 렌더링 실패", true);
-    return false;
   }
+  return true;
 }
 
 async function copyShareUrl() {
   const ok = await renderAndSync(true);
   if (!ok) {
-    return;
+    // 그래프는 그려졌지만 URL 저장에 실패한 경우를 위해 직접 공유 URL 생성을 한 번 더 시도.
+    try {
+      const state = readStateFromForm();
+      const packed = await packState(state);
+      lastShareUrl = buildShareUrlFromPacked(packed);
+    } catch (_) {
+      return;
+    }
   }
   const targetUrl = lastShareUrl || window.location.href;
   try {
@@ -210,7 +219,8 @@ async function copyShareUrl() {
       return;
     }
     setStatus("공유 URL을 복사했습니다.");
-  } catch (_) {
+  } catch (error) {
+    void error;
     setStatus(`클립보드 복사가 실패해 수동 복사가 필요합니다: ${targetUrl}`, true);
   }
 }
@@ -243,17 +253,6 @@ async function copyText(text) {
   }
   document.body.removeChild(ghost);
   return copied;
-}
-
-function validateState(state) {
-  if (!state.dataText) {
-    throw new Error("데이터를 입력해 주세요.");
-  }
-  if (state.type === "line") {
-    parseLineData(state.dataText, state.lineXType);
-    return;
-  }
-  parseCategoryData(state.dataText, state.type === "pie");
 }
 
 function renderChart(state) {
@@ -359,7 +358,11 @@ function renderPieChart(state) {
 }
 
 function renderLineChart(state) {
-  const points = parseLineData(state.dataText, state.lineXType);
+  const parsed = parseLineData(state.dataText, state.lineXType);
+  const points = parsed.points;
+  const resolvedXType = parsed.xType;
+  currentXType = resolvedXType;
+
   const datasets = [
     {
       label: state.title || "원본",
@@ -374,9 +377,13 @@ function renderLineChart(state) {
   ];
 
   let warning = "";
+  if (resolvedXType !== state.lineXType) {
+    warning = `x축 타입을 "${resolvedXType}"로 자동 해석했습니다.`;
+  }
+
   if (state.lineTrend) {
     if (points.length < 2) {
-      warning = "추세선은 최소 2개 데이터 포인트가 필요합니다.";
+      warning = [warning, "추세선은 최소 2개 데이터 포인트가 필요합니다."].filter(Boolean).join(" / ");
     } else {
       const regression = linearRegression(points);
       currentRegression = regression;
@@ -407,7 +414,7 @@ function renderLineChart(state) {
           ticks: {
             callback(value) {
               const numericValue = Number(value);
-              return state.lineXType === "date" ? formatDateTick(numericValue) : formatNumber(numericValue);
+              return resolvedXType === "date" ? formatDateTick(numericValue) : formatNumber(numericValue);
             },
           },
         },
@@ -420,7 +427,7 @@ function renderLineChart(state) {
               const xValue = context.parsed.x;
               const yValue = context.parsed.y;
               const xLabel =
-                state.lineXType === "date" ? formatDateTime(new Date(xValue).getTime()) : formatNumber(xValue);
+                resolvedXType === "date" ? formatDateTime(new Date(xValue).getTime()) : formatNumber(xValue);
               return `${context.dataset.label}: (${xLabel}, ${formatNumber(yValue)})`;
             },
           },
@@ -500,7 +507,7 @@ function parseLineData(rawText, xType) {
     throw new Error("line 데이터가 비어 있습니다.");
   }
 
-  const points = lines.map((line, index) => {
+  const rows = lines.map((line, index) => {
     const parts = line.split(/[,\t;]/).map((part) => part.trim());
     if (parts.length < 2) {
       throw new Error(`${index + 1}행은 "x,y" 형식이어야 합니다.`);
@@ -511,24 +518,37 @@ function parseLineData(rawText, xType) {
     if (!Number.isFinite(y)) {
       throw new Error(`${index + 1}행의 y값이 숫자가 아닙니다: "${yToken}"`);
     }
+    return { xToken, y, rowIndex: index + 1 };
+  });
 
-    let x;
-    if (xType === "date") {
-      x = Date.parse(xToken);
-      if (!Number.isFinite(x)) {
-        throw new Error(`${index + 1}행의 날짜를 해석할 수 없습니다: "${xToken}"`);
+  const normalized = normalizeXType(xType);
+  const numberOk = rows.every((row) => Number.isFinite(Number(row.xToken)));
+  const dateOk = rows.every((row) => Number.isFinite(Date.parse(row.xToken)));
+
+  let resolvedXType = normalized;
+  if (normalized === "number" && !numberOk && dateOk) {
+    resolvedXType = "date";
+  } else if (normalized === "date" && !dateOk && numberOk) {
+    resolvedXType = "number";
+  }
+
+  const points = rows.map((row) => {
+    if (resolvedXType === "date") {
+      const parsedDate = Date.parse(row.xToken);
+      if (!Number.isFinite(parsedDate)) {
+        throw new Error(`${row.rowIndex}행의 날짜를 해석할 수 없습니다: "${row.xToken}"`);
       }
-    } else {
-      x = Number(xToken);
-      if (!Number.isFinite(x)) {
-        throw new Error(`${index + 1}행의 x값이 숫자가 아닙니다: "${xToken}"`);
-      }
+      return { x: parsedDate, y: row.y };
     }
-    return { x, y };
+    const parsedNumber = Number(row.xToken);
+    if (!Number.isFinite(parsedNumber)) {
+      throw new Error(`${row.rowIndex}행의 x값이 숫자가 아닙니다: "${row.xToken}"`);
+    }
+    return { x: parsedNumber, y: row.y };
   });
 
   points.sort((a, b) => a.x - b.x);
-  return points;
+  return { points, xType: resolvedXType };
 }
 
 function splitLines(rawText) {
@@ -784,6 +804,17 @@ function writePackedStateToLocation(packed) {
     window.location.hash = `s=${packed}`;
     return hashUrl.toString();
   }
+}
+
+function buildShareUrlFromPacked(packed) {
+  const url = new URL(window.location.href);
+  url.hash = "";
+  url.searchParams.set("s", packed);
+  return url.toString();
+}
+
+function normalizeXType(xType) {
+  return xType === "date" ? "date" : "number";
 }
 
 async function gzipBytes(bytes) {
