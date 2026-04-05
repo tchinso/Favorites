@@ -24,9 +24,6 @@ const HINTS = {
   lineDate: "형식: x,y (예: 2026-01-01,20). x는 날짜 문자열.",
 };
 
-const textEncoder = new TextEncoder();
-const textDecoder = new TextDecoder();
-
 let mainChart = null;
 let secondaryChart = null;
 let currentRegression = null;
@@ -34,6 +31,19 @@ let currentXType = "number";
 let lastShareUrl = "";
 
 const ui = {};
+
+window.addEventListener("error", (event) => {
+  if (ui.statusText) {
+    setStatus(`런타임 오류: ${event.message}`, true);
+  }
+});
+
+window.addEventListener("unhandledrejection", (event) => {
+  if (ui.statusText) {
+    const reasonText = event.reason instanceof Error ? event.reason.message : String(event.reason);
+    setStatus(`비동기 오류: ${reasonText}`, true);
+  }
+});
 
 document.addEventListener("DOMContentLoaded", () => {
   void init();
@@ -170,28 +180,28 @@ function defaultDataForType(type, xType) {
 
 async function renderAndSync(silent = false) {
   const state = readStateFromForm();
-  let warning = "";
-  try {
-    warning = renderChart(state);
-  } catch (error) {
-    setStatus(error instanceof Error ? error.message : "그래프 렌더링 실패", true);
-    return false;
-  }
 
   try {
     const packed = await packState(state);
     lastShareUrl = writePackedStateToLocation(packed);
     ui.shareUrlOutput.value = lastShareUrl;
   } catch (error) {
-    if (!silent) {
-      setStatus(
-        error instanceof Error
-          ? `그래프는 생성됐지만 URL 반영 실패: ${error.message}`
-          : "그래프는 생성됐지만 URL 반영 실패",
-        true
-      );
-    }
+    setStatus(error instanceof Error ? `URL 생성 실패: ${error.message}` : "URL 생성 실패", true);
     return false;
+  }
+
+  let warning = "";
+  try {
+    warning = renderChart(state);
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? `URL은 생성됐지만 그래프 렌더링 실패: ${error.message}`
+        : "URL은 생성됐지만 그래프 렌더링 실패";
+    if (!silent) {
+      setStatus(message, true);
+    }
+    return true;
   }
 
   if (!silent) {
@@ -269,6 +279,10 @@ async function copyText(text) {
 }
 
 function renderChart(state) {
+  if (typeof Chart === "undefined") {
+    throw new Error("차트 라이브러리(Chart.js) 로드 실패");
+  }
+
   destroyCharts();
   ui.secondaryWrap.classList.add("hidden");
   ui.predictResult.textContent = "";
@@ -751,12 +765,7 @@ async function packState(state) {
     pt: sanitizeThreshold(state.pieThreshold),
     tr: state.lineTrend ? 1 : 0,
   };
-  const rawBytes = textEncoder.encode(JSON.stringify(compact));
-  const gzBytes = await gzipBytes(rawBytes);
-  if (gzBytes && gzBytes.length < rawBytes.length) {
-    return `g${bytesToBase64Url(gzBytes)}`;
-  }
-  return `r${bytesToBase64Url(rawBytes)}`;
+  return `r${stringToBase64Url(JSON.stringify(compact))}`;
 }
 
 async function readStateFromUrl() {
@@ -766,13 +775,15 @@ async function readStateFromUrl() {
     const mode = packed[0];
     const payload = packed.slice(1);
     if (!payload) return null;
-    let bytes = base64UrlToBytes(payload);
-    if (mode === "g") {
-      bytes = await gunzipBytes(bytes);
-    } else if (mode !== "r") {
-      throw new Error("압축 모드를 인식할 수 없습니다.");
+    let jsonText = "";
+    if (mode === "r" || mode === "u") {
+      jsonText = base64UrlToString(payload);
+    } else if (mode === "g") {
+      jsonText = await decodeLegacyGzipPayload(payload);
+    } else {
+      jsonText = base64UrlToString(packed);
     }
-    const compact = JSON.parse(textDecoder.decode(bytes));
+    const compact = JSON.parse(jsonText);
     return {
       type: CODE_TO_TYPE[compact.t] || "bar",
       title: compact.h || "",
@@ -845,50 +856,46 @@ function normalizeXType(xType) {
   return xType === "date" ? "date" : "number";
 }
 
-async function gzipBytes(bytes) {
-  if (!("CompressionStream" in window)) {
-    return null;
-  }
-  try {
-    const stream = new CompressionStream("gzip");
-    const writer = stream.writable.getWriter();
-    await writer.write(bytes);
-    await writer.close();
-    const buffer = await new Response(stream.readable).arrayBuffer();
-    return new Uint8Array(buffer);
-  } catch (_) {
-    return null;
-  }
+function stringToBase64Url(value) {
+  const encoded = encodeURIComponent(value).replace(/%([0-9A-F]{2})/g, (_, hex) =>
+    String.fromCharCode(parseInt(hex, 16))
+  );
+  return btoa(encoded).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
 }
 
-async function gunzipBytes(bytes) {
-  if (!("DecompressionStream" in window)) {
-    throw new Error("이 브라우저는 압축 URL 복원을 지원하지 않습니다.");
+function base64UrlToString(value) {
+  const binary = base64UrlToBinary(value);
+  let percentEncoded = "";
+  for (let i = 0; i < binary.length; i += 1) {
+    percentEncoded += `%${binary.charCodeAt(i).toString(16).padStart(2, "0")}`;
   }
-  const stream = new DecompressionStream("gzip");
-  const writer = stream.writable.getWriter();
-  await writer.write(bytes);
-  await writer.close();
-  const buffer = await new Response(stream.readable).arrayBuffer();
-  return new Uint8Array(buffer);
+  return decodeURIComponent(percentEncoded);
 }
 
-function bytesToBase64Url(bytes) {
-  let binary = "";
-  const chunkSize = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
-  }
-  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+function base64UrlToBinary(value) {
+  const base64 = value.replace(/-/g, "+").replace(/_/g, "/");
+  const padding = "=".repeat((4 - (base64.length % 4 || 4)) % 4);
+  return atob(base64 + padding);
 }
 
 function base64UrlToBytes(value) {
-  const base64 = value.replace(/-/g, "+").replace(/_/g, "/");
-  const padding = "=".repeat((4 - (base64.length % 4 || 4)) % 4);
-  const binary = atob(base64 + padding);
+  const binary = base64UrlToBinary(value);
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i += 1) {
     bytes[i] = binary.charCodeAt(i);
   }
   return bytes;
+}
+
+async function decodeLegacyGzipPayload(payload) {
+  if (!("DecompressionStream" in window) || typeof TextDecoder === "undefined") {
+    throw new Error("구형 압축 URL을 복원할 수 없는 브라우저입니다.");
+  }
+  const bytes = base64UrlToBytes(payload);
+  const stream = new DecompressionStream("gzip");
+  const writer = stream.writable.getWriter();
+  await writer.write(bytes);
+  await writer.close();
+  const buffer = await new Response(stream.readable).arrayBuffer();
+  return new TextDecoder().decode(new Uint8Array(buffer));
 }
