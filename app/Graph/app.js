@@ -31,6 +31,7 @@ let mainChart = null;
 let secondaryChart = null;
 let currentRegression = null;
 let currentXType = "number";
+let lastShareUrl = "";
 
 const ui = {};
 
@@ -164,14 +165,24 @@ function defaultDataForType(type, xType) {
 }
 
 async function renderAndSync(silent = false) {
+  const state = readStateFromForm();
   try {
-    const state = readStateFromForm();
-    const warning = renderChart(state);
-    const packed = await packState(state);
-    const shareUrl = new URL(window.location.href);
-    shareUrl.searchParams.set("s", packed);
-    window.history.replaceState({}, "", shareUrl.toString());
+    validateState(state);
+  } catch (error) {
+    setStatus(error instanceof Error ? error.message : "데이터 검증 실패", true);
+    return false;
+  }
 
+  try {
+    const packed = await packState(state);
+    lastShareUrl = writePackedStateToLocation(packed);
+  } catch (error) {
+    setStatus(error instanceof Error ? `URL 반영 실패: ${error.message}` : "URL 반영 실패", true);
+    return false;
+  }
+
+  try {
+    const warning = renderChart(state);
     if (!silent) {
       if (warning) {
         setStatus(`${warning} / URL 반영 완료`);
@@ -181,22 +192,68 @@ async function renderAndSync(silent = false) {
     }
     return true;
   } catch (error) {
-    setStatus(error instanceof Error ? error.message : "그래프 생성 실패", true);
+    setStatus(error instanceof Error ? `URL은 반영됐지만 그래프 렌더링 실패: ${error.message}` : "그래프 렌더링 실패", true);
     return false;
   }
 }
 
 async function copyShareUrl() {
   const ok = await renderAndSync(true);
-  if (!ok || !window.location.search.includes("s=")) {
+  if (!ok) {
     return;
   }
+  const targetUrl = lastShareUrl || window.location.href;
   try {
-    await navigator.clipboard.writeText(window.location.href);
+    const copied = await copyText(targetUrl);
+    if (!copied) {
+      setStatus(`자동 복사가 실패했습니다. 이 URL을 수동 복사해 주세요: ${targetUrl}`, true);
+      return;
+    }
     setStatus("공유 URL을 복사했습니다.");
   } catch (_) {
-    setStatus(`클립보드 복사가 실패해 수동 복사가 필요합니다: ${window.location.href}`, true);
+    setStatus(`클립보드 복사가 실패해 수동 복사가 필요합니다: ${targetUrl}`, true);
   }
+}
+
+async function copyText(text) {
+  if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch (_) {
+      // Fallback to execCommand below.
+    }
+  }
+
+  const ghost = document.createElement("textarea");
+  ghost.value = text;
+  ghost.setAttribute("readonly", "");
+  ghost.style.position = "fixed";
+  ghost.style.opacity = "0";
+  ghost.style.left = "-9999px";
+  document.body.appendChild(ghost);
+  ghost.focus();
+  ghost.select();
+
+  let copied = false;
+  try {
+    copied = document.execCommand("copy");
+  } catch (_) {
+    copied = false;
+  }
+  document.body.removeChild(ghost);
+  return copied;
+}
+
+function validateState(state) {
+  if (!state.dataText) {
+    throw new Error("데이터를 입력해 주세요.");
+  }
+  if (state.type === "line") {
+    parseLineData(state.dataText, state.lineXType);
+    return;
+  }
+  parseCategoryData(state.dataText, state.type === "pie");
 }
 
 function renderChart(state) {
@@ -570,7 +627,7 @@ function commonOptions(title, override) {
 }
 
 function mergeOptions(base, override) {
-  const output = structuredClone(base);
+  const output = deepCopy(base);
   Object.keys(override).forEach((key) => {
     const value = override[key];
     if (value && typeof value === "object" && !Array.isArray(value) && output[key] && typeof output[key] === "object") {
@@ -580,6 +637,20 @@ function mergeOptions(base, override) {
     }
   });
   return output;
+}
+
+function deepCopy(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => deepCopy(item));
+  }
+  if (value && typeof value === "object") {
+    const copy = {};
+    Object.keys(value).forEach((key) => {
+      copy[key] = deepCopy(value[key]);
+    });
+    return copy;
+  }
+  return value;
 }
 
 function buildColors(length, alpha) {
@@ -656,8 +727,7 @@ async function packState(state) {
 }
 
 async function readStateFromUrl() {
-  const url = new URL(window.location.href);
-  const packed = url.searchParams.get("s");
+  const packed = getPackedStateFromLocation();
   if (!packed) return null;
   try {
     const mode = packed[0];
@@ -682,6 +752,37 @@ async function readStateFromUrl() {
   } catch (error) {
     setStatus(error instanceof Error ? `URL 데이터 복원 실패: ${error.message}` : "URL 데이터 복원 실패", true);
     return null;
+  }
+}
+
+function getPackedStateFromLocation() {
+  const url = new URL(window.location.href);
+  const queryPacked = url.searchParams.get("s");
+  if (queryPacked) {
+    return queryPacked;
+  }
+  const rawHash = window.location.hash.startsWith("#") ? window.location.hash.slice(1) : window.location.hash;
+  if (!rawHash) {
+    return null;
+  }
+  const hashPacked = new URLSearchParams(rawHash).get("s");
+  return hashPacked || null;
+}
+
+function writePackedStateToLocation(packed) {
+  const queryUrl = new URL(window.location.href);
+  queryUrl.hash = "";
+  queryUrl.searchParams.set("s", packed);
+
+  try {
+    window.history.replaceState({}, "", queryUrl.toString());
+    return queryUrl.toString();
+  } catch (_) {
+    const hashUrl = new URL(window.location.href);
+    hashUrl.searchParams.delete("s");
+    hashUrl.hash = `s=${packed}`;
+    window.location.hash = `s=${packed}`;
+    return hashUrl.toString();
   }
 }
 
