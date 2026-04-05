@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>URL 그래프 공유기</title>
+    <link rel="stylesheet" href="style.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" defer></script>
+    <script src="app.js" defer></script>
+  </head>
+  <body>
+    <div class="bg-orb bg-orb-1"></div>
+    <div class="bg-orb bg-orb-2"></div>
+    <main class="layout">
+      <section class="panel controls">
+        <h1>URL 그래프 공유기</h1>
+        <p class="subtitle">데이터를 URL에 압축 저장해서, 링크 하나로 같은 그래프를 공유합니다.</p>
+
+        <label for="chartTitle">제목</label>
+        <input id="chartTitle" type="text" placeholder="예: 2026년 분기별 매출" />
+
+        <label for="chartType">타입</label>
+        <select id="chartType">
+          <option value="bar">bar</option>
+          <option value="pie">pie</option>
+          <option value="line">line</option>
+        </select>
+
+        <div id="lineOptions" class="subpanel hidden">
+          <h2>line 옵션</h2>
+          <label for="lineXType">x축 값 타입</label>
+          <select id="lineXType">
+            <option value="number">숫자</option>
+            <option value="date">날짜</option>
+          </select>
+          <label class="checkbox-row">
+            <input id="lineTrend" type="checkbox" />
+            <span>선형회귀 추세선 표시</span>
+          </label>
+        </div>
+
+        <div id="pieOptions" class="subpanel hidden">
+          <h2>pie 옵션</h2>
+          <label class="checkbox-row">
+            <input id="pieGroupSmall" type="checkbox" checked />
+            <span>작은 값 자동 묶기</span>
+          </label>
+          <label for="pieThreshold">작은 값 기준(%)</label>
+          <input id="pieThreshold" type="number" min="0.1" max="40" step="0.1" value="5" />
+        </div>
+
+        <label for="dataInput">데이터</label>
+        <textarea id="dataInput" rows="11"></textarea>
+        <p id="formatHint" class="hint"></p>
+
+        <div class="button-row">
+          <button id="renderBtn" type="button">그래프 생성 + URL 반영</button>
+          <button id="copyBtn" type="button">공유 URL 복사</button>
+        </div>
+        <p id="statusText" class="status"></p>
+      </section>
+
+      <section class="panel preview">
+        <div class="chart-wrap">
+          <canvas id="mainChart"></canvas>
+        </div>
+
+        <div id="secondaryWrap" class="subchart hidden">
+          <h2>작은 값 상세 pie</h2>
+          <div class="chart-wrap small">
+            <canvas id="secondaryChart"></canvas>
+          </div>
+        </div>
+
+        <div id="forecastWrap" class="forecast hidden">
+          <h2>추세선 기반 예측</h2>
+          <p>목표 y값이 된다면 x값은 언제/얼마인지 계산합니다.</p>
+          <div class="forecast-row">
+            <input id="targetYInput" type="number" step="any" placeholder="목표 y값" />
+            <button id="predictBtn" type="button">예측 계산</button>
+          </div>
+          <p id="predictResult" class="predict-result"></p>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>
