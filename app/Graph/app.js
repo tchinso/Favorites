@@ -51,7 +51,10 @@ async function init() {
   }
 
   updateControlVisibility();
-  await renderAndSync(true);
+  const initialOk = await renderAndSync(true);
+  if (!initialOk && !ui.shareUrlOutput.value) {
+    ui.shareUrlOutput.value = window.location.href;
+  }
   setStatus("그래프 준비 완료");
 }
 
@@ -62,6 +65,7 @@ function bindElements() {
   ui.formatHint = document.getElementById("formatHint");
   ui.renderBtn = document.getElementById("renderBtn");
   ui.copyBtn = document.getElementById("copyBtn");
+  ui.shareUrlOutput = document.getElementById("shareUrlOutput");
   ui.statusText = document.getElementById("statusText");
   ui.pieOptions = document.getElementById("pieOptions");
   ui.pieGroupSmall = document.getElementById("pieGroupSmall");
@@ -177,6 +181,7 @@ async function renderAndSync(silent = false) {
   try {
     const packed = await packState(state);
     lastShareUrl = writePackedStateToLocation(packed);
+    ui.shareUrlOutput.value = lastShareUrl;
   } catch (error) {
     if (!silent) {
       setStatus(
@@ -207,6 +212,7 @@ async function copyShareUrl() {
       const state = readStateFromForm();
       const packed = await packState(state);
       lastShareUrl = buildShareUrlFromPacked(packed);
+      ui.shareUrlOutput.value = lastShareUrl;
     } catch (_) {
       return;
     }
@@ -252,6 +258,13 @@ async function copyText(text) {
     copied = false;
   }
   document.body.removeChild(ghost);
+  if (!copied) {
+    try {
+      window.prompt("아래 URL을 복사해 주세요.", text);
+    } catch (_) {
+      // Ignore.
+    }
+  }
   return copied;
 }
 
@@ -791,26 +804,34 @@ function getPackedStateFromLocation() {
 function writePackedStateToLocation(packed) {
   const targetHash = `#s=${packed}`;
   const hashUrl = buildShareUrlFromPacked(packed);
+  let applied = false;
 
   try {
     window.history.replaceState({}, "", hashUrl);
+    applied = getPackedStateFromLocation() === packed;
   } catch (_) {
-    // Ignore and fallback to direct hash assignment.
+    applied = false;
   }
 
-  if (window.location.hash !== targetHash) {
+  if (!applied) {
     try {
       window.location.hash = `s=${packed}`;
+      applied = getPackedStateFromLocation() === packed;
     } catch (_) {
-      // Keep going to final validation below.
+      applied = false;
     }
   }
 
-  if (window.location.hash !== targetHash) {
-    throw new Error("브라우저가 URL 변경을 차단하고 있습니다.");
+  if (!applied) {
+    try {
+      window.location.replace(hashUrl);
+      applied = getPackedStateFromLocation() === packed;
+    } catch (_) {
+      applied = false;
+    }
   }
 
-  return new URL(window.location.href).toString();
+  return applied ? new URL(window.location.href).toString() : hashUrl;
 }
 
 function buildShareUrlFromPacked(packed) {
