@@ -1,0 +1,110 @@
+﻿<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>도트 그림 변환기</title>
+  <meta name="description" content="이미지를 도트 그림 스타일로 변환하는 브라우저 전용 앱">
+  <link rel="stylesheet" href="./styles.css">
+  <script>
+    window.Module = {
+      onRuntimeInitialized() {
+        window.dispatchEvent(new Event('opencv-ready'));
+      }
+    };
+  </script>
+  <script async src="https://docs.opencv.org/4.x/opencv.js"></script>
+</head>
+<body>
+  <header class="page-header">
+    <div class="header-inner">
+      <h1>도트 그림 변환기</h1>
+      <p>서버 없이 브라우저에서 바로 실행되는 정적 버전입니다.</p>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="panel controls">
+      <h2>변환 설정</h2>
+      <form id="converter-form">
+        <label class="field-label" for="image">이미지 파일 (JPEG/PNG, 최대 2MB)</label>
+        <input id="image" name="image" type="file" accept="image/png,image/jpeg">
+
+        <fieldset>
+          <legend>색상 수 (k)</legend>
+          <label><input type="radio" name="k" value="2"> 2</label>
+          <label><input type="radio" name="k" value="4" checked> 4</label>
+          <label><input type="radio" name="k" value="8"> 8</label>
+          <label><input type="radio" name="k" value="16"> 16</label>
+        </fieldset>
+
+        <fieldset>
+          <legend>도트 확대 배율</legend>
+          <label><input type="radio" name="scale" value="1"> 1</label>
+          <label><input type="radio" name="scale" value="2" checked> 2</label>
+          <label><input type="radio" name="scale" value="3"> 3</label>
+          <label><input type="radio" name="scale" value="4"> 4</label>
+          <label><input type="radio" name="scale" value="5"> 5</label>
+        </fieldset>
+
+        <fieldset>
+          <legend>양방향 필터 강도</legend>
+          <label><input type="radio" name="blur" value="0" checked> 없음</label>
+          <label><input type="radio" name="blur" value="50"> 약</label>
+          <label><input type="radio" name="blur" value="100"> 중</label>
+          <label><input type="radio" name="blur" value="200"> 강</label>
+        </fieldset>
+
+        <fieldset>
+          <legend>윤곽 강조 (침식)</legend>
+          <label><input type="radio" name="erode" value="0" checked> 없음</label>
+          <label><input type="radio" name="erode" value="1"> 약</label>
+          <label><input type="radio" name="erode" value="2"> 강</label>
+        </fieldset>
+
+        <div class="checks">
+          <label><input type="checkbox" name="alpha" value="1" checked> 투명 PNG 알파 유지</label>
+          <label><input type="checkbox" name="to_tw" value="1" checked> Twitter 업로드용 1px 투명 픽셀 추가</label>
+        </div>
+
+        <div class="actions">
+          <button id="convert" type="submit">변환 실행</button>
+          <button id="download" type="button" disabled>결과 PNG 다운로드</button>
+        </div>
+      </form>
+
+      <p id="status" class="status">OpenCV를 로딩하는 중입니다...</p>
+
+      <div class="notes">
+        <h3>동작 방식</h3>
+        <ul>
+          <li>원본 Python 코드의 처리 순서를 그대로 브라우저에서 실행합니다.</li>
+          <li>긴 변은 1024px로 줄인 뒤 변환합니다.</li>
+          <li>결과는 PNG로 생성됩니다.</li>
+          <li>이미지는 서버로 전송되지 않습니다.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel preview">
+      <h2>미리보기</h2>
+      <div class="preview-grid">
+        <div>
+          <h3>원본</h3>
+          <img id="original-preview" alt="원본 미리보기">
+        </div>
+        <div>
+          <h3>결과</h3>
+          <canvas id="result-canvas"></canvas>
+        </div>
+      </div>
+      <div>
+        <h3>추출된 팔레트</h3>
+        <div id="palette" class="palette"></div>
+      </div>
+    </section>
+  </main>
+
+  <script src="./app.js"></script>
+</body>
+</html>
