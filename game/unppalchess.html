@@ -1,0 +1,1531 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>6x6 운빨 체스</title>
+  <style>
+    :root {
+      --bg: #f4f7fb;
+      --ink: #172033;
+      --muted: #647084;
+      --panel: #ffffff;
+      --line: #d8e0ea;
+      --light: #f2e5c5;
+      --dark: #4f6a4e;
+      --dark-ink: #102114;
+      --accent: #d84a2b;
+      --accent-2: #287c71;
+      --gold: #d99a24;
+      --danger: #b42318;
+      --shadow: 0 18px 45px rgba(30, 45, 70, 0.16);
+      font-family:
+        Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+        "Segoe UI", "Noto Sans KR", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(140deg, rgba(40, 124, 113, 0.11), transparent 35%),
+        linear-gradient(40deg, rgba(216, 74, 43, 0.09), transparent 42%),
+        var(--bg);
+      color: var(--ink);
+    }
+
+    button {
+      font: inherit;
+    }
+
+    .app {
+      width: min(1180px, 100%);
+      margin: 0 auto;
+      padding: clamp(14px, 2.8vw, 32px);
+      display: grid;
+      grid-template-columns: minmax(300px, 680px) minmax(280px, 380px);
+      gap: clamp(16px, 3vw, 30px);
+      align-items: start;
+    }
+
+    header {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 18px;
+      min-height: 54px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(1.85rem, 4vw, 3.4rem);
+      line-height: 0.95;
+      letter-spacing: 0;
+    }
+
+    .subtitle {
+      margin: 10px 0 0;
+      color: var(--muted);
+      font-size: clamp(0.92rem, 1.7vw, 1.04rem);
+    }
+
+    .new-game {
+      border: 0;
+      background: var(--ink);
+      color: #fff;
+      min-height: 44px;
+      padding: 0 18px;
+      border-radius: 8px;
+      cursor: pointer;
+      box-shadow: 0 8px 18px rgba(23, 32, 51, 0.18);
+      white-space: nowrap;
+    }
+
+    .new-game:active {
+      transform: translateY(1px);
+    }
+
+    .board-zone {
+      display: grid;
+      gap: 12px;
+      justify-items: center;
+    }
+
+    .board-shell {
+      width: min(92vw, 680px);
+      aspect-ratio: 1 / 1;
+      padding: clamp(8px, 1.6vw, 14px);
+      border-radius: 10px;
+      background: #223326;
+      box-shadow: var(--shadow);
+    }
+
+    .board {
+      width: 100%;
+      height: 100%;
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      grid-template-rows: repeat(6, 1fr);
+      border: 2px solid rgba(255, 255, 255, 0.22);
+      overflow: hidden;
+      touch-action: manipulation;
+    }
+
+    .square {
+      position: relative;
+      min-width: 0;
+      min-height: 0;
+      border: 0;
+      padding: 0;
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+      color: var(--ink);
+      transition: filter 120ms ease, box-shadow 120ms ease;
+    }
+
+    .square.light {
+      background: var(--light);
+    }
+
+    .square.dark {
+      background: var(--dark);
+      color: #f8fbf6;
+    }
+
+    .square:hover {
+      filter: brightness(1.04);
+    }
+
+    .square.selected {
+      box-shadow: inset 0 0 0 5px var(--gold);
+      z-index: 2;
+    }
+
+    .square.legal::before,
+    .square.capture::before {
+      content: "";
+      position: absolute;
+      inset: 50% auto auto 50%;
+      width: 23%;
+      aspect-ratio: 1 / 1;
+      border-radius: 50%;
+      background: rgba(23, 32, 51, 0.25);
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+    }
+
+    .square.capture::before {
+      width: 78%;
+      border: 5px solid rgba(180, 35, 24, 0.76);
+      background: transparent;
+    }
+
+    .square.ai-from {
+      box-shadow: inset 0 0 0 5px rgba(40, 124, 113, 0.86);
+    }
+
+    .square.ai-to {
+      box-shadow: inset 0 0 0 5px rgba(216, 74, 43, 0.9);
+    }
+
+    .piece {
+      width: 78%;
+      aspect-ratio: 1 / 1;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      font-size: clamp(1.7rem, 9.8vmin, 4.9rem);
+      line-height: 1;
+      font-weight: 800;
+      text-shadow: 0 2px 6px rgba(0, 0, 0, 0.24);
+      user-select: none;
+      pointer-events: none;
+    }
+
+    .piece.white {
+      background: linear-gradient(145deg, #fff, #e5edf6);
+      color: #152033;
+      box-shadow: inset 0 -5px 12px rgba(23, 32, 51, 0.12), 0 7px 14px rgba(0, 0, 0, 0.22);
+    }
+
+    .piece.black {
+      background: linear-gradient(145deg, #263143, #0d1420);
+      color: #f8fafc;
+      box-shadow: inset 0 5px 12px rgba(255, 255, 255, 0.08), 0 7px 14px rgba(0, 0, 0, 0.28);
+    }
+
+    .piece.shinobi {
+      font-family: "Noto Serif KR", "Noto Sans CJK KR", serif;
+      font-size: clamp(1.35rem, 7.6vmin, 3.9rem);
+    }
+
+    .coord {
+      position: absolute;
+      left: 7px;
+      bottom: 5px;
+      font-size: clamp(0.58rem, 1.65vmin, 0.82rem);
+      font-weight: 800;
+      opacity: 0.58;
+      pointer-events: none;
+    }
+
+    .file-rank {
+      width: min(92vw, 680px);
+      display: flex;
+      justify-content: space-between;
+      color: var(--muted);
+      font-size: 0.88rem;
+      padding: 0 12px;
+    }
+
+    .side {
+      display: grid;
+      gap: 14px;
+    }
+
+    .panel {
+      background: rgba(255, 255, 255, 0.88);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 16px;
+      box-shadow: 0 12px 28px rgba(30, 45, 70, 0.08);
+    }
+
+    .status-line {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 13px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 32px;
+      border-radius: 999px;
+      padding: 0 12px;
+      background: #e8f4f1;
+      color: #11554d;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .badge.black-turn {
+      background: #eef0f4;
+      color: #273041;
+    }
+
+    .badge.done {
+      background: #ffe9e3;
+      color: #8e2414;
+    }
+
+    .status-text {
+      margin: 0;
+      color: var(--ink);
+      font-weight: 750;
+      line-height: 1.4;
+    }
+
+    .meter {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .metric {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px;
+      min-width: 0;
+      background: #fbfcfe;
+    }
+
+    .metric small {
+      display: block;
+      color: var(--muted);
+      margin-bottom: 5px;
+      font-size: 0.76rem;
+    }
+
+    .metric strong {
+      display: block;
+      font-size: 1rem;
+      overflow-wrap: anywhere;
+    }
+
+    .dice-row {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: 10px;
+      align-items: center;
+      margin-top: 12px;
+    }
+
+    .die-box {
+      min-height: 76px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: #fbfcfe;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      padding: 8px;
+    }
+
+    .die-box b {
+      display: block;
+      font-size: 1.7rem;
+      line-height: 1;
+    }
+
+    .die-box span {
+      color: var(--muted);
+      font-size: 0.78rem;
+      line-height: 1.2;
+    }
+
+    .versus {
+      color: var(--muted);
+      font-weight: 900;
+    }
+
+    .section-title {
+      margin: 0 0 10px;
+      font-size: 0.95rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .material {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .army {
+      border: 1px solid var(--line);
+      background: #fbfcfe;
+      border-radius: 8px;
+      padding: 10px;
+      min-height: 96px;
+    }
+
+    .army h3 {
+      margin: 0 0 8px;
+      font-size: 0.92rem;
+    }
+
+    .army p {
+      margin: 0;
+      line-height: 1.55;
+      color: var(--muted);
+      font-size: 0.9rem;
+      overflow-wrap: anywhere;
+    }
+
+    .log {
+      display: grid;
+      gap: 8px;
+      max-height: 240px;
+      overflow: auto;
+      padding-right: 2px;
+    }
+
+    .log-entry {
+      border-left: 4px solid var(--accent-2);
+      background: #fbfcfe;
+      border-radius: 0 8px 8px 0;
+      padding: 9px 10px;
+      color: #344054;
+      line-height: 1.38;
+      font-size: 0.9rem;
+    }
+
+    .log-entry.battle {
+      border-left-color: var(--accent);
+    }
+
+    .legend {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      color: #344054;
+      font-size: 0.9rem;
+    }
+
+    .legend span {
+      min-height: 34px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfcfe;
+      padding: 7px 9px;
+      min-width: 0;
+    }
+
+    .mini-piece {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      display: inline-grid;
+      place-items: center;
+      background: #172033;
+      color: white;
+      font-size: 0.83rem;
+      flex: 0 0 auto;
+    }
+
+    .modal {
+      position: fixed;
+      inset: 0;
+      z-index: 30;
+      background: rgba(14, 22, 36, 0.58);
+      display: grid;
+      place-items: center;
+      padding: 18px;
+    }
+
+    .modal[hidden] {
+      display: none;
+    }
+
+    .modal-panel {
+      width: min(480px, 100%);
+      background: #fff;
+      color: var(--ink);
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 28px 70px rgba(0, 0, 0, 0.32);
+    }
+
+    .modal-panel h2 {
+      margin: 0 0 8px;
+      font-size: 1.24rem;
+    }
+
+    .modal-panel p {
+      margin: 0 0 12px;
+      color: #475467;
+      line-height: 1.5;
+    }
+
+    .battle-preview {
+      border: 1px solid var(--line);
+      background: #fbfcfe;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 14px;
+      line-height: 1.55;
+      color: #344054;
+    }
+
+    .modal-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .modal-actions button {
+      min-height: 46px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      cursor: pointer;
+      font-weight: 800;
+    }
+
+    .use-bonus {
+      background: var(--accent);
+      color: white;
+      border-color: var(--accent);
+    }
+
+    .skip-bonus {
+      background: #fff;
+      color: var(--ink);
+    }
+
+    @media (max-width: 900px) {
+      .app {
+        grid-template-columns: 1fr;
+      }
+
+      header {
+        align-items: start;
+      }
+
+      .side {
+        grid-template-columns: 1fr;
+      }
+
+      .panel {
+        padding: 14px;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .app {
+        padding: 12px;
+        gap: 14px;
+      }
+
+      header {
+        display: grid;
+        gap: 12px;
+      }
+
+      .new-game {
+        width: 100%;
+      }
+
+      .board-shell,
+      .file-rank {
+        width: calc(100vw - 24px);
+      }
+
+      .board-shell {
+        padding: 7px;
+      }
+
+      .piece {
+        width: 82%;
+      }
+
+      .coord {
+        left: 4px;
+        bottom: 3px;
+      }
+
+      .meter,
+      .material,
+      .legend,
+      .modal-actions {
+        grid-template-columns: 1fr;
+      }
+
+      .dice-row {
+        grid-template-columns: 1fr;
+      }
+
+      .versus {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header>
+      <div>
+        <h1>6x6 운빨 체스</h1>
+        <p class="subtitle">백 선공 · a1은 왼쪽 아래 검은 칸 · 전투는 보너스와 주사위로 판정</p>
+      </div>
+      <button class="new-game" id="newGameButton" type="button">새 게임</button>
+    </header>
+
+    <section class="board-zone" aria-label="게임 보드">
+      <div class="board-shell">
+        <div class="board" id="board"></div>
+      </div>
+      <div class="file-rank" aria-hidden="true">
+        <span>a</span><span>b</span><span>c</span><span>d</span><span>e</span><span>f</span>
+      </div>
+    </section>
+
+    <aside class="side">
+      <section class="panel" aria-live="polite">
+        <div class="status-line">
+          <span class="badge" id="turnBadge">백 차례</span>
+          <strong id="moveCounter">0수</strong>
+        </div>
+        <p class="status-text" id="statusText">말을 선택하세요.</p>
+        <div class="meter">
+          <div class="metric">
+            <small>+2 선택권</small>
+            <strong id="bonusState">20수 이후</strong>
+          </div>
+          <div class="metric">
+            <small>AI 읽기</small>
+            <strong id="aiState">대기</strong>
+          </div>
+          <div class="metric">
+            <small>최근 수</small>
+            <strong id="lastMove">-</strong>
+          </div>
+        </div>
+        <div class="dice-row" aria-label="최근 전투 주사위">
+          <div class="die-box">
+            <b id="attackerDie">-</b>
+            <span id="attackerDieText">공격</span>
+          </div>
+          <div class="versus">VS</div>
+          <div class="die-box">
+            <b id="defenderDie">-</b>
+            <span id="defenderDieText">방어</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2 class="section-title">잔여 병력</h2>
+        <div class="material">
+          <div class="army">
+            <h3>백</h3>
+            <p id="whiteArmy"></p>
+          </div>
+          <div class="army">
+            <h3>흑</h3>
+            <p id="blackArmy"></p>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2 class="section-title">말</h2>
+        <div class="legend">
+          <span><i class="mini-piece">♖</i> 루크</span>
+          <span><i class="mini-piece">♘</i> 나이트</span>
+          <span><i class="mini-piece">♔</i> 킹</span>
+          <span><i class="mini-piece">♙</i> 폰</span>
+          <span><i class="mini-piece">忍</i> 시노비</span>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2 class="section-title">기록</h2>
+        <div class="log" id="log"></div>
+      </section>
+    </aside>
+  </main>
+
+  <div class="modal" id="bonusModal" hidden>
+    <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <h2 id="modalTitle">+2를 사용할까요?</h2>
+      <p id="modalText">이번 전투에 백의 일회성 +2를 더할 수 있습니다.</p>
+      <div class="battle-preview" id="battlePreview"></div>
+      <div class="modal-actions">
+        <button class="use-bonus" id="useBonusButton" type="button">+2 사용</button>
+        <button class="skip-bonus" id="skipBonusButton" type="button">보류</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const SIZE = 6;
+    const FILES = ["a", "b", "c", "d", "e", "f"];
+    const AI_TIME_MS = 2400;
+    const MAX_SEARCH_DEPTH = 5;
+
+    const PIECE = {
+      rook: { name: "루크", white: "♖", black: "♜", value: 5.4 },
+      knight: { name: "나이트", white: "♘", black: "♞", value: 3.2 },
+      king: { name: "킹", white: "♔", black: "♚", value: 120 },
+      shinobi: { name: "시노비", white: "忍", black: "忍", value: 7.4 },
+      pawn: { name: "폰", white: "♙", black: "♟", value: 1.15 }
+    };
+
+    const boardEl = document.getElementById("board");
+    const turnBadgeEl = document.getElementById("turnBadge");
+    const moveCounterEl = document.getElementById("moveCounter");
+    const statusTextEl = document.getElementById("statusText");
+    const bonusStateEl = document.getElementById("bonusState");
+    const aiStateEl = document.getElementById("aiState");
+    const lastMoveEl = document.getElementById("lastMove");
+    const attackerDieEl = document.getElementById("attackerDie");
+    const defenderDieEl = document.getElementById("defenderDie");
+    const attackerDieTextEl = document.getElementById("attackerDieText");
+    const defenderDieTextEl = document.getElementById("defenderDieText");
+    const whiteArmyEl = document.getElementById("whiteArmy");
+    const blackArmyEl = document.getElementById("blackArmy");
+    const logEl = document.getElementById("log");
+    const modalEl = document.getElementById("bonusModal");
+    const battlePreviewEl = document.getElementById("battlePreview");
+    const useBonusButton = document.getElementById("useBonusButton");
+    const skipBonusButton = document.getElementById("skipBonusButton");
+    const newGameButton = document.getElementById("newGameButton");
+
+    let board = [];
+    let currentTurn = "white";
+    let selectedIndex = null;
+    let legalMovesForSelection = [];
+    let moveCount = 0;
+    let whiteBonusUsed = false;
+    let pendingBattle = null;
+    let gameOver = false;
+    let logs = [];
+    let lastDice = null;
+    let lastAiInfo = "대기";
+    let lastMoveText = "-";
+    let lastAiMove = null;
+    let pieceId = 0;
+
+    function indexOf(file, rank) {
+      return rank * SIZE + file;
+    }
+
+    function fileOf(index) {
+      return index % SIZE;
+    }
+
+    function rankOf(index) {
+      return Math.floor(index / SIZE);
+    }
+
+    function coord(index) {
+      return `${FILES[fileOf(index)]}${rankOf(index) + 1}`;
+    }
+
+    function inBounds(file, rank) {
+      return file >= 0 && file < SIZE && rank >= 0 && rank < SIZE;
+    }
+
+    function opposite(side) {
+      return side === "white" ? "black" : "white";
+    }
+
+    function sideName(side) {
+      return side === "white" ? "백" : "흑";
+    }
+
+    function makePiece(side, type) {
+      pieceId += 1;
+      return { id: `${side}-${type}-${pieceId}`, side, type };
+    }
+
+    function place(side, type, file, rank) {
+      board[indexOf(file, rank)] = makePiece(side, type);
+    }
+
+    function newGame() {
+      board = Array(SIZE * SIZE).fill(null);
+      pieceId = 0;
+      currentTurn = "white";
+      selectedIndex = null;
+      legalMovesForSelection = [];
+      moveCount = 0;
+      whiteBonusUsed = false;
+      pendingBattle = null;
+      gameOver = false;
+      logs = [];
+      lastDice = null;
+      lastAiInfo = "대기";
+      lastMoveText = "-";
+      lastAiMove = null;
+
+      place("black", "rook", 0, 5);
+      place("black", "knight", 1, 5);
+      place("black", "shinobi", 2, 5);
+      place("black", "king", 3, 5);
+      place("black", "knight", 4, 5);
+      place("black", "rook", 5, 5);
+      for (let file = 0; file < SIZE; file += 1) place("black", "pawn", file, 4);
+
+      place("white", "rook", 0, 0);
+      place("white", "knight", 1, 0);
+      place("white", "king", 2, 0);
+      place("white", "shinobi", 3, 0);
+      place("white", "knight", 4, 0);
+      place("white", "rook", 5, 0);
+      for (let file = 0; file < SIZE; file += 1) place("white", "pawn", file, 1);
+
+      addLog("새 게임을 시작했습니다. 백 선공입니다.");
+      render();
+    }
+
+    function makeState() {
+      return {
+        board: cloneBoard(board),
+        turn: currentTurn,
+        moveCount,
+        whiteBonusUsed
+      };
+    }
+
+    function cloneBoard(source) {
+      return source.map(piece => piece ? { ...piece } : null);
+    }
+
+    function cloneState(state) {
+      return {
+        board: cloneBoard(state.board),
+        turn: state.turn,
+        moveCount: state.moveCount,
+        whiteBonusUsed: state.whiteBonusUsed
+      };
+    }
+
+    function addLog(text, kind = "move") {
+      logs.unshift({ text, kind });
+      logs = logs.slice(0, 14);
+    }
+
+    function render() {
+      renderBoard();
+      renderStatus();
+      renderArmies();
+      renderLog();
+    }
+
+    function renderBoard() {
+      const legalTargets = new Map(legalMovesForSelection.map(move => [move.to, move]));
+      boardEl.innerHTML = "";
+
+      for (let rank = SIZE - 1; rank >= 0; rank -= 1) {
+        for (let file = 0; file < SIZE; file += 1) {
+          const index = indexOf(file, rank);
+          const square = document.createElement("button");
+          square.type = "button";
+          square.className = `square ${(file + rank) % 2 === 0 ? "dark" : "light"}`;
+          square.dataset.index = String(index);
+          square.setAttribute("aria-label", coord(index));
+
+          if (index === selectedIndex) square.classList.add("selected");
+          if (legalTargets.has(index)) {
+            square.classList.add(board[index] ? "capture" : "legal");
+          }
+          if (lastAiMove && index === lastAiMove.from) square.classList.add("ai-from");
+          if (lastAiMove && index === lastAiMove.to) square.classList.add("ai-to");
+
+          const piece = board[index];
+          if (piece) {
+            const pieceEl = document.createElement("div");
+            pieceEl.className = `piece ${piece.side} ${piece.type === "shinobi" ? "shinobi" : ""}`;
+            pieceEl.textContent = PIECE[piece.type][piece.side];
+            pieceEl.title = `${sideName(piece.side)} ${PIECE[piece.type].name}`;
+            square.appendChild(pieceEl);
+          }
+
+          const coordEl = document.createElement("span");
+          coordEl.className = "coord";
+          coordEl.textContent = coord(index);
+          square.appendChild(coordEl);
+
+          square.addEventListener("click", () => onSquareClick(index));
+          boardEl.appendChild(square);
+        }
+      }
+    }
+
+    function renderStatus() {
+      turnBadgeEl.classList.toggle("black-turn", currentTurn === "black" && !gameOver);
+      turnBadgeEl.classList.toggle("done", gameOver);
+      turnBadgeEl.textContent = gameOver ? "종료" : currentTurn === "white" ? "백 차례" : "흑 차례";
+      moveCounterEl.textContent = `${moveCount}수`;
+      aiStateEl.textContent = lastAiInfo;
+      lastMoveEl.textContent = lastMoveText;
+
+      if (whiteBonusUsed) {
+        bonusStateEl.textContent = "사용 완료";
+      } else if (moveCount >= 20) {
+        bonusStateEl.textContent = "사용 가능";
+      } else {
+        bonusStateEl.textContent = `${20 - moveCount}수 남음`;
+      }
+
+      if (lastDice) {
+        attackerDieEl.textContent = lastDice.attackerRoll;
+        defenderDieEl.textContent = lastDice.defenderRoll;
+        attackerDieTextEl.textContent = `${sideName(lastDice.attackerSide)} ${lastDice.attackerTotal}점`;
+        defenderDieTextEl.textContent = `${sideName(lastDice.defenderSide)} ${lastDice.defenderTotal}점`;
+      } else {
+        attackerDieEl.textContent = "-";
+        defenderDieEl.textContent = "-";
+        attackerDieTextEl.textContent = "공격";
+        defenderDieTextEl.textContent = "방어";
+      }
+    }
+
+    function renderArmies() {
+      whiteArmyEl.textContent = armyText("white");
+      blackArmyEl.textContent = armyText("black");
+    }
+
+    function armyText(side) {
+      const order = ["king", "shinobi", "rook", "knight", "pawn"];
+      const counts = Object.fromEntries(order.map(type => [type, 0]));
+      for (const piece of board) {
+        if (piece && piece.side === side) counts[piece.type] += 1;
+      }
+      return order
+        .filter(type => counts[type] > 0)
+        .map(type => `${PIECE[type][side]} ${PIECE[type].name}×${counts[type]}`)
+        .join("  ");
+    }
+
+    function renderLog() {
+      logEl.innerHTML = "";
+      for (const entry of logs) {
+        const el = document.createElement("div");
+        el.className = `log-entry ${entry.kind === "battle" ? "battle" : ""}`;
+        el.textContent = entry.text;
+        logEl.appendChild(el);
+      }
+    }
+
+    function onSquareClick(index) {
+      if (gameOver || currentTurn !== "white" || pendingBattle) return;
+      const piece = board[index];
+
+      if (selectedIndex !== null) {
+        const chosenMove = legalMovesForSelection.find(move => move.to === index);
+        if (chosenMove) {
+          selectedIndex = null;
+          legalMovesForSelection = [];
+          executeMove(chosenMove);
+          return;
+        }
+      }
+
+      if (piece && piece.side === "white") {
+        selectedIndex = index;
+        legalMovesForSelection = getMovesForPiece(makeState(), index);
+        statusTextEl.textContent = `${coord(index)} ${PIECE[piece.type].name} 선택`;
+      } else {
+        selectedIndex = null;
+        legalMovesForSelection = [];
+      }
+      render();
+    }
+
+    function executeMove(move) {
+      if (gameOver) return;
+      const attacker = board[move.from];
+      const defender = board[move.to];
+      if (!attacker) return;
+
+      lastAiMove = attacker.side === "black" ? { ...move } : null;
+
+      if (defender && defender.side !== attacker.side) {
+        pendingBattle = { move, attacker: { ...attacker }, defender: { ...defender } };
+        if (shouldAskForBonus()) {
+          showBonusModal();
+        } else {
+          resolvePendingBattle(false);
+        }
+        return;
+      }
+
+      board[move.to] = attacker;
+      board[move.from] = null;
+      lastDice = null;
+      lastMoveText = `${sideName(attacker.side)} ${PIECE[attacker.type].name} ${coord(move.from)}→${coord(move.to)}`;
+      addLog(lastMoveText);
+      completeMove();
+    }
+
+    function shouldAskForBonus() {
+      return Boolean(pendingBattle && !whiteBonusUsed && moveCount >= 20);
+    }
+
+    function showBonusModal() {
+      const { move, attacker, defender } = pendingBattle;
+      const normal = getBattleModifiers(attacker, defender, false);
+      const withBonus = getBattleModifiers(attacker, defender, true);
+      const whiteRole = attacker.side === "white" ? "공격" : "방어";
+      battlePreviewEl.innerHTML = `
+        <strong>${coord(move.from)} ${PIECE[attacker.type].name}</strong> →
+        <strong>${coord(move.to)} ${PIECE[defender.type].name}</strong><br>
+        백은 이번 전투에서 ${whiteRole} 쪽입니다.<br>
+        보류 시: 공격 +${normal.attacker}, 방어 +${normal.defender}<br>
+        사용 시: 공격 +${withBonus.attacker}, 방어 +${withBonus.defender}
+      `;
+      modalEl.hidden = false;
+    }
+
+    function hideBonusModal() {
+      modalEl.hidden = true;
+    }
+
+    function resolvePendingBattle(useWhiteBonus) {
+      if (!pendingBattle) return;
+      hideBonusModal();
+
+      const { move, attacker, defender } = pendingBattle;
+      const modifiers = getBattleModifiers(attacker, defender, useWhiteBonus);
+      const attackerRoll = rollDie();
+      const defenderRoll = rollDie();
+      const attackerTotal = attackerRoll + modifiers.attacker;
+      const defenderTotal = defenderRoll + modifiers.defender;
+      let resultText = "";
+
+      if (useWhiteBonus) whiteBonusUsed = true;
+
+      if (attackerTotal > defenderTotal) {
+        board[move.to] = board[move.from];
+        board[move.from] = null;
+        resultText = `${sideName(attacker.side)} 공격 승`;
+      } else if (defenderTotal > attackerTotal) {
+        board[move.from] = null;
+        resultText = `${sideName(defender.side)} 방어 승`;
+      } else {
+        resultText = "무승부, 공격 말 복귀";
+      }
+
+      lastDice = {
+        attackerRoll,
+        defenderRoll,
+        attackerTotal,
+        defenderTotal,
+        attackerSide: attacker.side,
+        defenderSide: defender.side
+      };
+
+      const bonusNote = useWhiteBonus ? " · 백 +2 사용" : "";
+      const modNote = `공격 +${modifiers.attacker}, 방어 +${modifiers.defender}`;
+      lastMoveText = `${sideName(attacker.side)} ${PIECE[attacker.type].name} ${coord(move.from)}→${coord(move.to)}`;
+      addLog(
+        `${lastMoveText}: ${modNote}${bonusNote}, 주사위 ${attackerRoll}:${defenderRoll} = ${attackerTotal}:${defenderTotal}. ${resultText}.`,
+        "battle"
+      );
+
+      pendingBattle = null;
+      completeMove();
+    }
+
+    function completeMove() {
+      moveCount += 1;
+      selectedIndex = null;
+      legalMovesForSelection = [];
+
+      const terminal = getTerminalStatus({ board, turn: currentTurn, moveCount, whiteBonusUsed });
+      if (terminal.done) {
+        gameOver = true;
+        statusTextEl.textContent = terminal.message;
+        render();
+        return;
+      }
+
+      currentTurn = opposite(currentTurn);
+      const nextState = makeState();
+      const nextMoves = getLegalMoves(nextState, currentTurn);
+      if (nextMoves.length === 0) {
+        gameOver = true;
+        statusTextEl.textContent = `${sideName(currentTurn)}이 움직일 수 없어 ${sideName(opposite(currentTurn))} 승리입니다.`;
+        render();
+        return;
+      }
+
+      if (currentTurn === "black") {
+        statusTextEl.textContent = "흑 AI가 생각 중입니다.";
+        lastAiInfo = "계산 중";
+        render();
+        window.setTimeout(playAiTurn, 80);
+      } else {
+        statusTextEl.textContent = "백 차례입니다.";
+        render();
+      }
+    }
+
+    function rollDie() {
+      return Math.floor(Math.random() * 6) + 1;
+    }
+
+    function getBattleModifiers(attacker, defender, useWhiteBonus) {
+      let attackerBonus = 0;
+      let defenderBonus = 0;
+
+      if (defender.type !== "king" && defender.type !== "shinobi") {
+        attackerBonus += 1;
+      }
+      if (defender.type === "shinobi" && attacker.type !== "shinobi") {
+        defenderBonus += 1;
+      }
+      if (useWhiteBonus) {
+        if (attacker.side === "white") attackerBonus += 2;
+        else defenderBonus += 2;
+      }
+
+      return { attacker: attackerBonus, defender: defenderBonus };
+    }
+
+    function getLegalMoves(state, side) {
+      const moves = [];
+      for (let index = 0; index < state.board.length; index += 1) {
+        const piece = state.board[index];
+        if (piece && piece.side === side) {
+          moves.push(...getMovesForPiece(state, index));
+        }
+      }
+      return moves;
+    }
+
+    function getMovesForPiece(state, from) {
+      const piece = state.board[from];
+      if (!piece) return [];
+      const file = fileOf(from);
+      const rank = rankOf(from);
+      const moves = [];
+      const pushTarget = (targetFile, targetRank) => {
+        if (!inBounds(targetFile, targetRank)) return;
+        const to = indexOf(targetFile, targetRank);
+        if (to === from) return;
+        const target = state.board[to];
+        if (!target || target.side !== piece.side) moves.push({ from, to });
+      };
+
+      if (piece.type === "rook") {
+        const directions = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+        for (const [df, dr] of directions) {
+          let nextFile = file + df;
+          let nextRank = rank + dr;
+          while (inBounds(nextFile, nextRank)) {
+            const to = indexOf(nextFile, nextRank);
+            const target = state.board[to];
+            if (!target) {
+              moves.push({ from, to });
+            } else {
+              if (target.side !== piece.side) moves.push({ from, to });
+              break;
+            }
+            nextFile += df;
+            nextRank += dr;
+          }
+        }
+      }
+
+      if (piece.type === "knight") {
+        const jumps = [
+          [1, 2], [2, 1], [2, -1], [1, -2],
+          [-1, -2], [-2, -1], [-2, 1], [-1, 2]
+        ];
+        for (const [df, dr] of jumps) pushTarget(file + df, rank + dr);
+      }
+
+      if (piece.type === "king") {
+        for (let df = -1; df <= 1; df += 1) {
+          for (let dr = -1; dr <= 1; dr += 1) {
+            if (df !== 0 || dr !== 0) pushTarget(file + df, rank + dr);
+          }
+        }
+      }
+
+      if (piece.type === "pawn") {
+        const forward = piece.side === "white" ? 1 : -1;
+        pushTarget(file, rank + forward);
+        pushTarget(file - 1, rank);
+        pushTarget(file + 1, rank);
+      }
+
+      if (piece.type === "shinobi") {
+        const kingIndex = findKing(state, piece.side);
+        if (kingIndex !== -1) {
+          const kingFile = fileOf(kingIndex);
+          const kingRank = rankOf(kingIndex);
+          for (let df = -1; df <= 1; df += 1) {
+            for (let dr = -1; dr <= 1; dr += 1) {
+              if (df !== 0 || dr !== 0) pushTarget(kingFile + df, kingRank + dr);
+            }
+          }
+        }
+      }
+
+      return moves;
+    }
+
+    function findKing(state, side) {
+      return state.board.findIndex(piece => piece && piece.side === side && piece.type === "king");
+    }
+
+    function getTerminalStatus(state) {
+      const whiteKingAlive = findKing(state, "white") !== -1;
+      const blackKingAlive = findKing(state, "black") !== -1;
+      if (!whiteKingAlive && !blackKingAlive) {
+        return { done: true, winner: null, message: "양쪽 킹이 모두 사라져 무승부입니다." };
+      }
+      if (!whiteKingAlive) {
+        return { done: true, winner: "black", message: "백 킹이 사라졌습니다. 흑 승리입니다." };
+      }
+      if (!blackKingAlive) {
+        return { done: true, winner: "white", message: "흑 킹이 사라졌습니다. 백 승리입니다." };
+      }
+      return { done: false, winner: null, message: "" };
+    }
+
+    function playAiTurn() {
+      if (gameOver || currentTurn !== "black" || pendingBattle) return;
+      const start = performance.now();
+      const state = makeState();
+      const choice = chooseAiMove(state);
+      const elapsed = Math.round(performance.now() - start);
+      lastAiInfo = `${choice.depth}수 · ${elapsed}ms`;
+
+      if (!choice.move) {
+        gameOver = true;
+        statusTextEl.textContent = "흑이 움직일 수 없어 백 승리입니다.";
+        render();
+        return;
+      }
+
+      statusTextEl.textContent = `흑이 ${coord(choice.move.from)}에서 ${coord(choice.move.to)}로 둡니다.`;
+      executeMove(choice.move);
+    }
+
+    function chooseAiMove(state) {
+      const deadline = performance.now() + AI_TIME_MS;
+      const moves = orderMoves(state, getLegalMoves(state, "black"), true);
+      if (moves.length === 0) return { move: null, depth: 0, score: -Infinity };
+
+      let bestCompleted = greedyChoice(state, moves);
+      let completedDepth = 0;
+
+      for (let depth = 1; depth <= MAX_SEARCH_DEPTH; depth += 1) {
+        const result = searchRoot(state, moves, depth, deadline);
+        if (!result.completed) break;
+        bestCompleted = result;
+        completedDepth = depth;
+        if (Math.abs(result.score) > 90000 || performance.now() >= deadline) break;
+      }
+
+      return {
+        move: bestCompleted.move,
+        depth: completedDepth || 1,
+        score: bestCompleted.score
+      };
+    }
+
+    function searchRoot(state, rootMoves, depth, deadline) {
+      let bestMove = null;
+      let bestScore = -Infinity;
+      let alpha = -Infinity;
+      const beta = Infinity;
+      const context = { timeUp: false, nodes: 0, deadline };
+
+      for (const move of rootMoves) {
+        if (performance.now() >= deadline) {
+          context.timeUp = true;
+          break;
+        }
+        const score = expectedMoveScore(state, move, depth - 1, alpha, beta, context);
+        if (context.timeUp) break;
+        if (score > bestScore) {
+          bestScore = score;
+          bestMove = move;
+        }
+        alpha = Math.max(alpha, bestScore);
+      }
+
+      return { completed: !context.timeUp && bestMove !== null, move: bestMove, score: bestScore, depth };
+    }
+
+    function minimax(state, depth, alpha, beta, context) {
+      context.nodes += 1;
+      if ((context.nodes & 127) === 0 && performance.now() >= context.deadline) {
+        context.timeUp = true;
+        return evaluateState(state);
+      }
+
+      const terminal = getTerminalStatus(state);
+      if (terminal.done || depth <= 0) return evaluateState(state);
+
+      const moves = getLegalMoves(state, state.turn);
+      if (moves.length === 0) return state.turn === "black" ? -85000 : 85000;
+
+      const maximizing = state.turn === "black";
+      const ordered = orderMoves(state, moves, maximizing);
+
+      if (maximizing) {
+        let best = -Infinity;
+        for (const move of ordered) {
+          const score = expectedMoveScore(state, move, depth - 1, alpha, beta, context);
+          if (context.timeUp) return evaluateState(state);
+          best = Math.max(best, score);
+          alpha = Math.max(alpha, best);
+          if (beta <= alpha) break;
+        }
+        return best;
+      }
+
+      let best = Infinity;
+      for (const move of ordered) {
+        const score = expectedMoveScore(state, move, depth - 1, alpha, beta, context);
+        if (context.timeUp) return evaluateState(state);
+        best = Math.min(best, score);
+        beta = Math.min(beta, best);
+        if (beta <= alpha) break;
+      }
+      return best;
+    }
+
+    function expectedMoveScore(state, move, depth, alpha, beta, context) {
+      const outcomes = getSearchOutcomes(state, move);
+      let score = 0;
+      for (const outcome of outcomes) {
+        score += outcome.probability * minimax(outcome.state, depth, alpha, beta, context);
+        if (context.timeUp) return score;
+      }
+      return score;
+    }
+
+    function getSearchOutcomes(state, move) {
+      const defender = state.board[move.to];
+      if (!defender) return [applyQuietMove(state, move)];
+
+      if (!state.whiteBonusUsed && state.moveCount >= 20) {
+        const withoutBonus = buildBattleOutcomes(state, move, false);
+        const withBonus = buildBattleOutcomes(state, move, true);
+        const noScore = weightedStaticScore(withoutBonus);
+        const yesScore = weightedStaticScore(withBonus);
+        return yesScore < noScore ? withBonus : withoutBonus;
+      }
+
+      return buildBattleOutcomes(state, move, false);
+    }
+
+    function weightedStaticScore(outcomes) {
+      return outcomes.reduce((sum, outcome) => sum + outcome.probability * evaluateState(outcome.state), 0);
+    }
+
+    function applyQuietMove(state, move) {
+      const next = cloneState(state);
+      next.board[move.to] = next.board[move.from];
+      next.board[move.from] = null;
+      next.turn = opposite(state.turn);
+      next.moveCount += 1;
+      return { probability: 1, state: next };
+    }
+
+    function buildBattleOutcomes(state, move, useWhiteBonus) {
+      const attacker = state.board[move.from];
+      const defender = state.board[move.to];
+      const modifiers = getBattleModifiers(attacker, defender, useWhiteBonus);
+      const counts = { attacker: 0, defender: 0, tie: 0 };
+
+      for (let attackDie = 1; attackDie <= 6; attackDie += 1) {
+        for (let defendDie = 1; defendDie <= 6; defendDie += 1) {
+          const attackTotal = attackDie + modifiers.attacker;
+          const defendTotal = defendDie + modifiers.defender;
+          if (attackTotal > defendTotal) counts.attacker += 1;
+          else if (defendTotal > attackTotal) counts.defender += 1;
+          else counts.tie += 1;
+        }
+      }
+
+      const outcomes = [];
+      if (counts.attacker > 0) {
+        outcomes.push({ probability: counts.attacker / 36, state: applyBattleResult(state, move, "attacker", useWhiteBonus) });
+      }
+      if (counts.defender > 0) {
+        outcomes.push({ probability: counts.defender / 36, state: applyBattleResult(state, move, "defender", useWhiteBonus) });
+      }
+      if (counts.tie > 0) {
+        outcomes.push({ probability: counts.tie / 36, state: applyBattleResult(state, move, "tie", useWhiteBonus) });
+      }
+      return outcomes;
+    }
+
+    function applyBattleResult(state, move, result, useWhiteBonus) {
+      const next = cloneState(state);
+      if (result === "attacker") {
+        next.board[move.to] = next.board[move.from];
+        next.board[move.from] = null;
+      } else if (result === "defender") {
+        next.board[move.from] = null;
+      }
+      next.turn = opposite(state.turn);
+      next.moveCount += 1;
+      if (useWhiteBonus) next.whiteBonusUsed = true;
+      return next;
+    }
+
+    function greedyChoice(state, moves) {
+      let bestMove = moves[0];
+      let bestScore = -Infinity;
+      for (const move of moves) {
+        const score = weightedStaticScore(getSearchOutcomes(state, move));
+        if (score > bestScore) {
+          bestScore = score;
+          bestMove = move;
+        }
+      }
+      return { completed: true, move: bestMove, score: bestScore, depth: 1 };
+    }
+
+    function orderMoves(state, moves, descending) {
+      return [...moves].sort((a, b) => {
+        const delta = quickMoveScore(state, b) - quickMoveScore(state, a);
+        return descending ? delta : -delta;
+      });
+    }
+
+    function quickMoveScore(state, move) {
+      const attacker = state.board[move.from];
+      const defender = state.board[move.to];
+      let score = 0;
+      if (defender) {
+        const probabilities = battleProbabilities(attacker, defender, false);
+        score += PIECE[defender.type].value * probabilities.attacker;
+        score -= PIECE[attacker.type].value * probabilities.defender * 0.86;
+        if (defender.type === "king") score += 400;
+        if (attacker.type === "king") score -= 8;
+      } else {
+        const fromCenter = centerDistance(move.from);
+        const toCenter = centerDistance(move.to);
+        score += (fromCenter - toCenter) * 0.08;
+      }
+      if (attacker.side === "white") score *= -1;
+      return score;
+    }
+
+    function battleProbabilities(attacker, defender, useWhiteBonus) {
+      const modifiers = getBattleModifiers(attacker, defender, useWhiteBonus);
+      const counts = { attacker: 0, defender: 0, tie: 0 };
+      for (let attackDie = 1; attackDie <= 6; attackDie += 1) {
+        for (let defendDie = 1; defendDie <= 6; defendDie += 1) {
+          const attackTotal = attackDie + modifiers.attacker;
+          const defendTotal = defendDie + modifiers.defender;
+          if (attackTotal > defendTotal) counts.attacker += 1;
+          else if (defendTotal > attackTotal) counts.defender += 1;
+          else counts.tie += 1;
+        }
+      }
+      return {
+        attacker: counts.attacker / 36,
+        defender: counts.defender / 36,
+        tie: counts.tie / 36
+      };
+    }
+
+    function evaluateState(state) {
+      const terminal = getTerminalStatus(state);
+      if (terminal.done) {
+        if (terminal.winner === "black") return 100000;
+        if (terminal.winner === "white") return -100000;
+        return 0;
+      }
+
+      let score = 0;
+      for (let index = 0; index < state.board.length; index += 1) {
+        const piece = state.board[index];
+        if (!piece) continue;
+        const sign = piece.side === "black" ? 1 : -1;
+        let value = PIECE[piece.type].value;
+        value += positionalValue(piece, index, state);
+        score += sign * value;
+      }
+
+      score += kingBreathingRoom(state, "black") * 0.04;
+      score -= kingBreathingRoom(state, "white") * 0.04;
+      return score;
+    }
+
+    function positionalValue(piece, index, state) {
+      const rank = rankOf(index);
+      let value = 0;
+      if (piece.type === "pawn") {
+        value += piece.side === "black" ? (5 - rank) * 0.07 : rank * 0.07;
+      }
+      if (piece.type === "knight" || piece.type === "shinobi") {
+        value += (3 - centerDistance(index)) * 0.08;
+      }
+      if (piece.type === "rook") {
+        value += openLines(state, index) * 0.03;
+      }
+      if (piece.type === "king") {
+        value -= edgeDistancePenalty(index) * 0.035;
+      }
+      return value;
+    }
+
+    function centerDistance(index) {
+      const file = fileOf(index);
+      const rank = rankOf(index);
+      return Math.abs(file - 2.5) + Math.abs(rank - 2.5);
+    }
+
+    function edgeDistancePenalty(index) {
+      const file = fileOf(index);
+      const rank = rankOf(index);
+      return Math.max(0, 2 - Math.min(file, rank, SIZE - 1 - file, SIZE - 1 - rank));
+    }
+
+    function openLines(state, index) {
+      const file = fileOf(index);
+      const rank = rankOf(index);
+      let count = 0;
+      for (const [df, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nextFile = file + df;
+        const nextRank = rank + dr;
+        if (inBounds(nextFile, nextRank) && !state.board[indexOf(nextFile, nextRank)]) count += 1;
+      }
+      return count;
+    }
+
+    function kingBreathingRoom(state, side) {
+      const king = findKing(state, side);
+      if (king === -1) return 0;
+      const file = fileOf(king);
+      const rank = rankOf(king);
+      let count = 0;
+      for (let df = -1; df <= 1; df += 1) {
+        for (let dr = -1; dr <= 1; dr += 1) {
+          if (df === 0 && dr === 0) continue;
+          const nf = file + df;
+          const nr = rank + dr;
+          if (!inBounds(nf, nr)) continue;
+          const target = state.board[indexOf(nf, nr)];
+          if (!target || target.side !== side) count += 1;
+        }
+      }
+      return count;
+    }
+
+    useBonusButton.addEventListener("click", () => resolvePendingBattle(true));
+    skipBonusButton.addEventListener("click", () => resolvePendingBattle(false));
+    newGameButton.addEventListener("click", newGame);
+
+    newGame();
+  </script>
+</body>
+</html>
