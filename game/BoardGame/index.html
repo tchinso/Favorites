@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>전략 보드게임</title>
+  <link rel="stylesheet" href="app.css" />
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <main class="app">
+    <header class="app-header">
+      <div class="title-block">
+        <p class="eyebrow">Player First · AI Second</p>
+        <h1 id="gameTitle">변형 카미사도</h1>
+        <p class="subtitle" id="gameSubtitle"></p>
+      </div>
+      <div class="header-actions">
+        <nav class="game-tabs" id="gameTabs" aria-label="게임 선택"></nav>
+        <button class="new-game" id="newGameButton" type="button">새 게임</button>
+      </div>
+    </header>
+
+    <section class="board-zone" aria-label="게임 보드">
+      <div class="board-shell" id="boardShell">
+        <div class="board" id="board"></div>
+      </div>
+      <div class="coordinates" id="coordinates" aria-hidden="true"></div>
+    </section>
+
+    <aside class="side">
+      <section class="panel status-panel" aria-live="polite">
+        <div class="status-line">
+          <span class="badge" id="turnBadge">플레이어 차례</span>
+          <strong id="moveCounter">0수</strong>
+        </div>
+        <p class="status-text" id="statusText">말을 선택하세요.</p>
+        <div class="meter">
+          <div class="metric">
+            <small id="metricOneLabel">상태</small>
+            <strong id="metricOneValue">-</strong>
+          </div>
+          <div class="metric">
+            <small id="metricTwoLabel">AI</small>
+            <strong id="metricTwoValue">대기</strong>
+          </div>
+          <div class="metric">
+            <small id="metricThreeLabel">최근 수</small>
+            <strong id="metricThreeValue">-</strong>
+          </div>
+        </div>
+        <button class="secondary-action" id="passButton" type="button" hidden>패스</button>
+      </section>
+
+      <section class="panel" id="detailPanel">
+        <h2 class="section-title" id="detailTitle">정보</h2>
+        <div class="detail-content" id="detailContent"></div>
+      </section>
+
+      <section class="panel">
+        <h2 class="section-title" id="legendTitle">말과 색</h2>
+        <div class="legend" id="legend"></div>
+      </section>
+
+      <section class="panel">
+        <h2 class="section-title">기록</h2>
+        <div class="log" id="log"></div>
+      </section>
+    </aside>
+  </main>
+
+  <div class="modal" id="bonusModal" hidden>
+    <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <h2 id="modalTitle">+2를 사용할까요?</h2>
+      <p id="modalText">이번 전투에 백의 일회성 +2를 더할 수 있습니다.</p>
+      <div class="battle-preview" id="battlePreview"></div>
+      <div class="modal-actions">
+        <button class="use-bonus" id="useBonusButton" type="button">+2 사용</button>
+        <button class="skip-bonus" id="skipBonusButton" type="button">보류</button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
