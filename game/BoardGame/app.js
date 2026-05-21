@@ -2,10 +2,12 @@
 
 const STORAGE_KEY = "strategy-board.lastGame";
 const AI_TIME_LIMIT_MS = 1200;
-const AI_SEARCH_BUDGET_MS = 1080;
+const AI_SEARCH_BUDGET_MS = 900;
+const GOMOKU_AI_SEARCH_BUDGET_MS = 1650;
 
 const GAME_ORDER = [
   { id: "greatKingdom", label: "그레이트 킹덤" },
+  { id: "variantGomoku", label: "변형 오목" },
   { id: "luckChess", label: "운빨 체스" },
   { id: "kamisado", label: "변형 카미사도" }
 ];
@@ -46,7 +48,8 @@ const ui = {
 const gameFactories = {
   kamisado: createKamisadoGame,
   greatKingdom: createGreatKingdomGame,
-  luckChess: createLuckChessGame
+  luckChess: createLuckChessGame,
+  variantGomoku: createVariantGomokuGame
 };
 
 const games = new Map();
@@ -1250,6 +1253,663 @@ function createGreatKingdomGame(ctx) {
     render,
     onSquareClick,
     onPass,
+    deactivate: clearAiTimer
+  };
+}
+
+function createVariantGomokuGame(ctx) {
+  const id = "variantGomoku";
+  const size = 9;
+  const files = ["a", "b", "c", "d", "e", "f", "g", "h", "i"];
+  const EMPTY = 0;
+  const BLACK = 1;
+  const WHITE = 2;
+  const directions = [[1, 0], [0, 1], [1, 1], [1, -1]];
+  const lineWeights = [0, 2, 16, 130, 1200, 100000];
+
+  let state;
+  let logs = [];
+  let lastMove = "-";
+  let lastAiInfo = "대기";
+  let lastAiMove = null;
+  let aiTimer = null;
+
+  function newGame() {
+    clearAiTimer();
+    state = {
+      board: Array(size * size).fill(EMPTY),
+      turn: BLACK,
+      moveCount: 0,
+      blackMoves: 0,
+      whiteMoves: 0,
+      purgeCount: 0,
+      restrictionsLifted: false,
+      winner: null,
+      draw: false,
+      lastPurge: null
+    };
+    logs = [{ text: "새 변형 오목 시작. 흑 플레이어가 선공입니다.", kind: "move" }];
+    lastMove = "-";
+    lastAiInfo = "대기";
+    lastAiMove = null;
+    render();
+  }
+
+  function render() {
+    if (!ctx.isActive(id)) return;
+    ui.title.textContent = "변형 오목";
+    ui.subtitle.textContent = "9x9 칸 내부 착수 · 양측 금수 적용 · 총 40수마다 가장 붐빈 구역을 비웁니다.";
+    ctx.setBoardSize(size, "variant-gomoku");
+    ctx.setCoordinates(files);
+    ui.passButton.hidden = true;
+
+    const forbidden = state.turn === BLACK && !state.restrictionsLifted && !state.winner
+      ? new Set(getForbiddenMoves(state.board, BLACK, state.restrictionsLifted))
+      : new Set();
+
+    ui.board.innerHTML = "";
+    for (let rank = size - 1; rank >= 0; rank -= 1) {
+      for (let file = 0; file < size; file += 1) {
+        const index = indexOf(file, rank);
+        const square = document.createElement("button");
+        square.type = "button";
+        square.className = "square gomoku-cell";
+        square.dataset.index = String(index);
+        square.setAttribute("aria-label", coord(index));
+        if (state.board[index] === EMPTY && forbidden.has(index)) square.classList.add("forbidden");
+        if (lastAiMove === index) square.classList.add("ai-to");
+
+        const stone = state.board[index];
+        if (stone !== EMPTY) {
+          const stoneEl = document.createElement("div");
+          stoneEl.className = `gomoku-stone ${stone === BLACK ? "black-stone" : "white-stone"}`;
+          square.appendChild(stoneEl);
+        }
+
+        const coordEl = document.createElement("span");
+        coordEl.className = "coord";
+        coordEl.textContent = coord(index);
+        square.appendChild(coordEl);
+        ui.board.appendChild(square);
+      }
+    }
+
+    const done = Boolean(state.winner) || state.draw;
+    ctx.setStatus({
+      badge: done ? resultBadge() : `${sideName(state.turn)} 차례`,
+      badgeClass: state.turn === WHITE ? "ai-turn" : "",
+      done,
+      moves: state.moveCount,
+      text: statusText(forbidden.size)
+    });
+
+    ctx.setMetrics([
+      { label: "금수", value: state.restrictionsLifted ? "해제" : `${forbidden.size}곳` },
+      { label: "AI 읽기", value: lastAiInfo },
+      { label: "최근 수", value: lastMove }
+    ]);
+
+    const nextPurge = state.moveCount === 0 ? 40 : 40 - (state.moveCount % 40 || 40);
+    ctx.setDetail("진행", `
+      <div class="detail-grid">
+        <span class="detail-item">흑 ${state.blackMoves}수</span>
+        <span class="detail-item">백 ${state.whiteMoves}수</span>
+        <span class="detail-item">정리까지 ${nextPurge}수</span>
+        <span class="detail-item">${state.lastPurge ? state.lastPurge.name : "정리 없음"}</span>
+      </div>
+    `);
+    ctx.setLegend("돌", `
+      <span class="legend-item"><i class="swatch" style="--swatch:#111827"></i>흑 플레이어</span>
+      <span class="legend-item"><i class="swatch" style="--swatch:#f8fafc"></i>백 AI</span>
+      <span class="legend-item"><i class="swatch" style="--swatch:#dc2626"></i>금수점</span>
+      <span class="legend-item"><i class="swatch" style="--swatch:#9fb5a3"></i>40수 구역 정리</span>
+    `);
+    ctx.renderLogs(logs);
+  }
+
+  function onSquareClick(index) {
+    if (!ctx.isActive(id) || state.winner || state.draw || state.turn !== BLACK) return;
+    if (state.board[index] !== EMPTY) return;
+    if (!isLegalMove(state.board, index, BLACK, state.restrictionsLifted)) {
+      lastMove = `${coord(index)} 금수`;
+      addLog(`${coord(index)}는 3-3, 3-4 또는 4-3 금수점입니다.`, "battle");
+      render();
+      return;
+    }
+    applyRealMove(index);
+  }
+
+  function applyRealMove(index) {
+    lastAiMove = null;
+    const result = applyMove(state, index, true);
+    state = result.state;
+    lastMove = `흑 ${coord(index)}`;
+    addLog(lastMove);
+    logPurge(result.purge);
+    render();
+
+    if (!state.winner && !state.draw) {
+      lastAiInfo = "계산 중";
+      render();
+      aiTimer = window.setTimeout(playAiTurn, 70);
+    }
+  }
+
+  function playAiTurn() {
+    if (!ctx.isActive(id) || state.winner || state.draw || state.turn !== WHITE) return;
+    const start = performance.now();
+    const choice = chooseAiMove(state, start + GOMOKU_AI_SEARCH_BUDGET_MS);
+    lastAiInfo = `${choice.depth}수 · ${elapsedLabel(start)}`;
+
+    if (choice.move === null || choice.move === undefined) {
+      state = { ...state, draw: true };
+      addLog("백 AI가 둘 수 없어 무승부입니다.", "win");
+      render();
+      return;
+    }
+
+    const result = applyMove(state, choice.move, true);
+    state = result.state;
+    lastAiMove = choice.move;
+    lastMove = `백 ${coord(choice.move)}`;
+    addLog(lastMove, "ai");
+    logPurge(result.purge);
+    render();
+  }
+
+  function chooseAiMove(rootState, deadline) {
+    const moves = getSearchMoves(rootState, WHITE, 28);
+    if (moves.length === 0) return { move: null, depth: 0, score: 0 };
+
+    const win = moves.find(move => wouldWin(rootState.board, move, WHITE));
+    if (win !== undefined) return { move: win, depth: 1, score: 1000000 };
+
+    const playerWins = getSearchMoves(rootState, BLACK, 32).filter(move => wouldWin(rootState.board, move, BLACK));
+    const block = moves.find(move => playerWins.includes(move));
+    if (block !== undefined) return { move: block, depth: 1, score: 900000 };
+
+    let best = { move: moves[0], depth: 1, score: -Infinity };
+    for (const move of moves) {
+      if (performance.now() >= deadline) break;
+      const score = evaluate(applyMove(rootState, move, false).state);
+      if (score > best.score) best = { move, depth: 1, score };
+    }
+
+    for (let depth = 1; depth <= 5; depth += 1) {
+      const context = { deadline, nodes: 0, timeUp: false };
+      const result = searchRoot(rootState, depth, context);
+      if (context.timeUp || result.move === null) break;
+      best = { ...result, depth };
+      if (Math.abs(result.score) > 900000 || performance.now() >= deadline) break;
+    }
+    return best;
+  }
+
+  function searchRoot(rootState, depth, context) {
+    let bestMove = null;
+    let bestScore = -Infinity;
+    let alpha = -Infinity;
+    const rootMoves = getSearchMoves(rootState, WHITE, 18);
+
+    for (const move of rootMoves) {
+      if (performance.now() >= context.deadline) {
+        context.timeUp = true;
+        break;
+      }
+      const score = minimax(applyMove(rootState, move, false).state, depth - 1, alpha, Infinity, context);
+      if (context.timeUp) break;
+      if (score > bestScore) {
+        bestScore = score;
+        bestMove = move;
+      }
+      alpha = Math.max(alpha, bestScore);
+    }
+    return { move: bestMove, score: bestScore };
+  }
+
+  function minimax(searchState, depth, alpha, beta, context) {
+    context.nodes += 1;
+    if ((context.nodes & 31) === 0 && performance.now() >= context.deadline) {
+      context.timeUp = true;
+      return evaluate(searchState);
+    }
+    if (searchState.winner || searchState.draw || depth <= 0) return evaluate(searchState);
+
+    const side = searchState.turn;
+    const maximizing = side === WHITE;
+    const limit = depth >= 3 ? 10 : 14;
+    const moves = getSearchMoves(searchState, side, limit);
+    if (moves.length === 0) return evaluate({ ...searchState, draw: true });
+
+    if (maximizing) {
+      let value = -Infinity;
+      for (const move of moves) {
+        value = Math.max(value, minimax(applyMove(searchState, move, false).state, depth - 1, alpha, beta, context));
+        if (context.timeUp) return evaluate(searchState);
+        alpha = Math.max(alpha, value);
+        if (beta <= alpha) break;
+      }
+      return value;
+    }
+
+    let value = Infinity;
+    for (const move of moves) {
+      value = Math.min(value, minimax(applyMove(searchState, move, false).state, depth - 1, alpha, beta, context));
+      if (context.timeUp) return evaluate(searchState);
+      beta = Math.min(beta, value);
+      if (beta <= alpha) break;
+    }
+    return value;
+  }
+
+  function applyMove(source, index, useRandomPurge) {
+    const side = source.turn;
+    const next = {
+      board: [...source.board],
+      turn: opposite(side),
+      moveCount: source.moveCount + 1,
+      blackMoves: source.blackMoves + (side === BLACK ? 1 : 0),
+      whiteMoves: source.whiteMoves + (side === WHITE ? 1 : 0),
+      purgeCount: source.purgeCount,
+      restrictionsLifted: source.restrictionsLifted,
+      winner: null,
+      draw: false,
+      lastPurge: source.lastPurge
+    };
+    next.board[index] = side;
+
+    if (checkWin(next.board, index, side)) {
+      next.winner = side;
+      return { state: next, purge: null };
+    }
+
+    let purge = null;
+    if (next.moveCount > 0 && next.moveCount % 40 === 0) {
+      purge = purgeCrowdedGroup(next.board, useRandomPurge);
+      next.purgeCount += 1;
+      next.restrictionsLifted = true;
+      next.lastPurge = purge;
+    }
+
+    if (next.board.every(stone => stone !== EMPTY)) {
+      next.draw = true;
+    } else if (getLegalMoves(next, next.turn).length === 0) {
+      next.draw = true;
+    }
+
+    return { state: next, purge };
+  }
+
+  function purgeCrowdedGroup(board, useRandom) {
+    const groups = purgeGroups();
+    let bestCount = -1;
+    let candidates = [];
+    for (const group of groups) {
+      const count = group.cells.reduce((sum, cell) => sum + (board[cell] !== EMPTY ? 1 : 0), 0);
+      if (count > bestCount) {
+        bestCount = count;
+        candidates = [{ ...group, count }];
+      } else if (count === bestCount) {
+        candidates.push({ ...group, count });
+      }
+    }
+
+    const chosen = useRandom
+      ? candidates[Math.floor(Math.random() * candidates.length)]
+      : candidates[0];
+    for (const cell of chosen.cells) board[cell] = EMPTY;
+    return chosen;
+  }
+
+  function purgeGroups() {
+    const rowsOneToFive = [];
+    const rowsFiveToNine = [];
+    const colsAToE = [];
+    const colsEToI = [];
+
+    for (let rank = 0; rank <= 4; rank += 1) {
+      for (let file = 0; file < size; file += 1) rowsOneToFive.push(indexOf(file, rank));
+    }
+    for (let rank = 4; rank < size; rank += 1) {
+      for (let file = 0; file < size; file += 1) rowsFiveToNine.push(indexOf(file, rank));
+    }
+    for (let file = 0; file <= 4; file += 1) {
+      for (let rank = 0; rank < size; rank += 1) colsAToE.push(indexOf(file, rank));
+    }
+    for (let file = 4; file < size; file += 1) {
+      for (let rank = 0; rank < size; rank += 1) colsEToI.push(indexOf(file, rank));
+    }
+
+    return [
+      { name: "1행부터 5행", cells: rowsOneToFive },
+      { name: "5행부터 9행", cells: rowsFiveToNine },
+      { name: "a열부터 e열", cells: colsAToE },
+      { name: "e열부터 i열", cells: colsEToI }
+    ];
+  }
+
+  function getLegalMoves(searchState, side) {
+    const moves = [];
+    for (let index = 0; index < searchState.board.length; index += 1) {
+      if (isLegalMove(searchState.board, index, side, searchState.restrictionsLifted)) {
+        moves.push(index);
+      }
+    }
+    return moves;
+  }
+
+  function isLegalMove(board, index, side, restrictionsLifted) {
+    if (board[index] !== EMPTY) return false;
+    return !isForbiddenMove(board, index, side, restrictionsLifted);
+  }
+
+  function getForbiddenMoves(board, side, restrictionsLifted) {
+    const result = [];
+    if (restrictionsLifted) return result;
+    for (let index = 0; index < board.length; index += 1) {
+      if (board[index] === EMPTY && isForbiddenMove(board, index, side, restrictionsLifted)) {
+        result.push(index);
+      }
+    }
+    return result;
+  }
+
+  function isForbiddenMove(board, index, side, restrictionsLifted) {
+    if (restrictionsLifted || board[index] !== EMPTY) return false;
+    const next = [...board];
+    next[index] = side;
+    if (checkWin(next, index, side)) return false;
+    const stats = forbiddenStats(next, index, side);
+    return stats.threes >= 2 || (stats.threes >= 1 && stats.fours >= 1);
+  }
+
+  function forbiddenStats(board, index, side) {
+    let threes = 0;
+    let fours = 0;
+    for (const direction of directions) {
+      const four = createsFourInDirection(board, index, side, direction);
+      if (four) {
+        fours += 1;
+      } else if (createsOpenThreeInDirection(board, index, side, direction)) {
+        threes += 1;
+      }
+    }
+    return { threes, fours };
+  }
+
+  function createsFourInDirection(board, index, side, direction) {
+    return winningCompletionCells(board, side, direction, [index]).length > 0;
+  }
+
+  function createsOpenThreeInDirection(board, index, side, direction) {
+    const line = lineCellsThrough(index, direction);
+    for (const cell of line) {
+      if (board[cell] !== EMPTY) continue;
+      const next = [...board];
+      next[cell] = side;
+      if (lineRunCells(next, cell, side, direction).length >= 5) continue;
+      const completions = winningCompletionCells(next, side, direction, [index, cell]);
+      if (completions.length >= 2) return true;
+    }
+    return false;
+  }
+
+  function winningCompletionCells(board, side, direction, required) {
+    const cells = lineCellsThrough(required[0], direction);
+    const wins = [];
+    for (const cell of cells) {
+      if (board[cell] !== EMPTY) continue;
+      const next = [...board];
+      next[cell] = side;
+      const run = lineRunCells(next, cell, side, direction);
+      if (run.length >= 5 && required.every(requiredCell => run.includes(requiredCell))) {
+        wins.push(cell);
+      }
+    }
+    return wins;
+  }
+
+  function checkWin(board, index, side) {
+    return directions.some(direction => lineRunCells(board, index, side, direction).length >= 5);
+  }
+
+  function wouldWin(board, index, side) {
+    if (board[index] !== EMPTY) return false;
+    const next = [...board];
+    next[index] = side;
+    return checkWin(next, index, side);
+  }
+
+  function lineRunCells(board, index, side, [df, dr]) {
+    const run = [index];
+    for (const sign of [-1, 1]) {
+      let file = fileOf(index) + df * sign;
+      let rank = rankOf(index) + dr * sign;
+      while (inBounds(file, rank)) {
+        const next = indexOf(file, rank);
+        if (board[next] !== side) break;
+        if (sign < 0) run.unshift(next);
+        else run.push(next);
+        file += df * sign;
+        rank += dr * sign;
+      }
+    }
+    return run;
+  }
+
+  function lineCellsThrough(index, [df, dr]) {
+    let file = fileOf(index);
+    let rank = rankOf(index);
+    while (inBounds(file - df, rank - dr)) {
+      file -= df;
+      rank -= dr;
+    }
+    const cells = [];
+    while (inBounds(file, rank)) {
+      cells.push(indexOf(file, rank));
+      file += df;
+      rank += dr;
+    }
+    return cells;
+  }
+
+  function orderMoves(searchState, moves, side) {
+    return [...moves].sort((a, b) => quickMoveScore(searchState, b, side) - quickMoveScore(searchState, a, side));
+  }
+
+  function quickMoveScore(searchState, move, side) {
+    const opponentSide = opposite(side);
+    if (wouldWin(searchState.board, move, side)) return 1000000;
+    if (wouldWin(searchState.board, move, opponentSide)) return 850000;
+    const center = 8 - (Math.abs(fileOf(move) - 4) + Math.abs(rankOf(move) - 4));
+    let score = center * 4 + nearbyScore(searchState.board, move, side) * 8;
+    score += patternScoreAfter(searchState.board, move, side);
+    score += patternScoreAfter(searchState.board, move, opponentSide) * 0.82;
+    return score;
+  }
+
+  function getSearchMoves(searchState, side, limit) {
+    if (!searchState.board.some(stone => stone !== EMPTY)) return [indexOf(4, 4)];
+
+    const candidates = [];
+    for (let index = 0; index < searchState.board.length; index += 1) {
+      if (searchState.board[index] !== EMPTY) continue;
+      if (!hasNeighbor(searchState.board, index, 2)) continue;
+      if (isLegalMove(searchState.board, index, side, searchState.restrictionsLifted)) candidates.push(index);
+    }
+
+    if (candidates.length === 0) return getLegalMoves(searchState, side).slice(0, limit);
+    return orderMoves(searchState, candidates, side).slice(0, limit);
+  }
+
+  function patternScoreAfter(board, move, side) {
+    const next = [...board];
+    next[move] = side;
+    let score = 0;
+    for (const direction of directions) {
+      const run = lineRunCells(next, move, side, direction);
+      const openEnds = countOpenEnds(next, run, direction);
+      const length = run.length;
+      if (length >= 5) score += 100000;
+      else if (length === 4 && openEnds >= 1) score += openEnds === 2 ? 9000 : 2800;
+      else if (length === 3 && openEnds === 2) score += 950;
+      else if (length === 3 && openEnds === 1) score += 180;
+      else if (length === 2 && openEnds === 2) score += 48;
+      else if (length === 2 && openEnds === 1) score += 16;
+    }
+    return score;
+  }
+
+  function countOpenEnds(board, run, [df, dr]) {
+    const first = run[0];
+    const last = run[run.length - 1];
+    let open = 0;
+    const beforeFile = fileOf(first) - df;
+    const beforeRank = rankOf(first) - dr;
+    const afterFile = fileOf(last) + df;
+    const afterRank = rankOf(last) + dr;
+    if (inBounds(beforeFile, beforeRank) && board[indexOf(beforeFile, beforeRank)] === EMPTY) open += 1;
+    if (inBounds(afterFile, afterRank) && board[indexOf(afterFile, afterRank)] === EMPTY) open += 1;
+    return open;
+  }
+
+  function nearbyScore(board, index, side) {
+    let score = 0;
+    const opponentSide = opposite(side);
+    for (let df = -2; df <= 2; df += 1) {
+      for (let dr = -2; dr <= 2; dr += 1) {
+        if (df === 0 && dr === 0) continue;
+        const file = fileOf(index) + df;
+        const rank = rankOf(index) + dr;
+        if (!inBounds(file, rank)) continue;
+        const stone = board[indexOf(file, rank)];
+        if (stone === side) score += 2;
+        if (stone === opponentSide) score += 1;
+      }
+    }
+    return score;
+  }
+
+  function evaluate(searchState) {
+    if (searchState.winner === WHITE) return 1000000 - searchState.moveCount;
+    if (searchState.winner === BLACK) return -1000000 + searchState.moveCount;
+    if (searchState.draw) return 0;
+
+    let score = 0;
+    score += linePotential(searchState.board, WHITE);
+    score -= linePotential(searchState.board, BLACK);
+    score += threatPotential(searchState, WHITE);
+    score -= threatPotential(searchState, BLACK);
+    return score;
+  }
+
+  function linePotential(board, side) {
+    let score = 0;
+    for (const direction of directions) {
+      for (let index = 0; index < board.length; index += 1) {
+        const endFile = fileOf(index) + direction[0] * 4;
+        const endRank = rankOf(index) + direction[1] * 4;
+        if (!inBounds(endFile, endRank)) continue;
+
+        let own = 0;
+        let enemy = 0;
+        for (let step = 0; step < 5; step += 1) {
+          const cell = indexOf(fileOf(index) + direction[0] * step, rankOf(index) + direction[1] * step);
+          if (board[cell] === side) own += 1;
+          else if (board[cell] === opposite(side)) enemy += 1;
+        }
+        if (enemy === 0) score += lineWeights[own];
+      }
+    }
+    return score;
+  }
+
+  function threatPotential(searchState, side) {
+    const legal = getSearchMoves(searchState, side, 16);
+    let score = 0;
+    for (const move of legal) {
+      if (wouldWin(searchState.board, move, side)) {
+        score += 20000;
+        continue;
+      }
+      score += patternScoreAfter(searchState.board, move, side) * 0.32;
+    }
+    return score;
+  }
+
+  function hasNeighbor(board, index, radius) {
+    for (let df = -radius; df <= radius; df += 1) {
+      for (let dr = -radius; dr <= radius; dr += 1) {
+        if (df === 0 && dr === 0) continue;
+        const file = fileOf(index) + df;
+        const rank = rankOf(index) + dr;
+        if (inBounds(file, rank) && board[indexOf(file, rank)] !== EMPTY) return true;
+      }
+    }
+    return false;
+  }
+
+  function statusText(forbiddenCount) {
+    if (state.winner) return `${sideName(state.winner)}이 5목을 완성했습니다.`;
+    if (state.draw) return "둘 수 있는 수가 없어 무승부입니다.";
+    if (state.turn === WHITE) return "백 AI가 1.8초 안에서 수를 읽고 있습니다.";
+    if (state.restrictionsLifted) return "금수가 해제되었습니다. 원하는 빈칸에 두세요.";
+    return `3-3, 3-4, 4-3 금수점 ${forbiddenCount}곳을 피해서 두세요.`;
+  }
+
+  function resultBadge() {
+    if (state.winner) return `${sideName(state.winner)} 승리`;
+    if (state.draw) return "무승부";
+    return "게임 종료";
+  }
+
+  function logPurge(purge) {
+    if (!purge) return;
+    addLog(`40수 정리: ${purge.name} 구역의 돌 ${purge.count}개를 비웠습니다. 금수가 해제됩니다.`, "battle");
+  }
+
+  function addLog(text, kind = "move") {
+    logs.unshift({ text, kind });
+    logs = logs.slice(0, 18);
+  }
+
+  function sideName(side) {
+    return side === BLACK ? "흑" : "백";
+  }
+
+  function opposite(side) {
+    return side === BLACK ? WHITE : BLACK;
+  }
+
+  function coord(index) {
+    return `${files[fileOf(index)]}${rankOf(index) + 1}`;
+  }
+
+  function indexOf(file, rank) {
+    return rank * size + file;
+  }
+
+  function fileOf(index) {
+    return index % size;
+  }
+
+  function rankOf(index) {
+    return Math.floor(index / size);
+  }
+
+  function inBounds(file, rank) {
+    return file >= 0 && file < size && rank >= 0 && rank < size;
+  }
+
+  function clearAiTimer() {
+    if (aiTimer) window.clearTimeout(aiTimer);
+    aiTimer = null;
+  }
+
+  return {
+    newGame,
+    render,
+    onSquareClick,
     deactivate: clearAiTimer
   };
 }
