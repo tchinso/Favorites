@@ -1916,12 +1916,13 @@ function createVariantGomokuGame(ctx) {
 
 function createLuckChessGame(ctx) {
   const id = "luckChess";
-  const size = 6;
-  const files = ["a", "b", "c", "d", "e", "f"];
+  const size = 8;
+  const files = ["a", "b", "c", "d", "e", "f", "g", "h"];
   const maxSearchDepth = 7;
   const pieceInfo = {
     rook: { name: "루크", white: "♖", black: "♜", value: 5.4 },
     knight: { name: "나이트", white: "♘", black: "♞", value: 3.2 },
+    cannon: { name: "캐논", white: "砲", black: "炮", value: 4.7 },
     king: { name: "킹", white: "♔", black: "♚", value: 120 },
     shinobi: { name: "시노비", white: "忍", black: "忍", value: 7.4 },
     pawn: { name: "폰", white: "♙", black: "♟", value: 1.15 }
@@ -1961,20 +1962,24 @@ function createLuckChessGame(ctx) {
     lastAiMove = null;
     ctx.hideBonusModal();
 
-    place("black", "rook", 0, 5);
-    place("black", "knight", 1, 5);
-    place("black", "shinobi", 2, 5);
-    place("black", "king", 3, 5);
-    place("black", "knight", 4, 5);
-    place("black", "rook", 5, 5);
-    for (let file = 0; file < size; file += 1) place("black", "pawn", file, 4);
+    place("black", "rook", 0, 7);
+    place("black", "cannon", 1, 7);
+    place("black", "knight", 2, 7);
+    place("black", "shinobi", 3, 7);
+    place("black", "king", 4, 7);
+    place("black", "knight", 5, 7);
+    place("black", "cannon", 6, 7);
+    place("black", "rook", 7, 7);
+    for (let file = 0; file < size; file += 1) place("black", "pawn", file, 6);
 
     place("white", "rook", 0, 0);
-    place("white", "knight", 1, 0);
-    place("white", "king", 2, 0);
-    place("white", "shinobi", 3, 0);
-    place("white", "knight", 4, 0);
-    place("white", "rook", 5, 0);
+    place("white", "cannon", 1, 0);
+    place("white", "knight", 2, 0);
+    place("white", "king", 3, 0);
+    place("white", "shinobi", 4, 0);
+    place("white", "knight", 5, 0);
+    place("white", "cannon", 6, 0);
+    place("white", "rook", 7, 0);
     for (let file = 0; file < size; file += 1) place("white", "pawn", file, 1);
 
     addLog("새 운빨 체스 시작. 백 플레이어가 선공입니다.");
@@ -1983,7 +1988,7 @@ function createLuckChessGame(ctx) {
 
   function render() {
     if (!ctx.isActive(id)) return;
-    ui.title.textContent = "6x6 운빨 체스";
+    ui.title.textContent = "8x8 운빨 체스";
     ui.subtitle.textContent = "백 선공 · 전투는 보너스와 주사위로 판정합니다.";
     ctx.setBoardSize(size, "luck-chess");
     ctx.setCoordinates(files);
@@ -2015,7 +2020,7 @@ function createLuckChessGame(ctx) {
         const piece = board[index];
         if (piece) {
           const pieceEl = document.createElement("div");
-          pieceEl.className = `piece ${piece.side} ${piece.type === "shinobi" ? "shinobi" : ""}`;
+          pieceEl.className = `piece ${piece.side} ${piece.type === "shinobi" ? "shinobi" : ""} ${piece.type === "cannon" ? "cannon" : ""}`;
           pieceEl.textContent = pieceInfo[piece.type][piece.side];
           square.appendChild(pieceEl);
         }
@@ -2064,6 +2069,7 @@ function createLuckChessGame(ctx) {
     ctx.setLegend("말", `
       <span class="legend-item"><i class="mini-piece">♖</i> 루크</span>
       <span class="legend-item"><i class="mini-piece">♘</i> 나이트</span>
+      <span class="legend-item"><i class="mini-piece">砲</i> 캐논</span>
       <span class="legend-item"><i class="mini-piece">♔</i> 킹</span>
       <span class="legend-item"><i class="mini-piece">♙</i> 폰</span>
       <span class="legend-item"><i class="mini-piece">忍</i> 시노비</span>
@@ -2071,7 +2077,7 @@ function createLuckChessGame(ctx) {
   }
 
   function armyText(side) {
-    const order = ["king", "shinobi", "rook", "knight", "pawn"];
+    const order = ["king", "shinobi", "rook", "knight", "cannon", "pawn"];
     const counts = Object.fromEntries(order.map(type => [type, 0]));
     for (const piece of board) {
       if (piece && piece.side === side) counts[piece.type] += 1;
@@ -2496,10 +2502,10 @@ function createLuckChessGame(ctx) {
     const rank = rankOf(index);
     let value = 0;
     if (piece.type === "pawn") {
-      value += piece.side === "black" ? (5 - rank) * 0.07 : rank * 0.07;
+      value += piece.side === "black" ? (size - 1 - rank) * 0.07 : rank * 0.07;
     }
-    if (piece.type === "knight" || piece.type === "shinobi") {
-      value += (3 - centerDistance(index)) * 0.08;
+    if (piece.type === "knight" || piece.type === "shinobi" || piece.type === "cannon") {
+      value += (size / 2 - centerDistance(index)) * 0.08;
     }
     if (piece.type === "rook") {
       value += openLines(state, index) * 0.03;
@@ -2562,6 +2568,32 @@ function createLuckChessGame(ctx) {
           const to = indexOf(nextFile, nextRank);
           const target = state.board[to];
           if (!target) {
+            moves.push({ from, to });
+          } else {
+            if (target.side !== piece.side) moves.push({ from, to });
+            break;
+          }
+          nextFile += df;
+          nextRank += dr;
+        }
+      }
+    }
+
+    if (piece.type === "cannon") {
+      const directions = [
+        [1, 0], [-1, 0], [0, 1], [0, -1],
+        [1, 1], [1, -1], [-1, 1], [-1, -1]
+      ];
+      for (const [df, dr] of directions) {
+        let nextFile = file + df;
+        let nextRank = rank + dr;
+        let jumped = false;
+        while (inBounds(nextFile, nextRank)) {
+          const to = indexOf(nextFile, nextRank);
+          const target = state.board[to];
+          if (!jumped) {
+            if (target) jumped = true;
+          } else if (!target) {
             moves.push({ from, to });
           } else {
             if (target.side !== piece.side) moves.push({ from, to });
@@ -2674,7 +2706,8 @@ function createLuckChessGame(ctx) {
   function centerDistance(index) {
     const file = fileOf(index);
     const rank = rankOf(index);
-    return Math.abs(file - 2.5) + Math.abs(rank - 2.5);
+    const middle = (size - 1) / 2;
+    return Math.abs(file - middle) + Math.abs(rank - middle);
   }
 
   function edgeDistancePenalty(index) {
