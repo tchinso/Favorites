@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>유전 유사도 가계도 계산기</title>
+    <!-- Tailwind CSS 불러오기 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(203, 213, 225, 0.5); border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(148, 163, 184, 0.8); }
+        
+        /* 텍스트가 실수로 선택되지 않게 처리 */
+        .no-select { user-select: none; }
+    </style>
+</head>
+<body class="relative min-h-screen text-slate-800 font-sans overflow-x-hidden no-select">
+
+    <!-- 배경 이미지: 흐림 효과 없이 선명하게 표시 -->
+    <div class="fixed inset-0 z-[-1]" 
+         style="background-image: url('gene-similarity-bg.jpeg'); background-size: cover; background-position: center; opacity: 0.9; pointer-events: none;">
+    </div>
+
+    <!-- 자동 반복 재생 배경 음악 -->
+    <!-- 최신 브라우저 정책상 사용자 상호작용 뒤 재생되도록 아래 JS에서 전체 클릭 트리거를 사용 -->
+    <audio id="bgm" src="gene-similarity-bgm.mp3" loop preload="auto"></audio>
+
+    <div class="max-w-6xl mx-auto p-4 md:p-8 space-y-6">
+        
+        <!-- Header -->
+        <header class="bg-white/80 rounded-2xl shadow-sm border border-white/50 p-6 flex items-center justify-between transition-all">
+            <div class="flex items-center space-x-3">
+                <div class="bg-indigo-600/90 p-2.5 rounded-xl shadow-sm">
+                    <svg class="w-6 h-6 text-white" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m8 22 8-20"/><path d="m16 22-8-20"/><path d="M9 7h6"/><path d="M8 12h8"/><path d="M9 17h6"/></svg>
+                </div>
+                <div>
+                    <h1 class="text-2xl font-bold text-slate-900 tracking-tight drop-shadow-sm">유전 유사도 계산기</h1>
+                    <p class="text-sm text-slate-700 mt-0.5 font-medium">가계 경로 기반 유전적 기대 유사도 분석</p>
+                </div>
+            </div>
+            <!-- 음악 재생 표시 -->
+            <div id="music-indicator" class="hidden items-center text-xs text-indigo-800 font-bold animate-pulse bg-white/80 px-3 py-1.5 rounded-full shadow-sm border border-white/60">
+                <svg class="w-4 h-4 mr-1.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+                재생 중: 먼 하늘
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            
+            <!-- 왼쪽: 제어 패널 -->
+            <div class="lg:col-span-4 space-y-4">
+                <div class="bg-white/80 rounded-2xl shadow-sm border border-white/50 p-5">
+                    <h2 class="text-base font-semibold text-slate-900 mb-4 flex items-center drop-shadow-sm">
+                        <svg class="w-4 h-4 mr-2 text-indigo-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7"/><line x1="6" y1="9" x2="6" y2="21"/></svg>
+                        친족 경로 계산
+                    </h2>
+                    
+                    <div class="space-y-5" id="btn-container">
+                        <!-- 버튼은 JS에서 렌더링 -->
+                    </div>
+
+                    <div class="mt-6 pt-5 border-t border-white/60 flex gap-3">
+                        <button id="btn-undo" class="flex-1 flex justify-center items-center px-4 py-2 bg-white/60 border border-white/80 rounded-lg text-sm font-medium text-slate-800 hover:bg-white/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm">
+                            <svg class="w-4 h-4 mr-1.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg> 
+                            실행 취소
+                        </button>
+                        <button id="btn-reset" class="flex-1 flex justify-center items-center px-4 py-2 bg-white/60 border border-white/80 rounded-lg text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm">
+                            <svg class="w-4 h-4 mr-1.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg> 
+                            초기화
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 오른쪽: 그래프와 분석 -->
+            <div class="lg:col-span-8 space-y-6">
+                
+                <!-- 가계도 캔버스 -->
+                <div class="bg-white/80 rounded-2xl shadow-sm border border-white/50 overflow-hidden flex flex-col h-[420px]">
+                    <div class="p-4 border-b border-white/60 flex justify-between items-center bg-white/40">
+                        <h2 class="text-base font-semibold text-slate-900 flex items-center drop-shadow-sm">동적 가계도</h2>
+                        <span id="gen-count" class="hidden text-xs text-slate-800 font-bold bg-white/80 px-2 py-1 rounded border border-white/60 shadow-sm">
+                            유전 유효 단계: 0
+                        </span>
+                    </div>
+                    
+                    <div id="canvas-container" class="flex-1 overflow-auto relative custom-scrollbar bg-[radial-gradient(rgba(203,213,225,0.4)_1px,transparent_1px)] [background-size:20px_20px]">
+                        <div id="canvas-content" class="relative p-8">
+                            <!-- 캔버스 내용은 JS에서 렌더링 -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 분석 결과 -->
+                <div class="bg-white/80 rounded-2xl shadow-sm border border-white/50 p-6 relative overflow-hidden">
+                    <div class="absolute top-0 right-0 w-32 h-32 bg-indigo-50/50 rounded-bl-full -z-10 opacity-80 blur-2xl"></div>
+                    
+                    <h2 class="text-base font-semibold text-slate-900 mb-5 flex items-center drop-shadow-sm">
+                        <svg class="w-4 h-4 mr-2 text-indigo-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                        유전학적 기대 평가
+                    </h2>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div>
+                            <p class="text-sm font-bold text-slate-600 mb-1 drop-shadow-sm">유전자 기대 유사 비율 (Wright's r)</p>
+                            <div class="flex items-center space-x-3 mt-2">
+                                <span id="r-percentage" class="text-5xl font-extrabold tracking-tight text-slate-900 drop-shadow-sm">100.00%</span>
+                                <span id="risk-badge" class="hidden px-2.5 py-1 rounded-md text-xs font-bold border shadow-sm"></span>
+                            </div>
+                        </div>
+                        
+                        <div class="flex flex-col justify-center">
+                            <p class="text-xs font-bold text-slate-600 mb-2 uppercase tracking-wider drop-shadow-sm">객관적 임상 참고:</p>
+                            <p id="advice-text" class="text-sm leading-relaxed text-slate-800 font-medium drop-shadow-sm">
+                                친족 경로를 추가하면 유전 유사도와 참고 권고를 계산합니다.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- 로직 스크립트 -->
+    <script>
+        // 흐림 효과 없이 선명한 반투명 노드 색상 정의
+        const RELATIONS = [
+            { id: 'father', label: '아버지', group: 'up', color: 'bg-blue-100/90 text-blue-900 border-blue-300' },
+            { id: 'mother', label: '어머니', group: 'up', color: 'bg-pink-100/90 text-pink-900 border-pink-300' },
+            { id: 'brother', label: '친형제', group: 'same', color: 'bg-indigo-100/90 text-indigo-900 border-indigo-300' },
+            { id: 'sister', label: '친자매', group: 'same', color: 'bg-purple-100/90 text-purple-900 border-purple-300' },
+            { id: 'half_brother', label: '이복/이부 형제', group: 'half_same', color: 'bg-slate-100/90 text-slate-900 border-slate-300' },
+            { id: 'half_sister', label: '이복/이부 자매', group: 'half_same', color: 'bg-slate-100/90 text-slate-900 border-slate-300' },
+            { id: 'son', label: '아들', group: 'down', color: 'bg-teal-100/90 text-teal-900 border-teal-300' },
+            { id: 'daughter', label: '딸', group: 'down', color: 'bg-emerald-100/90 text-emerald-900 border-emerald-300' },
+        ];
+
+        // 기본 아이콘 SVG
+        const SVGS = {
+            target: `<svg class="w-4 h-4 mr-1.5 opacity-90 animate-pulse" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>`,
+            user: `<svg class="w-4 h-4 mr-1.5 opacity-80" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`,
+            up: `<svg class="w-3 h-3 mr-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>`,
+            down: `<svg class="w-3 h-3 mr-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>`,
+            right: `<svg class="w-3 h-3 mr-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>`
+        };
+
+        const initialPath = [{ id: 'self', baseId: 'self', label: '나', group: 'start', color: 'bg-slate-800/90 text-white border-slate-700' }];
+        let path = [...initialPath];
+
+        // 핵심 계산: 스택 상쇄 알고리즘
+        function calculateR(currentPath) {
+            if (currentPath.length <= 1) return { r: 1, sequence: [] };
+            
+            let stack = [];
+            for (let i = 1; i < currentPath.length; i++) {
+                const step = currentPath[i];
+                if (step.baseId.startsWith('father') || step.baseId.startsWith('mother')) { stack.push('U'); }
+                else if (step.baseId.startsWith('son') || step.baseId.startsWith('daughter')) { stack.push('D'); }
+                else if (step.baseId.startsWith('brother') || step.baseId.startsWith('sister')) { stack.push('U'); stack.push('D'); }
+                else if (step.baseId.startsWith('half_brother') || step.baseId.startsWith('half_sister')) { stack.push('hU'); stack.push('hD'); }
+            }
+            
+            let changed = true;
+            while (changed) {
+                changed = false;
+                for (let i = 0; i < stack.length - 1; i++) {
+                    let a = stack[i]; let b = stack[i+1];
+                    if ((a === 'D' || a === 'hD') && (b === 'U' || b === 'hU')) {
+                        stack.splice(i, 2);
+                        changed = true;
+                        break;
+                    }
+                }
+            }
+            
+            const L = stack.length;
+            if (L === 0) return { r: 1, sequence: stack };
+            
+            const hasU = stack.includes('U') || stack.includes('hU');
+            const hasD = stack.includes('D') || stack.includes('hD');
+            const hasHalf = stack.includes('hU') || stack.includes('hD');
+            
+            let M = 1;
+            if (hasU && hasD && !hasHalf) M = 2;
+            
+            return { r: M * Math.pow(0.5, L), sequence: stack };
+        }
+
+        // 버튼 패널 초기화
+        function initButtons() {
+            const container = document.getElementById('btn-container');
+            const groups = [
+                { id: 'up', title: '위로 추적 (윗세대)', icon: SVGS.up, rels: RELATIONS.filter(r => r.group === 'up') },
+                { id: 'same', title: '같은 세대 확장', icon: SVGS.right, rels: RELATIONS.filter(r => r.group === 'same' || r.group === 'half_same') },
+                { id: 'down', title: '아래로 확장 (아랫세대)', icon: SVGS.down, rels: RELATIONS.filter(r => r.group === 'down') }
+            ];
+
+            let html = '';
+            groups.forEach(g => {
+                html += `
+                <div>
+                    <div class="text-xs font-bold text-slate-600 mb-2 flex items-center uppercase tracking-wider drop-shadow-sm">
+                        ${g.icon} ${g.title}
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        ${g.rels.map(rel => `
+                            <button onclick="addRelation('${rel.id}')"
+                                class="px-3 py-2.5 bg-white/60 hover:bg-white/90 text-slate-900 text-sm font-medium rounded-lg border border-white/60 hover:border-indigo-400 hover:text-indigo-800 transition-all active:scale-95 shadow-sm">
+                                ${rel.label}
+                            </button>
+                        `).join('')}
+                    </div>
+                </div>`;
+            });
+            container.innerHTML = html;
+        }
+
+        // 상호작용 로직
+        window.addRelation = (relId) => {
+            const rel = RELATIONS.find(r => r.id === relId);
+            path.push({
+                id: `${rel.id}_${Date.now()}`,
+                baseId: rel.id,
+                label: rel.label,
+                group: rel.group,
+                color: rel.color
+            });
+            updateApp();
+        };
+
+        document.getElementById('btn-undo').addEventListener('click', () => {
+            if (path.length > 1) { path.pop(); updateApp(); }
+        });
+
+        document.getElementById('btn-reset').addEventListener('click', () => {
+            path = [...initialPath]; updateApp();
+        });
+
+        // 전체 렌더링 갱신
+        function updateApp() {
+            const isSelf = path.length === 1;
+            
+            // 버튼 상태
+            document.getElementById('btn-undo').disabled = isSelf;
+            document.getElementById('btn-reset').disabled = isSelf;
+
+            // 알고리즘 분석
+            const analysis = calculateR(path);
+            const percentage = (analysis.r * 100).toFixed(2);
+            
+            // UI 갱신
+            document.getElementById('r-percentage').innerText = `${percentage}%`;
+            
+            const badge = document.getElementById('risk-badge');
+            const adviceTxt = document.getElementById('advice-text');
+            const genCount = document.getElementById('gen-count');
+            
+            if (isSelf) {
+                badge.classList.add('hidden');
+                adviceTxt.innerText = "친족 경로를 추가하면 유전 유사도와 참고 권고를 계산합니다.";
+                adviceTxt.className = "text-sm leading-relaxed text-slate-800 font-medium drop-shadow-sm";
+                genCount.classList.add('hidden');
+            } else {
+                badge.classList.remove('hidden');
+                genCount.classList.remove('hidden');
+                genCount.innerText = `유전 유효 단계: ${analysis.sequence.length}`;
+                genCount.classList.add('flex', 'items-center');
+                
+                adviceTxt.className = "text-sm leading-relaxed text-slate-900 font-bold drop-shadow-sm";
+                
+                let rClass, text, advice;
+                if (analysis.r >= 0.5) {
+                    text = "매우 높은 위험"; rClass = "text-red-900 bg-red-100/80 border-red-300";
+                    advice = "대상은 1급 혈족(부모, 자녀, 전혈 형제자매 등)에 해당합니다. 이 단계는 유전적 중복도가 매우 높아 혼인이 이루어질 경우 후대의 중증 열성 유전질환 위험이 급격히 증가하므로, 순수 유전학 관점에서는 강하게 권장하지 않습니다.";
+                } else if (analysis.r >= 0.25) {
+                    text = "높은 위험"; rClass = "text-orange-900 bg-orange-100/80 border-orange-300";
+                    advice = "대상은 2급 혈족(삼촌, 고모, 외삼촌, 이모, 조부모, 반혈 형제자매 등)에 해당합니다. 근친혼 범주에 들어가며 후대의 열성 유전질환 발병 위험이 매우 높으므로 혼인을 권장하지 않습니다.";
+                } else if (analysis.r >= 0.125) {
+                    text = "다소 높은 위험"; rClass = "text-amber-900 bg-amber-100/80 border-amber-300";
+                    advice = "대상은 3급 혈족(사촌 등)에 해당합니다. 이 유전적 거리 안에서의 혼인은 후대의 열성 유전질환 발병 위험이 일반 인구의 기본 확률보다 여전히 유의미하게 높습니다.";
+                } else if (analysis.r >= 0.03125) {
+                    text = "중간 위험"; rClass = "text-yellow-900 bg-yellow-100/80 border-yellow-300";
+                    advice = "대상은 4~5급 혈족에 해당합니다. 순수 유전학적 위험은 무작위 일반 인구보다 약간 높은 수준이지만, 필요하다면 유전 상담과 열성 병인 유전자 보인자 검사를 함께 고려하는 것이 좋습니다.";
+                } else {
+                    text = "낮은 위험"; rClass = "text-emerald-900 bg-emerald-100/80 border-emerald-300";
+                    advice = "유전 유사도가 매우 낮습니다. 순수 유전학 관점에서는 무혈연 일반 인구와 뚜렷한 차이가 없으며, 특별한 유전 위험 신호 없이 통상적인 혼인 범위에 해당합니다.";
+                }
+                
+                badge.innerText = text;
+                badge.className = `px-2.5 py-1 rounded-md text-xs font-bold border shadow-sm ${rClass}`;
+                adviceTxt.innerText = advice;
+            }
+
+            // 캔버스 다시 그리기
+            drawTree();
+        }
+
+        // 캔버스 재렌더링 로직
+        function drawTree() {
+            const canvas = document.getElementById('canvas-content');
+            
+            const NODE_WIDTH = 130, NODE_HEIGHT = 44, X_STEP = 160, Y_STEP = 90, PADDING = 60;
+            
+            let nodes = [];
+            let currentGen = 0;
+            
+            // 노드 세대 추적
+            for (let i = 0; i < path.length; i++) {
+                let step = path[i];
+                if (step.group === 'up') currentGen -= 1;
+                else if (step.group === 'down') currentGen += 1;
+                
+                nodes.push({
+                    ...step,
+                    gen: currentGen,
+                    xIndex: i,
+                    isTarget: i === path.length - 1 && path.length > 1
+                });
+            }
+            
+            // 좌표 계산
+            const minGen = Math.min(...nodes.map(n => n.gen));
+            nodes.forEach(n => {
+                n.x = PADDING + n.xIndex * X_STEP;
+                n.y = PADDING + (n.gen - minGen) * Y_STEP;
+            });
+            
+            const width = Math.max(...nodes.map(n => n.x)) + NODE_WIDTH + PADDING * 2;
+            const height = Math.max(...nodes.map(n => n.y)) + NODE_HEIGHT + PADDING * 2;
+            
+            canvas.style.width = `${Math.max(width, 600)}px`;
+            canvas.style.height = `${Math.max(height, 350)}px`;
+            
+            let svgHtml = `<svg class="absolute top-0 left-0 w-full h-full pointer-events-none">`;
+            
+            // 연결선 그리기
+            for (let i = 1; i < nodes.length; i++) {
+                let prev = nodes[i-1];
+                let curr = nodes[i];
+                
+                let startX = prev.x + NODE_WIDTH;
+                let startY = prev.y + NODE_HEIGHT / 2;
+                let endX = curr.x;
+                let endY = curr.y + NODE_HEIGHT / 2;
+                
+                let midX = startX + (endX - startX) / 2;
+                let pathD = `M ${startX} ${startY} C ${midX} ${startY}, ${midX} ${endY}, ${endX} ${endY}`;
+                
+                let isHalf = curr.group === 'half_same';
+                let stroke = isHalf ? "rgba(203, 213, 225, 0.9)" : "rgba(148, 163, 184, 1)";
+                let dash = isHalf ? "5 5" : "none";
+                
+                svgHtml += `<path d="${pathD}" fill="none" stroke="${stroke}" stroke-width="2.5" stroke-dasharray="${dash}" class="transition-all duration-500"></path>`;
+            }
+            svgHtml += `</svg>`;
+            
+            // 노드 그리기: 흐림 효과 사용 안 함
+            let nodesHtml = nodes.map(n => {
+                let targetClasses = n.isTarget ? 'bg-rose-500/90 text-white border-rose-500 shadow-lg ring-4 ring-rose-200/50 z-20' : n.color + ' shadow-sm z-10';
+                let icon = n.isTarget ? SVGS.target : (n.id === 'self' ? SVGS.user : '');
+                
+                return `
+                <div class="absolute flex items-center justify-center border rounded-xl px-3 py-2 transition-all duration-500 ${targetClasses}"
+                     style="width: ${NODE_WIDTH}px; height: ${NODE_HEIGHT}px; left: ${n.x}px; top: ${n.y}px;">
+                    <span class="text-sm font-semibold tracking-wide whitespace-nowrap flex items-center drop-shadow-sm">
+                        ${icon} ${n.label}
+                    </span>
+                </div>`;
+            }).join('');
+            
+            canvas.innerHTML = svgHtml + nodesHtml;
+            
+            // 최신 노드로 부드럽게 스크롤
+            const container = document.getElementById('canvas-container');
+            container.scrollTo({ left: container.scrollWidth, behavior: 'smooth' });
+        }
+
+        // BGM 자동 재생 처리
+        document.body.addEventListener('click', function() {
+            const bgm = document.getElementById('bgm');
+            const indicator = document.getElementById('music-indicator');
+            if (bgm.paused) {
+                bgm.play().then(() => {
+                    indicator.classList.remove('hidden');
+                    indicator.classList.add('flex');
+                }).catch(e => console.log("Audio auto-play prevented by browser:", e));
+            }
+        }, { once: true });
+
+        // 초기화
+        initButtons();
+        updateApp();
+    </script>
+</body>
+</html>

@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>웹 하드웨어 성능 벤치마크</title>
+    <style>
+        :root {
+            --primary: #00f3ff;
+            --secondary: #ff0055;
+            --accent: #ffee00;
+            --bg: #050505;
+            --panel: rgba(20, 20, 25, 0.9);
+            --border: rgba(255, 255, 255, 0.1);
+        }
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: var(--bg);
+            font-family: 'Segoe UI', 'Microsoft YaHei', -apple-system, sans-serif; /* 增加移动端字体支持 */
+            color: white;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent; /* 移除移动端点击高亮 */
+        }
+
+        /* 背景动画网格 */
+        .bg-grid {
+            position: absolute;
+            width: 200%;
+            height: 200%;
+            background-image: 
+                linear-gradient(rgba(0, 243, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 243, 255, 0.03) 1px, transparent 1px);
+            background-size: 50px 50px;
+            transform: perspective(500px) rotateX(60deg) translateY(-100px) translateZ(-200px);
+            animation: gridMove 20s linear infinite;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        @keyframes gridMove {
+            0% { transform: perspective(500px) rotateX(60deg) translateY(0) translateZ(-200px); }
+            100% { transform: perspective(500px) rotateX(60deg) translateY(50px) translateZ(-200px); }
+        }
+
+        /* 主布局 */
+        #app {
+            position: relative;
+            z-index: 10;
+            display: flex;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        /* 左侧边栏 - 硬件信息 */
+        #sidebar {
+            width: 300px;
+            background: var(--panel);
+            border-right: 1px solid var(--border);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px); /* iOS 支持 */
+            transition: transform 0.3s;
+            box-sizing: border-box;
+            z-index: 30; /* 提高层级防止被遮挡 */
+        }
+
+        .logo {
+            font-size: 24px;
+            font-weight: 800;
+            color: var(--primary);
+            margin-bottom: 30px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-shadow: 0 0 10px rgba(0, 243, 255, 0.5);
+        }
+
+        .hw-item {
+            margin-bottom: 20px;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            padding-bottom: 10px;
+        }
+
+        .hw-label {
+            font-size: 12px;
+            color: #888;
+            margin-bottom: 4px;
+        }
+
+        .hw-value {
+            font-size: 14px;
+            color: #fff;
+            font-weight: 600;
+            word-break: break-all;
+        }
+
+        /* 右侧主区域 */
+        #main-area {
+            flex: 1;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden; /* 防止内容溢出 */
+        }
+
+        /* 3D Canvas 容器 (GPU测试用) */
+        #canvas-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            opacity: 0;
+            transition: opacity 0.5s;
+        }
+        
+        #canvas-container canvas {
+            display: block; /* 防止Canvas底部留白 */
+            width: 100% !important; /* 强制CSS宽高撑满 */
+            height: 100% !important;
+        }
+
+        /* 仪表盘 UI */
+        .dashboard {
+            position: relative;
+            z-index: 20;
+            text-align: center;
+            width: 100%;
+            max-width: 800px;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .big-circle {
+            width: 250px;
+            height: 250px;
+            border-radius: 50%;
+            border: 10px solid rgba(255,255,255,0.05);
+            margin: 0 auto 30px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            background: radial-gradient(circle, rgba(0,243,255,0.1) 0%, rgba(0,0,0,0) 70%);
+            box-shadow: 0 0 50px rgba(0,0,0,0.5);
+        }
+
+        .score-display {
+            font-size: 60px;
+            font-weight: 800;
+            color: #fff;
+            line-height: 1;
+            text-shadow: 0 0 20px var(--primary);
+        }
+
+        .score-label {
+            font-size: 14px;
+            color: var(--primary);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-top: 10px;
+        }
+
+        .status-text {
+            font-size: 24px;
+            margin-bottom: 10px;
+            color: #ddd;
+            min-height: 36px;
+        }
+
+        .sub-status {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 30px;
+        }
+
+        /* 进度条 */
+        .progress-wrapper {
+            width: 80%;
+            height: 4px;
+            background: #222;
+            margin: 0 auto 40px;
+            border-radius: 2px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .progress-bar {
+            width: 0%;
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            transition: width 0.3s ease-out;
+            box-shadow: 0 0 10px var(--primary);
+        }
+
+        /* 详细分数网格 */
+        .grid-scores {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            width: 100%;
+            opacity: 0.5;
+            transition: opacity 0.5s;
+            pointer-events: none;
+        }
+
+        .grid-item {
+            background: rgba(255,255,255,0.05);
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .grid-item.active {
+            border-color: var(--primary);
+            background: rgba(0, 243, 255, 0.05);
+            opacity: 1;
+            box-shadow: 0 0 15px rgba(0, 243, 255, 0.1);
+        }
+
+        .item-name {
+            font-size: 14px;
+            color: #aaa;
+            margin-bottom: 5px;
+        }
+
+        .item-score {
+            font-size: 24px;
+            font-weight: bold;
+            color: #fff;
+        }
+
+        /* 按钮 */
+        .btn-start {
+            background: linear-gradient(45deg, var(--primary), #00aaff);
+            border: none;
+            padding: 15px 50px;
+            color: #000;
+            font-size: 18px;
+            font-weight: 800;
+            border-radius: 30px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-top: 20px;
+            box-shadow: 0 0 20px rgba(0, 243, 255, 0.3);
+            -webkit-appearance: none; /* 移除iOS默认按钮样式 */
+        }
+
+        .btn-start:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 40px rgba(0, 243, 255, 0.6);
+        }
+
+        .btn-start:disabled {
+            background: #333;
+            color: #666;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        /* 矩阵动画 Canvas (CPU测试用) */
+        #matrix-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 2;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        /* 响应式适配 */
+        @media (max-width: 800px) {
+            #app { flex-direction: column; height: 100vh; } /* 确保填满视口 */
+            
+            #sidebar { 
+                width: 100%; 
+                height: auto; 
+                flex-direction: row; 
+                flex-wrap: wrap; 
+                gap: 10px; 
+                padding: 15px; 
+                flex-shrink: 0; /* 防止被压缩 */
+            }
+            
+            .logo { width: 100%; margin-bottom: 10px; justify-content: center;}
+            .hw-item { flex: 1; min-width: 45%; border: none; margin-bottom: 0; background: rgba(255,255,255,0.03); padding: 8px; border-radius: 4px; text-align: center;}
+            .hw-label { font-size: 10px; }
+            
+            #main-area { padding-bottom: 20px; }
+            .big-circle { width: 180px; height: 180px; margin-bottom: 20px; }
+            .score-display { font-size: 48px; }
+            .status-text { font-size: 18px; }
+            .sub-status { font-size: 12px; margin-bottom: 20px;}
+            
+            .grid-scores { gap: 10px; }
+            .grid-item { padding: 10px; }
+            .item-name { font-size: 12px; }
+            .item-score { font-size: 18px; }
+            
+            .btn-start { padding: 12px 30px; font-size: 16px; width: 80%; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="bg-grid"></div>
+
+    <div id="app">
+        <!-- 侧边栏：显示侦测到的硬件参数 -->
+        <div id="sidebar">
+            <div class="logo">⚡ 웹 성능 마스터 <span style="font-size:12px; color:#666; margin-top:5px;">Pro</span></div>
+            
+            <div class="hw-item">
+                <div class="hw-label">운영체제</div>
+                <div class="hw-value" id="os-info">스캔 중...</div>
+            </div>
+            
+            <div class="hw-item">
+                <div class="hw-label">프로세서</div>
+                <div class="hw-value" id="cpu-info">스캔 중...</div>
+            </div>
+
+            <div class="hw-item">
+                <div class="hw-label">그래픽</div>
+                <div class="hw-value" id="gpu-info">스캔 중...</div>
+            </div>
+
+            <div class="hw-item">
+                <div class="hw-label">메모리</div>
+                <div class="hw-value" id="mem-info">스캔 중...</div>
+            </div>
+            
+            <div style="width: 100%; font-size:10px; color:#555; text-align: center; margin-top: 5px;">
+                * 하드웨어 식별은 브라우저 보안 정책의 제한을 받습니다
+            </div>
+        </div>
+
+        <!-- 主区域 -->
+        <div id="main-area">
+            <div id="canvas-container"></div>
+            <canvas id="matrix-canvas"></canvas>
+
+            <div class="dashboard">
+                <div class="big-circle">
+                    <div class="score-display" id="main-score">0</div>
+                    <div class="score-label">종합 성능 점수</div>
+                </div>
+
+                <div class="status-text" id="status-text">준비 완료</div>
+                <div class="sub-status" id="sub-status">버튼을 눌러 표준 성능 테스트를 시작하세요</div>
+
+                <div class="progress-wrapper">
+                    <div class="progress-bar" id="progress-bar"></div>
+                </div>
+
+                <div class="grid-scores">
+                    <div class="grid-item" id="card-cpu">
+                        <div class="item-name">CPU 연산</div>
+                        <div class="item-score" id="score-cpu">--</div>
+                    </div>
+                    <div class="grid-item" id="card-mem">
+                        <div class="item-name">메모리 읽기/쓰기</div>
+                        <div class="item-score" id="score-mem">--</div>
+                    </div>
+                    <div class="grid-item" id="card-gpu">
+                        <div class="item-name">GPU 그래픽</div>
+                        <div class="item-score" id="score-gpu">--</div>
+                    </div>
+                </div>
+
+                <button class="btn-start" id="start-btn" onclick="runFullBenchmark()">전체 평가 시작</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <script>
+        // === 全局状态与配置 ===
+        const state = {
+            scores: { cpu: 0, mem: 0, gpu: 0 },
+            isRunning: false,
+            stage: 'idle'
+        };
+
+        // 标准化分辨率目标：从1080p提升至 2K (2560x1440)
+        // 增加像素填充压力，迫使设备从“跑分上限(刷新率)”测试转变为“真实算力”测试
+        const TARGET_PIXEL_COUNT = 2560 * 1440; 
+
+        // === 硬件信息侦测 ===
+        function detectHardware() {
+            // OS & Browser
+            const ua = navigator.userAgent;
+            let os = "Unknown";
+            if (/Windows/.test(ua)) os = "Windows";
+            else if (/Mac/.test(ua)) os = "macOS";
+            else if (/Linux/.test(ua)) os = "Linux";
+            else if (/Android/.test(ua)) os = "Android";
+            else if (/iPhone|iPad/.test(ua)) os = "iOS";
+            document.getElementById('os-info').innerText = os;
+
+            // CPU Cores
+            const cores = navigator.hardwareConcurrency || "?";
+            document.getElementById('cpu-info').innerText = `${cores} 核心`;
+
+            // Memory
+            const mem = navigator.deviceMemory ? `~${navigator.deviceMemory} GB` : "未知";
+            document.getElementById('mem-info').innerText = mem;
+
+            // GPU Renderer
+            try {
+                const canvas = document.createElement('canvas');
+                const gl = canvas.getContext('webgl');
+                const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+                const renderer = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
+                // 简化显示名称，适配手机小屏
+                const simpleName = renderer.replace(/ANGLE \((.*)\)/, '$1').replace(/Google Inc\.|Intel Inc\./g, '').trim();
+                document.getElementById('gpu-info').innerText = simpleName || "标准图形卡";
+            } catch(e) {
+                document.getElementById('gpu-info').innerText = "Generic GPU";
+            }
+        }
+        detectHardware();
+
+        // === UI 工具函数 ===
+        function setStatus(title, sub, progress) {
+            document.getElementById('status-text').innerText = title;
+            document.getElementById('sub-status').innerText = sub;
+            document.getElementById('progress-bar').style.width = `${progress}%`;
+        }
+
+        function activateCard(id) {
+            document.querySelectorAll('.grid-item').forEach(el => el.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+            document.querySelector('.grid-scores').style.opacity = '1';
+        }
+
+        function updateScore(type, val) {
+            const el = document.getElementById(`score-${type}`);
+            let current = 0;
+            const target = Math.floor(val);
+            const interval = setInterval(() => {
+                current += Math.ceil((target - current) / 5);
+                if (current >= target) {
+                    current = target;
+                    clearInterval(interval);
+                }
+                el.innerText = current;
+            }, 30);
+        }
+
+        // === 1. CPU 跑分逻辑 ===
+        let matrixInterval;
+        function startMatrixEffect() {
+            const c = document.getElementById('matrix-canvas');
+            const ctx = c.getContext('2d');
+            const container = document.getElementById('main-area');
+            c.width = container.clientWidth;
+            c.height = container.clientHeight;
+            c.style.opacity = 0.3;
+            
+            const chars = "01";
+            const fontSize = 14;
+            const columns = c.width / fontSize;
+            const drops = Array(Math.floor(columns)).fill(1);
+
+            matrixInterval = setInterval(() => {
+                ctx.fillStyle = "rgba(0, 0, 0, 0.05)";
+                ctx.fillRect(0, 0, c.width, c.height);
+                ctx.fillStyle = "#0F0";
+                ctx.font = fontSize + "px monospace";
+                for (let i = 0; i < drops.length; i++) {
+                    const text = chars[Math.floor(Math.random() * chars.length)];
+                    ctx.fillText(text, i * fontSize, drops[i] * fontSize);
+                    if (drops[i] * fontSize > c.height && Math.random() > 0.975) drops[i] = 0;
+                    drops[i]++;
+                }
+            }, 33);
+        }
+
+        function stopMatrixEffect() {
+            clearInterval(matrixInterval);
+            document.getElementById('matrix-canvas').style.opacity = 0;
+        }
+
+        async function runCPUTest() {
+            activateCard('card-cpu');
+            setStatus("CPU 연산 테스트", "浮点 / 矩阵 / 多线程", 10);
+            startMatrixEffect();
+
+            const start = performance.now();
+            let operations = 0;
+            const duration = 2500;
+
+            await new Promise(resolve => {
+                const loop = () => {
+                    const now = performance.now();
+                    if (now - start > duration) {
+                        resolve();
+                        return;
+                    }
+                    
+                    // 运算密集型任务
+                    for(let i=0; i<300000; i++) {
+                        Math.sqrt(Math.random() * 10000);
+                        operations++;
+                    }
+                    
+                    const p = 10 + ((now - start) / duration) * 20;
+                    document.getElementById('progress-bar').style.width = `${p}%`;
+                    requestAnimationFrame(loop);
+                };
+                loop();
+            });
+
+            stopMatrixEffect();
+            
+            // 评分调整为适应手机和PC
+            const rawScore = operations / 100000; 
+            state.scores.cpu = Math.floor(rawScore * (navigator.hardwareConcurrency || 4) * 0.8); 
+            updateScore('cpu', state.scores.cpu);
+        }
+
+        // === 2. 메모리测试逻辑 ===
+        async function runMemoryTest() {
+            activateCard('card-mem');
+            setStatus("메모리 읽기/쓰기 테스트", "数据分配 / 遍历", 35);
+            
+            const start = performance.now();
+            let count = 0;
+            const duration = 2000;
+
+            await new Promise(resolve => {
+                const loop = () => {
+                    const now = performance.now();
+                    if (now - start > duration) {
+                        resolve();
+                        return;
+                    }
+
+                    // 降低单次分配大小，防止低端手机崩溃
+                    try {
+                        const size = 50000; 
+                        const arr = new Float32Array(size);
+                        for(let k=0; k<size; k+=10) {
+                            arr[k] = Math.random();
+                        }
+                        count++;
+                    } catch(e) {}
+
+                    const p = 30 + ((now - start) / duration) * 20; 
+                    document.getElementById('progress-bar').style.width = `${p}%`;
+                    setTimeout(loop, 0); 
+                };
+                loop();
+            });
+
+            state.scores.mem = Math.floor(count * 80); // 调整系数
+            updateScore('mem', state.scores.mem);
+        }
+
+        // === 3. GPU 测试逻辑 (核心修改：统一负载 + 自适应相机 + 그래픽杀手) ===
+        let renderer, scene, camera, mesh, particles;
+        let gpuRunning = false;
+        let gpuFrameCount = 0;
+        let gpuStartTime = 0;
+
+        function updateRenderSize() {
+            if (!renderer || !camera) return;
+            
+            const container = document.getElementById('canvas-container');
+            const cw = container.clientWidth;
+            const ch = container.clientHeight;
+            const aspect = cw / ch;
+
+            // 1. 统一负载逻辑
+            // 不使用物理像素，而是根据宽高比计算出总像素约为 TARGET_PIXEL_COUNT 的分辨率
+            // h * (h * aspect) = TARGET => h = sqrt(TARGET / aspect)
+            const targetHeight = Math.sqrt(TARGET_PIXEL_COUNT / aspect);
+            const targetWidth = targetHeight * aspect;
+
+            // setSize(width, height, updateStyle)
+            // 第三个参数 false 非常重要！
+            // 这意味着 Canvas 内部 Buffer 是标准化的，不依赖设备DPR
+            renderer.setSize(Math.floor(targetWidth), Math.floor(targetHeight), false);
+
+            // 2. 自适应相机逻辑 (解决手机显示不全)
+            camera.aspect = aspect;
+            camera.updateProjectionMatrix();
+
+            // 如果屏幕很窄（手机竖屏），拉远相机，保证物体在视野内
+            // 基础距离 50，根据 aspect 调整
+            const baseDistance = 50;
+            if (aspect < 1) {
+                // 竖屏：拉远。aspect 越小，距离越远
+                camera.position.z = baseDistance / aspect; 
+            } else {
+                // 横屏：保持基础距离
+                camera.position.z = baseDistance;
+            }
+        }
+
+        function init3D() {
+            const container = document.getElementById('canvas-container');
+            container.innerHTML = '';
+            
+            scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x000000, 0.002);
+
+            camera = new THREE.PerspectiveCamera(60, 1, 0.1, 1000); // aspect会在 updateRenderSize 更新
+            
+            renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" });
+            // antialias 设为 false 以进一步保证像素级负载的一致性
+            
+            container.appendChild(renderer.domElement);
+
+            // 调用一次尺寸适配
+            updateRenderSize();
+            // 监听窗口变化
+            window.addEventListener('resize', updateRenderSize);
+
+            // 场景内容 - 增加复杂度
+            // 增加 Segments 数量 (800, 200) 显著提高顶点处理压力
+            const geo = new THREE.TorusKnotGeometry(10, 3, 800, 200); 
+            const mat = new THREE.MeshStandardMaterial({ 
+                color: 0x00f3ff, roughness: 0.2, metalness: 0.8, 
+                emissive: 0x111111 
+            });
+            mesh = new THREE.Mesh(geo, mat);
+            scene.add(mesh);
+
+            // 粒子系统 - 增加到 30000 并开启透明度
+            const pGeo = new THREE.BufferGeometry();
+            const pCount = 30000; // 数量激增：5000 -> 30000
+            const posArray = new Float32Array(pCount * 3);
+            for(let i=0; i<pCount*3; i++) {
+                posArray[i] = (Math.random() - 0.5) * 200;
+            }
+            pGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+            
+            // 关键修改：开启透明 (transparent: true) 和关闭深度写入 (depthWrite: false)
+            // 这会导致大量的 Overdraw（过度绘制），对移动端 GPU (Tile-based) 是极大杀伤，对电脑그래픽相对友好
+            const pMat = new THREE.PointsMaterial({ 
+                size: 0.8, 
+                color: 0xffffff,
+                transparent: true,
+                opacity: 0.6,
+                depthWrite: false 
+            });
+            particles = new THREE.Points(pGeo, pMat);
+            scene.add(particles);
+
+            const l1 = new THREE.PointLight(0xff0055, 2, 100);
+            l1.position.set(20, 20, 20);
+            scene.add(l1);
+            const l2 = new THREE.PointLight(0x00f3ff, 2, 100);
+            l2.position.set(-20, -20, 20);
+            scene.add(l2);
+            scene.add(new THREE.AmbientLight(0x404040));
+        }
+
+        function runGPULoop() {
+            if(!gpuRunning) return;
+            requestAnimationFrame(runGPULoop);
+            
+            mesh.rotation.x += 0.01;
+            mesh.rotation.y += 0.02;
+            particles.rotation.y -= 0.001;
+            
+            renderer.render(scene, camera);
+            gpuFrameCount++;
+        }
+
+        async function runGPUTest() {
+            activateCard('card-gpu');
+            document.getElementById('canvas-container').style.opacity = 1;
+            setStatus("GPU 그래픽测试 (2K基准+透明混合)", "粒子重叠 / 深度计算 / 顶点压力", 55);
+
+            init3D();
+            gpuRunning = true;
+            gpuFrameCount = 0;
+            gpuStartTime = performance.now();
+            runGPULoop();
+
+            const duration = 5000;
+
+            await new Promise(resolve => {
+                const check = () => {
+                    const now = performance.now();
+                    const elapsed = now - gpuStartTime;
+                    
+                    if (elapsed > duration) {
+                        resolve();
+                        return;
+                    }
+                    
+                    const p = 50 + (elapsed / duration) * 40; 
+                    document.getElementById('progress-bar').style.width = `${p}%`;
+                    
+                    setTimeout(check, 100);
+                };
+                check();
+            });
+
+            gpuRunning = false;
+            window.removeEventListener('resize', updateRenderSize); // 清理
+            document.getElementById('canvas-container').style.opacity = 0.2;
+
+            // 评分逻辑调整：
+            const fps = gpuFrameCount / (duration / 1000);
+            
+            // 系数调整：由于压力显著增大，需要提高每帧的分数权重
+            state.scores.gpu = Math.floor(fps * 300);
+            updateScore('gpu', state.scores.gpu);
+        }
+
+        // === 主流程 ===
+        async function runFullBenchmark() {
+            if(state.isRunning) return;
+            state.isRunning = true;
+            document.getElementById('start-btn').disabled = true;
+            
+            state.scores = { cpu: 0, mem: 0, gpu: 0 };
+            document.getElementById('score-cpu').innerText = "--";
+            document.getElementById('score-mem').innerText = "--";
+            document.getElementById('score-gpu').innerText = "--";
+            document.getElementById('main-score').innerText = "0";
+
+            await runCPUTest();
+            await runMemoryTest();
+            await runGPUTest();
+
+            finishBenchmark();
+        }
+
+        function finishBenchmark() {
+            document.getElementById('progress-bar').style.width = "100%";
+            const total = state.scores.cpu + state.scores.mem + state.scores.gpu;
+            
+            const el = document.getElementById('main-score');
+            let current = 0;
+            const interval = setInterval(() => {
+                current += Math.ceil((total - current) / 10);
+                if (current >= total) {
+                    current = total;
+                    clearInterval(interval);
+                    showFinalResult(total);
+                }
+                el.innerText = current;
+            }, 30);
+        }
+
+        function showFinalResult(score) {
+            let rank = "入门级";
+            let beat = 10;
+            let color = "#aaa";
+
+            // 分数段调整以适应更高的压力
+            if (score > 6000) { rank = "家用级"; beat = 40; color = "#00ff88"; }
+            if (score > 12000) { rank = "高性能"; beat = 70; color = "#00f3ff"; }
+            if (score > 24000) { rank = "旗舰级"; beat = 95; color = "#ff0055"; }
+            if (score > 35000) { rank = "传说级"; beat = 99; color = "gold"; }
+
+            setStatus(`테스트 완료`, `장치 등급: ${rank}`, 100);
+            document.getElementById('status-text').style.color = color;
+            
+            state.isRunning = false;
+            document.getElementById('start-btn').disabled = false;
+            document.getElementById('start-btn').innerText = "다시 테스트";
+        }
+    </script>
+</body>
+</html>

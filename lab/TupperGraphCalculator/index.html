@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>터퍼 그래프 계산기</title>
+    <style>
+        :root {
+            --bg-color: #f8f9fa;
+            --panel-bg: #ffffff;
+            --primary-color: #2563eb; /* 更深一点的蓝色 */
+            --text-color: #374151;
+            --border-color: #e5e7eb;
+            --accent-bg: #eff6ff;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* 侧边栏样式优化 */
+        #sidebar {
+            width: 300px; /* 稍微窄一点 */
+            min-width: 300px;
+            background-color: var(--panel-bg);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            padding: 24px;
+            box-shadow: 4px 0 12px rgba(0,0,0,0.03);
+            z-index: 20;
+        }
+
+        h1 {
+            font-size: 1.25rem;
+            margin-top: 0;
+            margin-bottom: 24px;
+            color: #111827;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        h1::before {
+            content: "📈";
+            font-size: 1.5rem;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #4b5563;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-family: "SF Mono", "Monaco", "Inconsolata", "Fira Mono", monospace;
+            font-size: 1rem;
+            box-sizing: border-box;
+            background-color: #f9fafb;
+            transition: all 0.2s;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            background-color: #fff;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .btn {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 12px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.95rem;
+            transition: all 0.2s;
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .btn:hover {
+            background-color: #1d4ed8;
+            transform: translateY(-1px);
+        }
+        
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn-secondary {
+            background-color: #f3f4f6;
+            color: #4b5563;
+        }
+
+        .btn-secondary:hover {
+            background-color: #e5e7eb;
+            color: #1f2937;
+        }
+
+        .examples {
+            margin-top: 20px;
+            flex-grow: 1;
+            overflow-y: auto;
+            border-top: 1px solid var(--border-color);
+            padding-top: 15px;
+        }
+        
+        .examples-label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #9ca3af;
+            font-weight: 700;
+            margin-bottom: 10px;
+            display: block;
+        }
+
+        .example-item {
+            padding: 10px 12px;
+            background: #fff;
+            border: 1px solid var(--border-color);
+            margin-bottom: 8px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-family: "SF Mono", monospace;
+            transition: all 0.15s;
+            color: #4b5563;
+        }
+
+        .example-item:hover {
+            background: var(--accent-bg);
+            border-color: #bfdbfe;
+            color: var(--primary-color);
+            transform: translateX(2px);
+        }
+
+        .status {
+            margin-top: auto;
+            font-size: 0.85rem;
+            color: #6b7280;
+            padding-top: 15px;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        /* 主画布区域 */
+        #main-area {
+            flex-grow: 1;
+            position: relative;
+            background-color: #ffffff;
+            cursor: crosshair;
+            overflow: hidden;
+            display: flex; /* 确保子元素 canvas 填充 */
+            align-items: center;
+            justify-content: center;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+        }
+
+        #controls-overlay {
+            position: absolute;
+            bottom: 30px;
+            right: 30px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 8px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            border: 1px solid rgba(0,0,0,0.05);
+            backdrop-filter: blur(4px);
+        }
+
+        .icon-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            background: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 1.4rem;
+            color: #4b5563;
+            transition: all 0.2s;
+        }
+        
+        .icon-btn:hover {
+            background-color: var(--accent-bg);
+            color: var(--primary-color);
+            border-color: #bfdbfe;
+        }
+
+        #loading-bar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--primary-color), #60a5fa);
+            width: 0%;
+            transition: width 0.2s ease-out;
+            z-index: 100;
+            box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
+        }
+        
+        .math-ref {
+            font-size: 0.75rem;
+            color: #9ca3af;
+            margin-top: 8px;
+            line-height: 1.4;
+        }
+        
+        /* 坐标轴标签样式 (Canvas 그리기) */
+        /* JS handle this */
+
+    </style>
+</head>
+<body>
+
+    <div id="sidebar">
+        <h1>터퍼 그래프 계산기</h1>
+        
+        <div class="input-group">
+            <label for="equation-input">f(x, y) 공식</label>
+            <input type="text" id="equation-input" value="y < sin(x) * x" placeholder="방정식을 입력하세요. 예: x^2 + y^2 = 10">
+            <div class="math-ref">지원 기호: +, -, *, /, ^, sin, cos, tan, sqrt, abs, log, mod</div>
+        </div>
+
+        <div class="btn-group">
+            <button id="render-btn" class="btn">그리기</button>
+            <button id="reset-view-btn" class="btn btn-secondary" title="보기 초기화">⟲</button>
+        </div>
+
+        <div class="examples">
+            <span class="examples-label">빠른 예시</span>
+            <div class="example-item" data-eq="y < sin(x) * x">y < sin(x) * x (阻尼震荡)</div>
+            <div class="example-item" data-eq="x^2 + y^2 = 16">x^2 + y^2 = 16 (圆)</div>
+            <div class="example-item" data-eq="y = tan(x)">y = tan(x) (正切曲线)</div>
+            <div class="example-item" data-eq="(x^2 + y^2 - 1)^3 - x^2 * y^3 = 0">하트 곡선</div>
+            <div class="example-item" data-eq="y > sin(x) * cos(y)">y > sin(x) * cos(y) (波纹)</div>
+            <div class="example-item" data-eq="abs(x) + abs(y) = 4">abs(x) + abs(y) = 4 (菱形)</div>
+            <div class="example-item" data-eq="mod(x, 2) * mod(y, 2) > 0.5">mod(x, 2) * mod(y, 2) > 0.5 (棋盘)</div>
+            <div class="example-item" data-eq="y = x^2">y = x^2 (抛物线)</div>
+        </div>
+
+        <div class="status">
+            <span id="status-text">준비 완료</span>
+            <span id="coord-info" style="font-family: monospace; font-size: 0.75rem;"></span>
+        </div>
+    </div>
+
+    <div id="main-area">
+        <div id="loading-bar"></div>
+        <div id="controls-overlay">
+            <button class="icon-btn" id="zoom-in" title="확대">+</button>
+            <button class="icon-btn" id="zoom-out" title="축소">-</button>
+        </div>
+        <canvas id="graph-canvas"></canvas>
+    </div>
+
+    <script>
+        /**
+         * 区间算术类 (Interval Arithmetic)
+         */
+        class Interval {
+            constructor(min, max) {
+                if (isNaN(min) || isNaN(max)) {
+                    this.min = NaN;
+                    this.max = NaN;
+                } else {
+                    this.min = min;
+                    this.max = max;
+                }
+            }
+            isValid() { return !isNaN(this.min) && !isNaN(this.max); }
+            static from(a, b) {
+                if (b === undefined) return new Interval(a, a);
+                return new Interval(Math.min(a, b), Math.max(a, b));
+            }
+            add(other) {
+                if (!this.isValid() || !other.isValid()) return new Interval(NaN, NaN);
+                return new Interval(this.min + other.min, this.max + other.max);
+            }
+            sub(other) {
+                if (!this.isValid() || !other.isValid()) return new Interval(NaN, NaN);
+                return new Interval(this.min - other.max, this.max - other.min);
+            }
+            mul(other) {
+                if (!this.isValid() || !other.isValid()) return new Interval(NaN, NaN);
+                const p1 = this.min * other.min, p2 = this.min * other.max;
+                const p3 = this.max * other.min, p4 = this.max * other.max;
+                return new Interval(Math.min(p1, p2, p3, p4), Math.max(p1, p2, p3, p4));
+            }
+            div(other) {
+                if (!this.isValid() || !other.isValid()) return new Interval(NaN, NaN);
+                if (other.min <= 0 && other.max >= 0) {
+                    if (other.min === 0 && other.max === 0) return new Interval(NaN, NaN);
+                    return new Interval(-Infinity, Infinity);
+                }
+                const p1 = this.min / other.min, p2 = this.min / other.max;
+                const p3 = this.max / other.min, p4 = this.max / other.max;
+                return new Interval(Math.min(p1, p2, p3, p4), Math.max(p1, p2, p3, p4));
+            }
+            pow(n) {
+                if (!this.isValid()) return new Interval(NaN, NaN);
+                if (typeof n === 'number') {
+                    if (n % 2 === 0 && this.min <= 0 && this.max >= 0) {
+                        return new Interval(0, Math.max(this.min**n, this.max**n));
+                    }
+                    const v1 = this.min ** n, v2 = this.max ** n;
+                    return new Interval(Math.min(v1, v2), Math.max(v1, v2));
+                }
+                return new Interval(-Infinity, Infinity);
+            }
+            sqrt() {
+                if (!this.isValid() || this.max < 0) return new Interval(NaN, NaN);
+                const lower = this.min < 0 ? 0 : this.min;
+                return new Interval(Math.sqrt(lower), Math.sqrt(this.max));
+            }
+            abs() {
+                if (!this.isValid()) return new Interval(NaN, NaN);
+                if (this.min >= 0) return this;
+                if (this.max <= 0) return new Interval(-this.max, -this.min);
+                return new Interval(0, Math.max(Math.abs(this.min), Math.abs(this.max)));
+            }
+            sin() {
+                if (!this.isValid()) return new Interval(NaN, NaN);
+                if (this.max - this.min >= 2 * Math.PI) return new Interval(-1, 1);
+                let minVal = Math.sin(this.min), maxVal = Math.sin(this.min);
+                const k1 = Math.ceil((this.min - Math.PI/2) / (2*Math.PI));
+                const k2 = Math.floor((this.max - Math.PI/2) / (2*Math.PI));
+                if (k1 <= k2) maxVal = 1;
+                const k3 = Math.ceil((this.min + Math.PI/2) / (2*Math.PI));
+                const k4 = Math.floor((this.max + Math.PI/2) / (2*Math.PI));
+                if (k3 <= k4) minVal = -1;
+                minVal = Math.min(minVal, Math.sin(this.max));
+                maxVal = Math.max(maxVal, Math.sin(this.max));
+                return new Interval(minVal, maxVal);
+            }
+            cos() {
+                const shift = new Interval(Math.PI/2, Math.PI/2);
+                return this.add(shift).sin();
+            }
+            tan() {
+                // simple tan: sin/cos
+                return this.sin().div(this.cos());
+            }
+            log() {
+                 if (!this.isValid() || this.max <= 0) return new Interval(NaN, NaN);
+                 const lower = this.min <= 0 ? -Infinity : Math.log(this.min);
+                 return new Interval(lower, Math.log(this.max));
+            }
+            mod(other) {
+                if (!this.isValid() || !other.isValid()) return new Interval(NaN, NaN);
+                if (typeof other === 'number' || (other.min === other.max)) {
+                    const m = other.min || other;
+                    return new Interval(0, Math.abs(m)); 
+                }
+                return new Interval(0, Math.max(Math.abs(other.min), Math.abs(other.max)));
+            }
+        }
+
+        /**
+         * 解析器 (EquationParser)
+         */
+        class EquationParser {
+            constructor() {
+                this.operators = {
+                    '+': (a, b) => a.add(b),
+                    '-': (a, b) => a.sub(b),
+                    '*': (a, b) => a.mul(b),
+                    '/': (a, b) => a.div(b),
+                    '^': (a, b) => a.pow(b.min),
+                };
+                this.functions = {
+                    'sin': (a) => a.sin(),
+                    'cos': (a) => a.cos(),
+                    'tan': (a) => a.tan(),
+                    'sqrt': (a) => a.sqrt(),
+                    'abs': (a) => a.abs(),
+                    'log': (a) => a.log(),
+                    'mod': (a, b) => a.mod(b)
+                };
+            }
+
+            shuntingYard(formula) {
+                // 支持负号处理略微复杂，这里简化正则
+                const tokens = formula.match(/([0-9.]+|[a-z]+|[+\-*/^(),=<>]=?)/g);
+                if (!tokens) throw new Error("잘못된 공식");
+                const outputQueue = [];
+                const operatorStack = [];
+                const precedence = { '=': 1, '<': 1, '>': 1, '<=': 1, '>=': 1, '+': 2, '-': 2, '*': 3, '/': 3, '^': 4 };
+
+                tokens.forEach(token => {
+                    if (!isNaN(parseFloat(token))) {
+                        outputQueue.push({ type: 'number', value: parseFloat(token) });
+                    } else if (token === 'x' || token === 'y') {
+                        outputQueue.push({ type: 'variable', value: token });
+                    } else if (this.functions[token]) {
+                        operatorStack.push(token);
+                    } else if (token === ',') {
+                        while (operatorStack.length > 0 && operatorStack[operatorStack.length - 1] !== '(') {
+                            outputQueue.push({ type: 'operator', value: operatorStack.pop() });
+                        }
+                    } else if (token === '(') {
+                        operatorStack.push(token);
+                    } else if (token === ')') {
+                        while (operatorStack.length > 0 && operatorStack[operatorStack.length - 1] !== '(') {
+                            outputQueue.push({ type: 'operator', value: operatorStack.pop() });
+                        }
+                        operatorStack.pop();
+                        if (operatorStack.length > 0 && this.functions[operatorStack[operatorStack.length - 1]]) {
+                            outputQueue.push({ type: 'function', value: operatorStack.pop() });
+                        }
+                    } else if (precedence[token]) {
+                        while (operatorStack.length > 0 && precedence[operatorStack[operatorStack.length - 1]] >= precedence[token]) {
+                            outputQueue.push({ type: 'operator', value: operatorStack.pop() });
+                        }
+                        operatorStack.push(token);
+                    }
+                });
+                while (operatorStack.length > 0) outputQueue.push({ type: 'operator', value: operatorStack.pop() });
+                return outputQueue;
+            }
+
+            compile(formula) {
+                let compareOp = null;
+                const ops = ['<=', '>=', '<', '>', '='];
+                for (let op of ops) {
+                    if (formula.includes(op)) {
+                        const parts = formula.split(op);
+                        if (parts.length === 2) {
+                            formula = `(${parts[0]}) - (${parts[1]})`;
+                            compareOp = op;
+                            break;
+                        }
+                    }
+                }
+
+                const rpn = this.shuntingYard(formula);
+
+                return (xInterval, yInterval) => {
+                    const stack = [];
+                    rpn.forEach(token => {
+                        if (token.type === 'number') stack.push(new Interval(token.value, token.value));
+                        else if (token.type === 'variable') stack.push(token.value === 'x' ? xInterval : yInterval);
+                        else if (token.type === 'operator') {
+                            const b = stack.pop();
+                            const a = stack.pop();
+                            if (this.operators[token.value]) stack.push(this.operators[token.value](a, b));
+                            else stack.push(new Interval(NaN, NaN));
+                        } else if (token.type === 'function') {
+                            if (token.value === 'mod') {
+                                const b = stack.pop();
+                                const a = stack.pop();
+                                stack.push(this.functions[token.value](a, b));
+                            } else {
+                                const a = stack.pop();
+                                stack.push(this.functions[token.value](a));
+                            }
+                        }
+                    });
+
+                    const result = stack[0];
+                    if (!result || !result.isValid()) return "FALSE";
+
+                    if (compareOp) {
+                        switch (compareOp) {
+                            case '=': return (result.min <= 0 && result.max >= 0) ? "MAYBE" : "FALSE";
+                            case '<': 
+                                if (result.max < 0) return "TRUE";
+                                if (result.min >= 0) return "FALSE";
+                                return "MAYBE";
+                            case '>': 
+                                if (result.min > 0) return "TRUE";
+                                if (result.max <= 0) return "FALSE";
+                                return "MAYBE";
+                            default: return "MAYBE";
+                        }
+                    } else {
+                        return (result.min <= 0 && result.max >= 0) ? "MAYBE" : "FALSE";
+                    }
+                };
+            }
+        }
+
+        /**
+         * 绘图引擎 (Grapher)
+         */
+        class Grapher {
+            constructor(canvas) {
+                this.canvas = canvas;
+                this.ctx = canvas.getContext('2d');
+                this.width = canvas.width;
+                this.height = canvas.height;
+                this.evaluator = null;
+                this.view = { x: 0, y: 0, w: 10, h: 10 };
+                this.workQueue = [];
+                this.isRunning = false;
+                this.statusEl = document.getElementById('status-text');
+                this.coordEl = document.getElementById('coord-info');
+                this.loadingBar = document.getElementById('loading-bar');
+            }
+
+            resize() {
+                // 获取父容器的实际大小，确保填满
+                const parent = this.canvas.parentElement;
+                this.canvas.width = parent.clientWidth;
+                this.canvas.height = parent.clientHeight;
+                this.width = this.canvas.width;
+                this.height = this.canvas.height;
+                
+                const aspect = this.width / this.height;
+                // 保持宽度不变，调整高度以适应比例，或者保持比例
+                this.view.h = this.view.w / aspect;
+                
+                if (this.evaluator) this.render();
+            }
+
+            setEquation(equationStr) {
+                try {
+                    const parser = new EquationParser();
+                    this.evaluator = parser.compile(equationStr);
+                    this.render();
+                    this.statusEl.textContent = "계산 중...";
+                } catch (e) {
+                    this.statusEl.textContent = "오류: " + e.message;
+                    console.error(e);
+                }
+            }
+
+            // 屏幕坐标转实数区间
+            pixelToInterval(px, py, w, h) {
+                const xMin = this.view.x - this.view.w/2 + (px / this.width) * this.view.w;
+                const xMax = this.view.x - this.view.w/2 + ((px + w) / this.width) * this.view.w;
+                const yMax = this.view.y + this.view.h/2 - (py / this.height) * this.view.h;
+                const yMin = this.view.y + this.view.h/2 - ((py + h) / this.height) * this.view.h;
+                return { x: new Interval(xMin, xMax), y: new Interval(yMin, yMax) };
+            }
+
+            // 实数值转屏幕坐标
+            valToPx(val, type) {
+                if (type === 'x') {
+                    return (val - (this.view.x - this.view.w/2)) / this.view.w * this.width;
+                } else {
+                    return (this.view.y + this.view.h/2 - val) / this.view.h * this.height;
+                }
+            }
+
+            // 그리기网格和坐标轴
+            drawGrid() {
+                const ctx = this.ctx;
+                const left = this.view.x - this.view.w / 2;
+                const right = this.view.x + this.view.w / 2;
+                const bottom = this.view.y - this.view.h / 2;
+                const top = this.view.y + this.view.h / 2;
+
+                // 计算网格步长 (自适应)
+                // 目标是屏幕上大约有 8-12 个大格子
+                const rawStep = this.view.w / 10; 
+                // 找到最近的数量级 (1, 2, 5, 10...)
+                const magnitude = Math.pow(10, Math.floor(Math.log10(rawStep)));
+                let step = magnitude;
+                if (rawStep / magnitude >= 5) step = 5 * magnitude;
+                else if (rawStep / magnitude >= 2) step = 2 * magnitude;
+
+                ctx.save();
+                ctx.lineWidth = 1;
+                ctx.font = "11px -apple-system, BlinkMacSystemFont, sans-serif";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "top";
+
+                // 1. 그리기网格 (浅色)
+                ctx.strokeStyle = "#e5e7eb"; 
+                ctx.beginPath();
+                
+                // 垂直网格线
+                const startX = Math.floor(left / step) * step;
+                for (let x = startX; x <= right; x += step) {
+                    const px = this.valToPx(x, 'x');
+                    ctx.moveTo(px, 0);
+                    ctx.lineTo(px, this.height);
+                    
+                    // 标记数值 (如果不是轴线)
+                    if (Math.abs(x) > step/1000) {
+                        ctx.fillStyle = "#9ca3af";
+                        // 그리기在 X 轴附近，如果在视图外则그리기在底部
+                        let labelY = this.valToPx(0, 'y');
+                        if (labelY < 20 || labelY > this.height - 20) labelY = this.height - 20;
+                        else labelY += 5; // 轴下方
+                        ctx.fillText(parseFloat(x.toPrecision(6)), px, labelY);
+                    }
+                }
+
+                // 水平网格线
+                const startY = Math.floor(bottom / step) * step;
+                for (let y = startY; y <= top; y += step) {
+                    const py = this.valToPx(y, 'y');
+                    ctx.moveTo(0, py);
+                    ctx.lineTo(this.width, py);
+                    
+                    if (Math.abs(y) > step/1000) {
+                         ctx.fillStyle = "#9ca3af";
+                         let labelX = this.valToPx(0, 'x');
+                         if (labelX < 30 || labelX > this.width - 30) labelX = 5; // 左边缘
+                         else labelX -= 8; // 轴左侧
+                         ctx.textAlign = (labelX === 5) ? "left" : "right";
+                         ctx.fillText(parseFloat(y.toPrecision(6)), labelX, py - 6);
+                    }
+                }
+                ctx.stroke();
+
+                // 2. 그리기主坐标轴 (深色)
+                ctx.strokeStyle = "#4b5563";
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+
+                // X 轴
+                const y0 = this.valToPx(0, 'y');
+                if (y0 >= 0 && y0 <= this.height) {
+                    ctx.moveTo(0, y0);
+                    ctx.lineTo(this.width, y0);
+                }
+
+                // Y 轴
+                const x0 = this.valToPx(0, 'x');
+                if (x0 >= 0 && x0 <= this.width) {
+                    ctx.moveTo(x0, 0);
+                    ctx.lineTo(x0, this.height);
+                }
+                ctx.stroke();
+                ctx.restore();
+            }
+
+            render() {
+                this.workQueue = [];
+                this.ctx.clearRect(0, 0, this.width, this.height);
+                
+                // 先画网格
+                this.drawGrid();
+                
+                this.isRunning = true;
+                const GridSize = 32; 
+                for (let y = 0; y < this.height; y += GridSize) {
+                    for (let x = 0; x < this.width; x += GridSize) {
+                        this.workQueue.push({
+                            x: x, y: y, 
+                            w: Math.min(GridSize, this.width - x), 
+                            h: Math.min(GridSize, this.height - y)
+                        });
+                    }
+                }
+                
+                requestAnimationFrame(this.processQueue.bind(this));
+            }
+
+            processQueue() {
+                if (!this.isRunning) return;
+                const startTime = performance.now();
+                // 增加每帧处理时间以加快渲染
+                while (this.workQueue.length > 0 && performance.now() - startTime < 12) {
+                    const task = this.workQueue.pop();
+                    const bounds = this.pixelToInterval(task.x, task.y, task.w, task.h);
+                    const result = this.evaluator(bounds.x, bounds.y);
+
+                    if (result === "TRUE") {
+                        // 确定解：半透明蓝色
+                        this.ctx.fillStyle = "rgba(59, 130, 246, 0.4)"; 
+                        this.ctx.fillRect(task.x, task.y, task.w, task.h);
+                    } else if (result === "MAYBE") {
+                        if (task.w <= 1 && task.h <= 1) {
+                            // 最终像素：深色（近似黑色，带一点蓝）
+                            this.ctx.fillStyle = "#1e3a8a";
+                            this.ctx.fillRect(task.x, task.y, 1, 1);
+                        } else {
+                            // 细分
+                            const halfW = task.w / 2;
+                            const halfH = task.h / 2;
+                            const splitW = halfW < 1 ? 1 : Math.floor(halfW);
+                            const splitH = halfH < 1 ? 1 : Math.floor(halfH);
+                            const remW = task.w - splitW;
+                            const remH = task.h - splitH;
+
+                            if (task.w > 1 && task.h > 1) {
+                                this.workQueue.push({x: task.x, y: task.y, w: splitW, h: splitH});
+                                if(remW>0) this.workQueue.push({x: task.x + splitW, y: task.y, w: remW, h: splitH});
+                                if(remH>0) this.workQueue.push({x: task.x, y: task.y + splitH, w: splitW, h: remH});
+                                if(remW>0 && remH>0) this.workQueue.push({x: task.x + splitW, y: task.y + splitH, w: remW, h: remH});
+                            } else if (task.w > 1) {
+                                this.workQueue.push({x: task.x, y: task.y, w: splitW, h: task.h});
+                                this.workQueue.push({x: task.x + splitW, y: task.y, w: remW, h: task.h});
+                            } else if (task.h > 1) {
+                                this.workQueue.push({x: task.x, y: task.y, w: task.w, h: splitH});
+                                this.workQueue.push({x: task.x, y: task.y + splitH, w: task.w, h: remH});
+                            }
+                        }
+                    }
+                }
+
+                if (this.workQueue.length > 0) {
+                    this.loadingBar.style.width = "60%"; 
+                    this.statusEl.textContent = `渲染中... 剩余块: ${this.workQueue.length}`;
+                    requestAnimationFrame(this.processQueue.bind(this));
+                } else {
+                    this.loadingBar.style.width = "100%";
+                    setTimeout(() => { this.loadingBar.style.width = "0%"; }, 300);
+                    this.statusEl.textContent = "그리기 완료";
+                    this.isRunning = false;
+                }
+            }
+
+            pan(dx, dy) {
+                const pixelScale = this.view.w / this.width;
+                this.view.x -= dx * pixelScale;
+                this.view.y += dy * pixelScale; 
+                this.render();
+            }
+
+            zoom(factor) {
+                this.view.w *= factor;
+                this.view.h *= factor;
+                this.render();
+            }
+        }
+
+        const canvas = document.getElementById('graph-canvas');
+        const grapher = new Grapher(canvas);
+
+        window.addEventListener('resize', () => grapher.resize());
+        setTimeout(() => grapher.resize(), 50);
+
+        document.getElementById('render-btn').addEventListener('click', () => {
+            const eq = document.getElementById('equation-input').value;
+            grapher.setEquation(eq);
+        });
+
+        document.getElementById('reset-view-btn').addEventListener('click', () => {
+            const aspect = canvas.width / canvas.height;
+            grapher.view = { x: 0, y: 0, w: 10, h: 10 / aspect };
+            grapher.render();
+        });
+
+        document.getElementById('zoom-in').addEventListener('click', () => grapher.zoom(0.8));
+        document.getElementById('zoom-out').addEventListener('click', () => grapher.zoom(1.25));
+
+        document.querySelectorAll('.example-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const eq = item.getAttribute('data-eq');
+                document.getElementById('equation-input').value = eq;
+                grapher.setEquation(eq);
+            });
+        });
+
+        let isDragging = false;
+        let lastX = 0, lastY = 0;
+
+        canvas.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            lastX = e.clientX;
+            lastY = e.clientY;
+            canvas.style.cursor = 'grabbing';
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            // 显示鼠标坐标
+            if (grapher.view) {
+                const rect = canvas.getBoundingClientRect();
+                const mx = e.clientX - rect.left;
+                const my = e.clientY - rect.top;
+                const iv = grapher.pixelToInterval(mx, my, 0, 0);
+                const vx = (iv.x.min + iv.x.max)/2;
+                const vy = (iv.y.min + iv.y.max)/2;
+                document.getElementById('coord-info').textContent = `${vx.toFixed(2)}, ${vy.toFixed(2)}`;
+            }
+
+            if (isDragging) {
+                const dx = e.clientX - lastX;
+                const dy = e.clientY - lastY;
+                lastX = e.clientX;
+                lastY = e.clientY;
+                grapher.pan(dx, dy);
+            }
+        });
+
+        window.addEventListener('mouseup', () => {
+            isDragging = false;
+            canvas.style.cursor = 'crosshair';
+        });
+
+        canvas.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const factor = e.deltaY > 0 ? 1.1 : 0.9;
+            grapher.zoom(factor);
+        }, { passive: false });
+
+        // 初始
+        grapher.setEquation("y < sin(x) * x");
+
+    </script>
+</body>
+</html>
