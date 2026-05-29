@@ -3,224 +3,416 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>에테리얼 랜드 - 성능판</title>
+    <title>루루 월드 - 디오라마 맵</title>
     <style>
-        body { margin: 0; overflow: hidden; background-color: #A0D8EF; font-family: 'Segoe UI', sans-serif; user-select: none; }
-        canvas { display: block; }
-        
+        :root {
+            color-scheme: light;
+            --ink: #2f3c44;
+            --paper: rgba(255, 252, 239, 0.88);
+            --line: rgba(111, 101, 82, 0.25);
+            --accent: #36aaa0;
+            --gold: #d89c2b;
+        }
+
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+        }
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #9ed8e8;
+            font-family: "Segoe UI", "Malgun Gothic", Arial, sans-serif;
+            user-select: none;
+        }
+
+        canvas {
+            display: block;
+        }
+
         #ui-layer {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
+            position: fixed;
+            inset: 0;
             pointer-events: none;
             display: flex;
             flex-direction: column;
             justify-content: space-between;
+            z-index: 10;
         }
 
         #top-bar {
-            padding: 20px;
+            padding: 18px;
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
+            gap: 16px;
         }
-        
+
+        .hud-stack {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            max-width: min(680px, calc(100vw - 240px));
+        }
+
         .hud-box {
-            background: rgba(255, 255, 255, 0.2);
-            backdrop-filter: blur(10px);
-            padding: 10px 20px;
-            border-radius: 20px;
-            color: #333;
-            border: 2px solid rgba(255, 255, 255, 0.5);
-            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            min-height: 34px;
+            padding: 8px 12px;
+            border-radius: 8px;
+            color: var(--ink);
+            background: var(--paper);
+            border: 1px solid rgba(255, 255, 255, 0.68);
+            box-shadow: 0 8px 18px rgba(68, 94, 101, 0.12);
             font-weight: 800;
-            letter-spacing: 1px;
+            line-height: 1.2;
+            backdrop-filter: blur(10px);
+        }
+
+        .hud-box small {
+            display: block;
+            margin-bottom: 2px;
+            color: rgba(47, 60, 68, 0.62);
+            font-size: 11px;
+            font-weight: 900;
+            letter-spacing: 0.08em;
+        }
+
+        #gold-display {
+            color: #946516;
         }
 
         #minimap-container {
-            width: 180px;
-            height: 180px;
+            width: 172px;
+            height: 172px;
             border-radius: 50%;
-            border: 6px solid rgba(255,255,255,0.8);
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            border: 5px solid rgba(255, 255, 255, 0.82);
+            box-shadow: 0 12px 28px rgba(45, 82, 92, 0.18);
             position: relative;
-            background: rgba(255,255,255,0.1);
+            background: rgba(255, 255, 255, 0.16);
             overflow: hidden;
+            flex: 0 0 auto;
         }
-        
+
         #minimap-arrow {
             position: absolute;
-            top: 50%; left: 50%;
-            width: 0; height: 0;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
             border-left: 8px solid transparent;
             border-right: 8px solid transparent;
-            border-bottom: 14px solid #FF5252;
+            border-bottom: 15px solid #f45f5d;
             transform: translate(-50%, -50%);
             z-index: 2;
         }
 
-        /* --- 新版 UI: 纪念碑谷风格 --- */
-        #bottom-bar {
-            padding: 50px;
-            display: flex;
-            align-items: center; /* 居中对齐 */
-            gap: 30px;
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 7px;
+            height: 7px;
+            background: rgba(255, 255, 255, 0.94);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 0 2px rgba(42, 64, 70, 0.14);
         }
 
-        /* 几何菱形头像 */
-        .avatar-diamond {
-            width: 60px;
-            height: 60px;
-            background: #FF6B6B;
-            border: 4px solid #fff;
-            transform: rotate(45deg); /* 旋转 */
-            box-shadow: 5px 5px 0px rgba(0,0,0,0.1); /* 硬阴影 */
+        #interaction-prompt,
+        #toast {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            color: var(--ink);
+            background: rgba(255, 252, 239, 0.92);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            box-shadow: 0 10px 24px rgba(45, 82, 92, 0.14);
+            backdrop-filter: blur(10px);
+            font-weight: 850;
+            opacity: 0;
+            transition: opacity 0.18s ease, transform 0.18s ease;
+            white-space: nowrap;
+        }
+
+        #interaction-prompt {
+            bottom: 156px;
+            padding: 9px 14px;
+            pointer-events: none;
+        }
+
+        #toast {
+            top: 84px;
+            padding: 10px 16px;
+        }
+
+        #interaction-prompt.visible,
+        #toast.visible {
+            opacity: 1;
+            transform: translateX(-50%) translateY(-3px);
+        }
+
+        #interaction-prompt.visible {
+            cursor: pointer;
+            pointer-events: auto;
+        }
+
+        #dialog {
+            position: absolute;
+            left: 50%;
+            bottom: 26px;
+            width: min(620px, calc(100vw - 32px));
+            transform: translateX(-50%) translateY(16px);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.18s ease, transform 0.18s ease;
+        }
+
+        #dialog.visible {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        .dialog-panel {
+            padding: 16px 18px;
+            border-radius: 8px;
+            background: rgba(255, 252, 239, 0.94);
+            border: 1px solid rgba(111, 101, 82, 0.22);
+            box-shadow: 0 18px 38px rgba(45, 82, 92, 0.18);
+            color: var(--ink);
+            backdrop-filter: blur(12px);
+        }
+
+        #dialog-title {
+            margin: 0 0 8px;
+            font-size: 22px;
+            letter-spacing: 0;
+        }
+
+        #dialog-body {
+            margin: 0 0 12px;
+            line-height: 1.55;
+            font-weight: 650;
+            color: rgba(47, 60, 68, 0.84);
+        }
+
+        #dialog-menu {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 8px;
+            margin: 0;
+            padding: 0;
+            list-style: none;
+        }
+
+        #dialog-menu li {
+            min-height: 34px;
+            padding: 8px 10px;
+            border-radius: 8px;
+            background: rgba(74, 167, 151, 0.1);
+            border: 1px solid rgba(74, 167, 151, 0.18);
+            font-size: 13px;
+            font-weight: 850;
             display: flex;
             align-items: center;
             justify-content: center;
-            position: relative;
+            text-align: center;
         }
 
-        /* 反转文字旋转，使其正立 */
+        #bottom-bar {
+            padding: 24px;
+            display: flex;
+            align-items: flex-end;
+            gap: 16px;
+        }
+
+        .avatar-diamond {
+            width: 54px;
+            height: 54px;
+            background: #f45f5d;
+            border: 4px solid #fff;
+            transform: rotate(45deg);
+            box-shadow: 5px 5px 0 rgba(62, 84, 89, 0.12);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex: 0 0 auto;
+        }
+
         .avatar-diamond span {
             transform: rotate(-45deg);
-            font-size: 24px;
-            font-weight: 900;
+            font-size: 22px;
+            font-weight: 950;
             color: #fff;
         }
 
         .bars {
-            flex-grow: 1;
-            max-width: 200px;
+            width: 220px;
             display: flex;
             flex-direction: column;
-            gap: 12px;
+            gap: 10px;
         }
 
         .bar-container {
-            width: 100%;
             height: 14px;
-            background: rgba(255,255,255,0.5);
-            border: 2px solid #fff; /* 白色描边 */
-            overflow: visible; /* 允许阴影溢出 */
-            box-shadow: 2px 2px 0px rgba(0,0,0,0.1); /* 硬阴影 */
+            background: rgba(255, 255, 255, 0.56);
+            border: 2px solid #fff;
+            box-shadow: 2px 2px 0 rgba(62, 84, 89, 0.12);
+            overflow: hidden;
         }
 
-        .bar-fill { 
-            height: 100%; 
-            transition: width 0.2s; 
+        .bar-fill {
+            height: 100%;
+            transition: width 0.16s ease;
         }
-        
-        /* 扁平化配色 */
-        #hp-bar { background: #FF6B6B; }
-        #stamina-bar { background: #4ECDC4; }
-        
-        #biome-display { font-size: 14px; color: #555; text-transform: uppercase; margin-top: 5px; font-weight: bold;}
 
-        /* 滑翔提示 */
-        #glide-hint {
-            position: absolute;
-            bottom: 120px;
-            left: 50%;
-            transform: translateX(-50%);
-            color: white;
-            font-weight: bold;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.2);
-            opacity: 0;
-            transition: opacity 0.3s;
-            background: rgba(0,0,0,0.2);
-            padding: 5px 15px;
-            border-radius: 20px;
+        #hp-bar {
+            background: #f45f5d;
+            width: 100%;
+        }
+
+        #stamina-bar {
+            background: #36aaa0;
+            width: 100%;
         }
 
         #pause-menu {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(240, 248, 255, 0.9);
-            backdrop-filter: blur(15px);
+            position: fixed;
+            inset: 0;
+            background: rgba(238, 250, 253, 0.92);
+            backdrop-filter: blur(14px);
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            color: #444;
+            color: var(--ink);
             z-index: 100;
-            transition: opacity 0.4s;
+            transition: opacity 0.32s ease;
             pointer-events: auto;
+            text-align: center;
+            padding: 24px;
         }
-        
-        button {
-            padding: 18px 60px;
-            font-size: 20px;
-            background: #4ECDC4;
-            color: white;
-            border: none;
-            border-radius: 60px;
-            cursor: pointer;
+
+        #pause-menu h1 {
+            margin: 0;
+            color: #f45f5d;
+            font-size: clamp(42px, 8vw, 78px);
+            letter-spacing: 0;
+            line-height: 1;
+        }
+
+        #pause-menu p {
+            margin: 12px 0 0;
+            color: #36aaa0;
+            font-size: 18px;
             font-weight: 900;
-            transition: all 0.2s;
-            box-shadow: 0 10px 25px rgba(78, 205, 196, 0.4);
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            margin-top: 30px;
         }
-        button:hover { transform: translateY(-3px); box-shadow: 0 15px 30px rgba(78, 205, 196, 0.5); }
-        button:active { transform: scale(0.95); }
+
+        button {
+            margin-top: 28px;
+            padding: 15px 42px;
+            border: 0;
+            border-radius: 8px;
+            background: #36aaa0;
+            color: #fff;
+            cursor: pointer;
+            font-size: 19px;
+            font-weight: 950;
+            box-shadow: 0 10px 24px rgba(54, 170, 160, 0.28);
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+        }
 
         .key-hint {
-            margin-top: 40px;
-            color: #888;
+            margin-top: 22px;
+            color: rgba(47, 60, 68, 0.72);
             font-size: 14px;
-            text-align: center;
-            line-height: 2.2;
-            font-weight: 600;
-        }
-        kbd {
-            background: white;
-            color: #555;
-            padding: 5px 10px;
-            border-radius: 8px;
-            box-shadow: 0 2px 0 #ddd;
-            font-family: 'Segoe UI', monospace;
-            font-weight: bold;
-            margin: 0 5px;
-            border: 1px solid #eee;
+            line-height: 2.1;
+            font-weight: 750;
         }
 
-        #crosshair {
-            position: absolute;
-            top: 50%; left: 50%;
-            width: 8px; height: 8px;
+        kbd {
             background: white;
-            border-radius: 50%;
-            transform: translate(-50%, -50%);
-            box-shadow: 0 0 0 2px rgba(0,0,0,0.1);
+            color: #40515a;
+            padding: 4px 8px;
+            border-radius: 6px;
+            box-shadow: 0 2px 0 #d8d6ca;
+            font-family: "Segoe UI", Consolas, monospace;
+            font-weight: 900;
+            margin: 0 3px;
+            border: 1px solid #efeadb;
         }
 
         #fps-hud {
             position: fixed;
             right: 12px;
             bottom: 12px;
-            padding: 6px 10px;
-            border-radius: 10px;
-            background: rgba(0,0,0,0.35);
-            color: rgba(255,255,255,0.95);
-            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+            padding: 6px 9px;
+            border-radius: 8px;
+            background: rgba(31, 44, 49, 0.36);
+            color: rgba(255, 255, 255, 0.95);
+            font-family: Consolas, "Liberation Mono", monospace;
             font-size: 12px;
-            line-height: 1.2;
             z-index: 90;
             pointer-events: none;
-            user-select: none;
             white-space: nowrap;
+        }
+
+        @media (max-width: 720px) {
+            #top-bar {
+                padding: 12px;
+            }
+
+            .hud-stack {
+                max-width: calc(100vw - 142px);
+            }
+
+            .hud-box {
+                padding: 7px 9px;
+                font-size: 13px;
+            }
+
+            #minimap-container {
+                width: 116px;
+                height: 116px;
+                border-width: 4px;
+            }
+
+            #dialog-menu {
+                grid-template-columns: 1fr;
+            }
+
+            .bars {
+                width: 166px;
+            }
         }
     </style>
 </head>
 <body>
-
     <div id="ui-layer">
         <div id="fps-hud">-- FPS</div>
         <div id="top-bar">
-            <div class="hud-box">
-                POS: <span id="pos-display">0, 0</span>
-                <div id="biome-display">미지의 땅</div>
+            <div class="hud-stack">
+                <div class="hud-box">
+                    <small>LOCATION</small>
+                    <span id="location-display">학교</span>
+                </div>
+                <div class="hud-box">
+                    <small>POS</small>
+                    <span id="pos-display">0, 0</span>
+                </div>
+                <div class="hud-box">
+                    <small>GOLD</small>
+                    <span id="gold-display">999,999,999 G</span>
+                </div>
+                <div class="hud-box">
+                    <small>BOAT</small>
+                    <span id="boat-display">미보유</span>
+                </div>
             </div>
             <div id="minimap-container">
                 <div id="minimap-arrow"></div>
@@ -228,881 +420,48 @@
         </div>
 
         <div id="crosshair"></div>
-        <div id="glide-hint">활공 중</div>
+        <div id="interaction-prompt"></div>
+        <div id="toast"></div>
+
+        <div id="dialog" aria-live="polite">
+            <div class="dialog-panel">
+                <h2 id="dialog-title">장소</h2>
+                <p id="dialog-body"></p>
+                <ul id="dialog-menu"></ul>
+            </div>
+        </div>
 
         <div id="bottom-bar">
-            <!-- 新版几何头像 -->
             <div class="avatar-diamond">
                 <span>M</span>
             </div>
             <div class="bars">
-                <div class="bar-container"><div id="hp-bar" class="bar-fill" style="width: 80%"></div></div>
+                <div class="bar-container"><div id="hp-bar" class="bar-fill"></div></div>
                 <div class="bar-container"><div id="stamina-bar" class="bar-fill"></div></div>
             </div>
         </div>
     </div>
 
     <div id="pause-menu">
-        <h1 style="font-size: 72px; margin-bottom: 0px; letter-spacing: -2px; color: #FF6B6B;">루루 월드</h1>
-        <p style="margin-bottom: 20px; color: #4ECDC4; font-size: 24px; letter-spacing: 4px; font-weight: bold;">루루 월드</p>
-        <button id="start-btn">탐험</button>
+        <h1>루루 월드</h1>
+        <p>판타지 디오라마 테스트 맵</p>
+        <button id="start-btn">탐험 시작</button>
         <div class="key-hint">
-            <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 이동 <br>
-            <kbd>SPACE</kbd> 점프 / 길게 눌러 활공 <br>
-            <kbd>SHIFT</kbd> 달리기 &nbsp; <kbd>MOUSE</kbd> 루루 월드
+            <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 이동
+            <kbd>DRAG</kbd> 시점
+            <kbd>SHIFT</kbd> 달리기
+            <kbd>SPACE</kbd> 점프
+            <kbd>E</kbd> 대화 / 메뉴
         </div>
     </div>
 
-    <!-- Libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/PointerLockControls.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/simplex-noise/2.4.0/simplex-noise.min.js"></script>
-
-    <script>
-        // --- 核心配置 ---
-        const config = {
-            chunkSize: 1600,     
-            res: 256,            
-            viewDistance: 900,   
-            gravity: 50.0,
-            speed: 18.0,         
-            runSpeed: 40.0,      
-            jumpForce: 25.0,     
-            eyeHeight: 3.0,
-            minimapCamSize: 300,
-            glideGravity: 5.0,    // 滑翔时的低重力
-            glideSpeed: 25.0      // 滑翔时的基础速度
-        };
-
-        // --- 全局变量 ---
-        // --- 性能档位：尽量照顾低端设备 ---
-        const perf = (() => {
-            const mem = navigator.deviceMemory || 8;
-            const cores = navigator.hardwareConcurrency || 8;
-            const lowEnd = (mem <= 4) || (cores <= 4);
-            const midEnd = !lowEnd && ((mem <= 6) || (cores <= 6));
-
-            return {
-                maxDpr: lowEnd ? 1.0 : (midEnd ? 1.5 : 2.0),
-                antialias: !lowEnd,
-                shadowMapSize: lowEnd ? 1024 : (midEnd ? 2048 : 4096),
-                shadowType: lowEnd ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap
-            };
-        })();
-
-        let scene, camera, renderer, controls;
-        let mapCamera;
-        let clock = new THREE.Clock();
-        let noise = new SimplexNoise(); 
-        let moistureNoise = new SimplexNoise();
-        
-        let playerVelocity = new THREE.Vector3();
-        let playerDirection = new THREE.Vector3();
-        let isGrounded = false;
-        let canJump = false;
-        let isRunning = false;
-        let isGliding = false; // 新增滑翔状态
-        let stamina = 100;
-        let gameActive = false;
-        
-        let terrainMesh, waterMesh;
-        let cloudGroup;
-        const obstacleGrid = new Map();
-        const obstacleCellSize = 20;
-        const obstacleGridOffset = 32768;
-        const obstacleGridMask = 0xffff;
-
-        function obstacleKey(ix, iz) {
-            return (((ix + obstacleGridOffset) & obstacleGridMask) << 16) | ((iz + obstacleGridOffset) & obstacleGridMask);
-        }
-
-        function addObstacle(x, z, r) {
-            const obs = { x, z, r };
-
-            const ix = Math.floor(x / obstacleCellSize);
-            const iz = Math.floor(z / obstacleCellSize);
-            const key = obstacleKey(ix, iz);
-
-            let cell = obstacleGrid.get(key);
-            if (!cell) {
-                cell = [];
-                obstacleGrid.set(key, cell);
-            }
-            cell.push(obs);
-        }
-
-        const keyState = { forward: false, backward: false, left: false, right: false, jump: false };
-
-        // --- DOM 缓存（避免每帧查询与 layout thrash）---
-        const ui = {
-            staminaBar: document.getElementById('stamina-bar'),
-            glideHint: document.getElementById('glide-hint'),
-            biomeDisplay: document.getElementById('biome-display'),
-            posDisplay: document.getElementById('pos-display'),
-            minimapArrow: document.getElementById('minimap-arrow'),
-            minimapContainer: document.getElementById('minimap-container'),
-            fpsHud: document.getElementById('fps-hud'),
-            pauseMenu: document.getElementById('pause-menu'),
-            startBtn: document.getElementById('start-btn')
-        };
-
-        let staminaUiCooldown = 0;
-        let staminaUiLast = -1;
-        let glideHintVisible = false;
-
-        // --- 渲染/布局缓存 ---
-        let viewportW = window.innerWidth;
-        let viewportH = window.innerHeight;
-        let baseDpr = Math.min(window.devicePixelRatio || 1, perf.maxDpr);
-        let renderDpr = baseDpr;
-        const minRenderDpr = 0.75;
-        const minimapViewport = { x: 0, y: 0, w: 0, h: 0 };
-
-        function applyRenderScale() {
-            if (!renderer) return;
-            renderer.setPixelRatio(renderDpr);
-            renderer.setSize(viewportW, viewportH);
-        }
-
-        function updateMinimapViewportCache() {
-            viewportW = window.innerWidth;
-            viewportH = window.innerHeight;
-
-            const rect = ui.minimapContainer.getBoundingClientRect();
-            minimapViewport.x = rect.left;
-            minimapViewport.y = viewportH - rect.bottom;
-            minimapViewport.w = rect.width;
-            minimapViewport.h = rect.height;
-        }
-
-        const tmpDir = new THREE.Vector3();
-
-        // --- 地形高度采样（替代每帧 Raycaster）---
-        let terrainPosArray = null;
-        let terrainVertsPerRow = 0;
-        let terrainRes = 0;
-        let terrainSize = 0;
-        let terrainHalfSize = 0;
-
-        function setupTerrainSampler() {
-            if (!terrainMesh || !terrainMesh.geometry || !terrainMesh.geometry.attributes || !terrainMesh.geometry.attributes.position) return;
-            terrainPosArray = terrainMesh.geometry.attributes.position.array;
-            terrainRes = config.res;
-            terrainVertsPerRow = terrainRes + 1;
-            terrainSize = config.chunkSize;
-            terrainHalfSize = terrainSize / 2;
-        }
-
-        function sampleTerrainHeight(x, z) {
-            if (!terrainPosArray) return -100;
-            if (x < -terrainHalfSize || x > terrainHalfSize || z < -terrainHalfSize || z > terrainHalfSize) return -100;
-
-            const u = ((x + terrainHalfSize) / terrainSize) * terrainRes;
-            const v = ((z + terrainHalfSize) / terrainSize) * terrainRes;
-
-            let ix, iz, fx, fz;
-
-            if (u <= 0) { ix = 0; fx = 0; }
-            else if (u >= terrainRes) { ix = terrainRes - 1; fx = 1; }
-            else { ix = Math.floor(u); fx = u - ix; }
-
-            if (v <= 0) { iz = 0; fz = 0; }
-            else if (v >= terrainRes) { iz = terrainRes - 1; fz = 1; }
-            else { iz = Math.floor(v); fz = v - iz; }
-
-            const row0 = iz * terrainVertsPerRow;
-            const row1 = (iz + 1) * terrainVertsPerRow;
-
-            const a = (row0 + ix) * 3 + 1;
-            const d = (row0 + ix + 1) * 3 + 1;
-            const b = (row1 + ix) * 3 + 1;
-            const c = (row1 + ix + 1) * 3 + 1;
-
-            const ha = terrainPosArray[a];
-            const hb = terrainPosArray[b];
-            const hc = terrainPosArray[c];
-            const hd = terrainPosArray[d];
-
-            // PlaneGeometry 默认三角剖分： (a,b,d) 与 (b,c,d)，对角线 b-d
-            if (fx + fz <= 1) {
-                return ha * (1 - fx - fz) + hb * fz + hd * fx;
-            }
-            return hb * (1 - fx) + hc * (fx + fz - 1) + hd * (1 - fz);
-        }
-
-        // --- 色彩配置 ---
-        const Palette = {
-            Water: new THREE.Color(0x40E0D0), 
-            Sky: new THREE.Color(0xA0D8EF),   
-            Sand: new THREE.Color(0xFFCC80),      
-            GrassLight: new THREE.Color(0x90EE90), 
-            GrassDark: new THREE.Color(0x2E8B57),  
-            RockRed: new THREE.Color(0xCD5C5C),    
-            RockGrey: new THREE.Color(0x708090),   
-            Snow: new THREE.Color(0xFFFAFA),       
-            TreeGreen: new THREE.Color(0x00A86B),  
-            TreePink: new THREE.Color(0xFF69B4),   
-            Cactus: new THREE.Color(0x3CB371),     
-            Stone: new THREE.Color(0xA9A9A9)       
-        };
-
-        function getBiome(y, moisture) {
-            if (y < 2) return 'Beach';
-            if (y > 70) return 'Snow';
-            if (y > 45) return '산악 지대';
-            if (moisture < -0.25) return '사막';
-            if (moisture < 0.2) return 'Grassland';
-            return '숲';
-        }
-
-        // --- Shader: 几何水晶水面 (更透明) ---
-        const WaterShader = {
-            uniforms: {
-                time: { value: 0 },
-                color: { value: Palette.Water },
-                sunDirection: { value: new THREE.Vector3(0.5, 0.8, 0.3).normalize() }
-            },
-            vertexShader: `
-                uniform float time;
-                varying vec3 vPos;
-                varying float vElevation;
-                
-                float random(vec2 st) { return fract(sin(dot(st.xy, vec2(12.9898,78.233))) * 43758.5453123); }
-
-                void main() {
-                    vec3 pos = position;
-                    float wave1 = sin(pos.x * 0.05 + time * 1.2) * 0.8;
-                    float wave2 = cos(pos.z * 0.04 + time * 1.0) * 0.8;
-                    float noise = random(pos.xz) * 0.2;
-                    float totalWave = wave1 + wave2 + noise;
-                    pos.y += totalWave;
-                    vPos = (modelMatrix * vec4(pos, 1.0)).xyz;
-                    vElevation = totalWave;
-                    gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(pos, 1.0);
-                }
-            `,
-            fragmentShader: `
-                uniform vec3 color;
-                uniform vec3 sunDirection;
-                varying vec3 vPos;
-                varying float vElevation;
-
-                void main() {
-                    vec3 dx = dFdx(vPos);
-                    vec3 dy = dFdy(vPos);
-                    vec3 normal = normalize(cross(dx, dy));
-
-                    float diff = max(dot(normal, sunDirection), 0.0);
-                    vec3 viewDir = normalize(cameraPosition - vPos);
-                    vec3 reflectDir = reflect(-sunDirection, normal);
-                    float spec = pow(max(dot(viewDir, reflectDir), 0.0), 40.0); 
-
-                    vec3 deepColor = vec3(0.0, 0.4, 0.6);
-                    vec3 shallowColor = color + vec3(0.15); // 稍微提亮一点
-                    
-                    vec3 finalColor = mix(deepColor, shallowColor, diff * 0.5 + 0.5);
-                    finalColor += vec3(1.0) * spec * 0.7;
-
-                    // 修改透明度: 从 0.6 降到 0.4，更加通透
-                    gl_FragColor = vec4(finalColor, 0.4); 
-                }
-            `
-        };
-
-        function init() {
-            scene = new THREE.Scene();
-            scene.background = Palette.Sky;
-            scene.fog = new THREE.Fog(Palette.Sky, 50, config.viewDistance);
-
-            camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 2000);
-            
-            const fs = config.minimapCamSize;
-            mapCamera = new THREE.OrthographicCamera(fs / -2, fs / 2, fs / 2, fs / -2, 1, 1000);
-            mapCamera.up.set(0, 0, -1);
-            mapCamera.lookAt(0, -1, 0);
-
-            renderer = new THREE.WebGLRenderer({ antialias: perf.antialias, alpha: false, powerPreference: 'high-performance' });
-            baseDpr = Math.min(window.devicePixelRatio || 1, perf.maxDpr);
-            renderDpr = baseDpr;
-            renderer.setPixelRatio(renderDpr);
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.shadowMap.enabled = true;
-            renderer.shadowMap.type = perf.shadowType;
-            renderer.shadowMap.autoUpdate = false;
-            renderer.shadowMap.needsUpdate = true;
-            renderer.autoClear = false;
-            renderer.outputEncoding = THREE.sRGBEncoding;
-            renderer.toneMapping = THREE.ACESFilmicToneMapping;
-            renderer.toneMappingExposure = 1.1; 
-            document.body.appendChild(renderer.domElement);
-            updateMinimapViewportCache();
-
-            controls = new THREE.PointerLockControls(camera, document.body);
-            setupUIControls();
-
-            setupLights();
-            generateWorld();
-            generateClouds();
-
-            window.addEventListener('resize', onWindowResize);
-            document.addEventListener('keydown', onKeyDown);
-            document.addEventListener('keyup', onKeyUp);
-
-            requestAnimationFrame(animate);
-        }
-
-        function setupUIControls() {
-            const blocker = ui.pauseMenu;
-            const startBtn = ui.startBtn;
-            startBtn.addEventListener('click', () => controls.lock());
-            controls.addEventListener('lock', () => {
-                blocker.style.opacity = 0;
-                setTimeout(() => blocker.style.display = 'none', 300);
-                gameActive = true;
-            });
-            controls.addEventListener('unlock', () => {
-                blocker.style.display = 'flex';
-                setTimeout(() => blocker.style.opacity = 1, 10);
-                gameActive = false;
-            });
-        }
-
-        function setupLights() {
-            const ambient = new THREE.AmbientLight(0xffffff, 0.8);
-            scene.add(ambient);
-
-            const hemiLight = new THREE.HemisphereLight(0xffffff, 0xAAEEFF, 0.4);
-            hemiLight.position.set(0, 200, 0);
-            scene.add(hemiLight);
-
-            const sunLight = new THREE.DirectionalLight(0xffffff, 1.1);
-            sunLight.position.set(200, 300, 100);
-            sunLight.castShadow = true;
-            
-            sunLight.shadow.mapSize.width = perf.shadowMapSize;
-            sunLight.shadow.mapSize.height = perf.shadowMapSize;
-            const d = 500;
-            sunLight.shadow.camera.left = -d;
-            sunLight.shadow.camera.right = d;
-            sunLight.shadow.camera.top = d;
-            sunLight.shadow.camera.bottom = -d;
-            sunLight.shadow.bias = -0.00005;
-            scene.add(sunLight);
-        }
-
-        function generateWorld() {
-            const size = config.chunkSize;
-            const res = config.res; 
-            const geometry = new THREE.PlaneGeometry(size, size, res, res);
-            geometry.rotateX(-Math.PI / 2);
-
-            const pos = geometry.attributes.position;
-            const posArr = pos.array;
-            const count = pos.count;
-            const colors = new Float32Array(count * 3);
-
-            for (let i = 0; i < count; i++) {
-                const i3 = i * 3;
-                const x = posArr[i3];
-                const z = posArr[i3 + 2];
-
-                let y = noise.noise2D(x * 0.002, z * 0.002) * 80;
-                y += noise.noise2D(x * 0.01, z * 0.01) * 20;
-                y += noise.noise2D(x * 0.03, z * 0.03) * 5; 
-                
-                let moisture = moistureNoise.noise2D(x * 0.003 + 1000, z * 0.003 + 1000); 
-
-                const distSq = x*x + z*z;
-                if (distSq < 2500) {
-                    const dist = Math.sqrt(distSq);
-                    y = y * (dist / 50);
-                }
-
-                posArr[i3 + 1] = y;
-
-                const biome = getBiome(y, moisture);
-                let color = Palette.Snow;
-
-                if (biome === 'Beach' || biome === 'Desert') color = Palette.Sand;
-                else if (biome === 'Grassland') color = Palette.GrassLight;
-                else if (biome === 'Forest') color = Palette.GrassDark;
-                else if (biome === 'Mountain') color = Palette.RockRed; 
-
-                colors[i3] = color.r;
-                colors[i3 + 1] = color.g;
-                colors[i3 + 2] = color.b;
-            }
-
-            geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-            geometry.computeVertexNormals(); 
-
-            const material = new THREE.MeshStandardMaterial({
-                vertexColors: true,
-                flatShading: true,
-                roughness: 0.9,
-                metalness: 0.0
-            });
-
-            terrainMesh = new THREE.Mesh(geometry, material);
-            terrainMesh.receiveShadow = true;
-            terrainMesh.castShadow = true;
-            scene.add(terrainMesh);
-            setupTerrainSampler();
-
-            const waterGeo = new THREE.PlaneGeometry(size, size, 128, 128);
-            waterGeo.rotateX(-Math.PI / 2);
-            
-            const waterMat = new THREE.ShaderMaterial({
-                uniforms: THREE.UniformsUtils.clone(WaterShader.uniforms),
-                vertexShader: WaterShader.vertexShader,
-                fragmentShader: WaterShader.fragmentShader,
-                transparent: true,
-                side: THREE.DoubleSide,
-                depthWrite: false, 
-                blending: THREE.NormalBlending
-            });
-            
-            waterMesh = new THREE.Mesh(waterGeo, waterMat);
-            waterMesh.position.y = -2;
-            scene.add(waterMesh);
-
-            generateObjects();
-        }
-
-        function generateObjects() {
-            obstacleGrid.clear();
-
-            const matTrunk = new THREE.MeshStandardMaterial({ color: 0x8B4513, flatShading: true });
-            const matPine = new THREE.MeshStandardMaterial({ color: Palette.TreeGreen, flatShading: true });
-            const matPink = new THREE.MeshStandardMaterial({ color: Palette.TreePink, flatShading: true });
-            const matCactus = new THREE.MeshStandardMaterial({ color: Palette.Cactus, flatShading: true });
-            const matStone = new THREE.MeshStandardMaterial({ color: Palette.Stone, flatShading: true });
-            const matSnowRock = new THREE.MeshStandardMaterial({ color: 0xE0FFFF, flatShading: true });
-
-            const geoPineTrunk = new THREE.CylinderGeometry(0.4, 0.6, 2.5, 6);
-            const geoPineCone = new THREE.CylinderGeometry(0, 1, 2.5, 7);
-            const geoRoundTrunk = new THREE.CylinderGeometry(0.3, 0.4, 2, 6);
-            const geoRoundLeaf = new THREE.IcosahedronGeometry(1.8, 1);
-            const geoCactusMain = new THREE.CylinderGeometry(0.4, 0.4, 1, 7);
-            const geoCactusTop = new THREE.SphereGeometry(0.4, 7, 7);
-            const geoCactusArm = new THREE.CylinderGeometry(0.25, 0.25, 1, 6);
-            const geoRock = new THREE.DodecahedronGeometry(1, 0);
-
-            const pineTrunks = [];
-            const pineCones = [];
-            const roundTrunks = [];
-            const roundLeavesPine = [];
-            const roundLeavesPink = [];
-            const cactusMains = [];
-            const cactusTops = [];
-            const cactusArms = [];
-            const rocksStone = [];
-            const rocksSnow = [];
-
-            function pushInstance(list, x, y, z, rx, ry, rz, sx, sy, sz) {
-                list.push({ x, y, z, rx, ry, rz, sx, sy, sz });
-            }
-
-            const attemptCount = 1500; 
-
-            for(let i=0; i<attemptCount; i++) {
-                const x = (Math.random() - 0.5) * (config.chunkSize * 0.8);
-                const z = (Math.random() - 0.5) * (config.chunkSize * 0.8);
-
-                const distSq = x*x + z*z;
-                if (distSq < 400) continue; 
-
-                const y = sampleTerrainHeight(x, z);
-                if (y <= -99) continue;
-
-                const moisture = moistureNoise.noise2D(x * 0.003 + 1000, z * 0.003 + 1000);
-                const biome = getBiome(y, moisture);
-
-                if (biome === 'Desert') {
-                    if (Math.random() > 0.6) {
-                        const rotY = Math.random() * Math.PI * 2;
-                        const mainH = 2 + Math.random();
-                        pushInstance(cactusMains, x, y + mainH / 2, z, 0, rotY, 0, 1, mainH, 1);
-                        pushInstance(cactusTops, x, y + mainH, z, 0, rotY, 0, 1, 1, 1);
-
-                        if (Math.random() > 0.3) {
-                            const ox = 0.5 * Math.cos(rotY);
-                            const oz = -0.5 * Math.sin(rotY);
-                            pushInstance(cactusArms, x + ox, y + mainH * 0.6, z + oz, 0, rotY, -Math.PI / 4, 1, 1, 1);
-                        }
-
-                        addObstacle(x, z, 0.8);
-                    } else {
-                        const s = (1 + Math.random()) * 0.5;
-                        pushInstance(rocksStone, x, y + s*0.3, z, Math.random()*3, Math.random()*3, Math.random()*3, s, s*0.8, s);
-                        addObstacle(x, z, s*0.8);
-                    }
-                }
-                else if (biome === 'Forest') {
-                    const rotY = Math.random() * Math.PI * 2;
-                    pushInstance(pineTrunks, x, y + 1.25, z, 0, rotY, 0, 1, 1, 1);
-
-                    for (let layer = 0; layer < 3; layer++) {
-                        const s = 2.5 - layer * 0.7;
-                        pushInstance(pineCones, x, y + 2.5 + layer * 1.5, z, 0, rotY, 0, s, 1, s);
-                    }
-
-                    addObstacle(x, z, 0.8);
-                }
-                else if (biome === 'Grassland') {
-                    const rotY = Math.random() * Math.PI * 2;
-                    const scale = 0.8 + Math.random() * 0.5;
-                    pushInstance(roundTrunks, x, y + 1 * scale, z, 0, rotY, 0, scale, scale, scale);
-
-                    const leafList = (Math.random() > 0.7) ? roundLeavesPink : roundLeavesPine;
-                    pushInstance(leafList, x, y + 3 * scale, z, 0, rotY, 0, scale, scale, scale);
-
-                    addObstacle(x, z, 0.8 * scale);
-                }
-                else if (biome === 'Mountain' || biome === 'Snow') {
-                    const s = (1 + Math.random()) * 1.5;
-                    const list = (biome === 'Snow') ? rocksSnow : rocksStone;
-                    pushInstance(list, x, y + s*0.3, z, Math.random()*3, Math.random()*3, Math.random()*3, s, s*0.8, s);
-                    addObstacle(x, z, s*0.8);
-                }
-            }
-
-            const dummy = new THREE.Object3D();
-
-            function buildInstanced(geometry, material, list) {
-                if (list.length === 0) return;
-                const mesh = new THREE.InstancedMesh(geometry, material, list.length);
-                mesh.instanceMatrix.setUsage(THREE.StaticDrawUsage);
-                mesh.castShadow = true;
-                mesh.receiveShadow = true;
-                mesh.frustumCulled = false;
-
-                for (let i = 0; i < list.length; i++) {
-                    const it = list[i];
-                    dummy.position.set(it.x, it.y, it.z);
-                    dummy.rotation.set(it.rx, it.ry, it.rz);
-                    dummy.scale.set(it.sx, it.sy, it.sz);
-                    dummy.updateMatrix();
-                    mesh.setMatrixAt(i, dummy.matrix);
-                }
-
-                mesh.instanceMatrix.needsUpdate = true;
-                scene.add(mesh);
-            }
-
-            buildInstanced(geoPineTrunk, matTrunk, pineTrunks);
-            buildInstanced(geoPineCone, matPine, pineCones);
-            buildInstanced(geoRoundTrunk, matTrunk, roundTrunks);
-            buildInstanced(geoRoundLeaf, matPine, roundLeavesPine);
-            buildInstanced(geoRoundLeaf, matPink, roundLeavesPink);
-            buildInstanced(geoCactusMain, matCactus, cactusMains);
-            buildInstanced(geoCactusTop, matCactus, cactusTops);
-            buildInstanced(geoCactusArm, matCactus, cactusArms);
-            buildInstanced(geoRock, matStone, rocksStone);
-            buildInstanced(geoRock, matSnowRock, rocksSnow);
-        }
-
-        function generateClouds() {
-            cloudGroup = new THREE.Group();
-            const cloudGeo = new THREE.BoxGeometry(1, 1, 1);
-            const cloudMat = new THREE.MeshStandardMaterial({ 
-                color: 0xFFFFFF, 
-                flatShading: true, 
-                opacity: 0.85, 
-                transparent: true 
-            });
-
-            const range = config.chunkSize * 0.8;
-
-            for(let i=0; i<40; i++) {
-                const cloud = new THREE.Group();
-                const blocks = 3 + Math.floor(Math.random()*4);
-                for(let b=0; b<blocks; b++) {
-                    const mesh = new THREE.Mesh(cloudGeo, cloudMat);
-                    mesh.castShadow = false;
-                    mesh.receiveShadow = false;
-                    mesh.position.set(
-                        (Math.random()-0.5)*18, 
-                        (Math.random()-0.5)*5, 
-                        (Math.random()-0.5)*12
-                    );
-                    const s = 8 + Math.random()*12;
-                    mesh.scale.set(s, s*0.6, s);
-                    cloud.add(mesh);
-                }
-                
-                cloud.position.set(
-                    (Math.random()-0.5) * range,
-                    100 + Math.random()*50,
-                    (Math.random()-0.5) * range
-                );
-                cloudGroup.add(cloud);
-            }
-            scene.add(cloudGroup);
-        }
-
-        function onKeyDown(event) {
-            switch (event.code) {
-                case 'KeyW': keyState.forward = true; break;
-                case 'KeyA': keyState.left = true; break;
-                case 'KeyS': keyState.backward = true; break;
-                case 'KeyD': keyState.right = true; break;
-                case 'Space': 
-                    if (isGrounded) {
-                        playerVelocity.y = config.jumpForce;
-                        isGrounded = false;
-                        canJump = false; // 已跳跃
-                    } else {
-                        // 如果在空中按下，开启滑翔
-                        isGliding = true;
-                    }
-                    break;
-                case 'ShiftLeft': isRunning = true; break;
-            }
-        }
-
-        function onKeyUp(event) {
-            switch (event.code) {
-                case 'KeyW': keyState.forward = false; break;
-                case 'KeyA': keyState.left = false; break;
-                case 'KeyS': keyState.backward = false; break;
-                case 'KeyD': keyState.right = false; break;
-                case 'Space': 
-                    canJump = true; // 重置起跳许可（用于逻辑判断）
-                    isGliding = false; // 松开空格停止滑翔
-                    break;
-                case 'ShiftLeft': isRunning = false; break;
-            }
-        }
-
-        function onWindowResize() {
-            updateMinimapViewportCache();
-            camera.aspect = viewportW / viewportH;
-            camera.updateProjectionMatrix();
-            baseDpr = Math.min(window.devicePixelRatio || 1, perf.maxDpr);
-            renderDpr = Math.min(renderDpr, baseDpr);
-            renderer.setPixelRatio(renderDpr);
-            renderer.setSize(viewportW, viewportH);
-        }
-
-        function updatePlayer(dt) {
-            if (controls.isLocked) {
-                if (isRunning && (keyState.forward || keyState.backward || keyState.left || keyState.right)) {
-                    stamina = Math.max(0, stamina - 25 * dt);
-                    if (stamina <= 0) isRunning = false;
-                } else {
-                    stamina = Math.min(100, stamina + 15 * dt);
-                }
-                staminaUiCooldown -= dt;
-                const staminaRounded = Math.round(stamina);
-                if (staminaRounded !== staminaUiLast && staminaUiCooldown <= 0) {
-                    staminaUiLast = staminaRounded;
-                    ui.staminaBar.style.width = staminaRounded + '%';
-                    staminaUiCooldown = 0.05;
-                }
-
-                playerDirection.z = Number(keyState.forward) - Number(keyState.backward);
-                playerDirection.x = Number(keyState.right) - Number(keyState.left);
-                playerDirection.normalize();
-
-                // 速度计算：如果在滑翔，给予基础滑翔速度，否则根据跑/走决定
-                let speed = isRunning ? config.runSpeed : config.speed;
-                if (isGliding && !isGrounded) {
-                    speed = Math.max(speed, config.glideSpeed); 
-                }
-
-                if (keyState.forward || keyState.backward) playerVelocity.z -= playerDirection.z * speed * 10.0 * dt;
-                if (keyState.left || keyState.right) playerVelocity.x -= playerDirection.x * speed * 10.0 * dt;
-            }
-
-            playerVelocity.x -= playerVelocity.x * 10.0 * dt;
-            playerVelocity.z -= playerVelocity.z * 10.0 * dt;
-
-            // --- 重力与滑翔逻辑 ---
-            let shouldShowGlideHint = false;
-            if (isGliding && !isGrounded && playerVelocity.y < 0) {
-                // 滑翔时重力大幅减小，并且有终极下落速度限制
-                playerVelocity.y -= config.glideGravity * dt;
-                playerVelocity.y = Math.max(playerVelocity.y, -5.0); // 限制下落速度
-                
-                // UI 提示
-                shouldShowGlideHint = true;
-            } else {
-                playerVelocity.y -= config.gravity * dt;
-                shouldShowGlideHint = false;
-            }
-
-            // 移动与碰撞 (Separation)
-            if (shouldShowGlideHint !== glideHintVisible) {
-                glideHintVisible = shouldShowGlideHint;
-                ui.glideHint.style.opacity = shouldShowGlideHint ? 1 : 0;
-            }
-
-            controls.moveRight(-playerVelocity.x * dt);
-            controls.moveForward(-playerVelocity.z * dt);
-
-            const pPos = camera.position;
-            const playerRadius = 0.6;
-
-            const cellX = Math.floor(pPos.x / obstacleCellSize);
-            const cellZ = Math.floor(pPos.z / obstacleCellSize);
-
-            for (let dz = -1; dz <= 1; dz++) {
-                for (let dx = -1; dx <= 1; dx++) {
-                    const cell = obstacleGrid.get(obstacleKey(cellX + dx, cellZ + dz));
-                    if (!cell) continue;
-
-                    for (let obs of cell) {
-                        if (Math.abs(pPos.x - obs.x) > 10 || Math.abs(pPos.z - obs.z) > 10) continue;
-
-                        const dxp = pPos.x - obs.x;
-                        const dzp = pPos.z - obs.z;
-                        const distSq = dxp*dxp + dzp*dzp;
-                        const minR = playerRadius + obs.r;
-
-                        if (distSq < minR*minR) {
-                            const dist = Math.sqrt(distSq);
-                            if (dist < 0.001) { pPos.x += 0.1; continue; }
-                            const overlap = minR - dist;
-                            pPos.x += (dxp/dist) * overlap;
-                            pPos.z += (dzp/dist) * overlap;
-                        }
-                    }
-                }
-            }
-
-            // 地形吸附
-            const groundH = sampleTerrainHeight(pPos.x, pPos.z);
-
-            if (pPos.y < groundH + config.eyeHeight) {
-                playerVelocity.y = Math.max(0, playerVelocity.y);
-                pPos.y = groundH + config.eyeHeight;
-                isGrounded = true; 
-                isGliding = false; // 落地自动停止滑翔
-            } else {
-                isGrounded = false;
-            }
-            pPos.y += playerVelocity.y * dt;
-
-            if (pPos.y < -50) {
-                playerVelocity.set(0,0,0);
-                pPos.set(0, 80, 0);
-            }
-        }
-
-        function checkCurrentBiome(x, z) {
-            const moisture = moistureNoise.noise2D(x * 0.003 + 1000, z * 0.003 + 1000);
-            const y = camera.position.y - config.eyeHeight;
-            const biome = getBiome(y, moisture);
-            
-            ui.biomeDisplay.textContent = biome.toUpperCase();
-        }
-
-        let hudCooldown = 0;
-        let biomeCooldown = 0;
-
-        let lastFrameNow = 0;
-        let fpsSmoothed = 0;
-        let lastFpsHudNow = 0;
-        let lastScaleNow = 0;
-
-        function updateFpsHudAndScale(now) {
-            if (!now) return;
-            if (!lastFrameNow) {
-                lastFrameNow = now;
-                lastFpsHudNow = now;
-                lastScaleNow = now;
-                return;
-            }
-
-            const deltaMs = now - lastFrameNow;
-            lastFrameNow = now;
-            if (deltaMs <= 0) return;
-
-            const fps = 1000 / deltaMs;
-            fpsSmoothed = fpsSmoothed ? (fpsSmoothed * 0.9 + fps * 0.1) : fps;
-
-            if (ui.fpsHud && (now - lastFpsHudNow >= 250)) {
-                ui.fpsHud.textContent = `${Math.round(fpsSmoothed)} FPS`;
-                lastFpsHudNow = now;
-            }
-
-            if (!gameActive) return;
-            if (now - lastScaleNow < 1000) return;
-
-            const downThreshold = 48;
-            const upThreshold = 58;
-
-            if (fpsSmoothed < downThreshold && renderDpr > minRenderDpr) {
-                renderDpr = Math.max(minRenderDpr, Math.round((renderDpr - 0.1) * 100) / 100);
-                applyRenderScale();
-            } else if (fpsSmoothed > upThreshold && renderDpr < baseDpr) {
-                renderDpr = Math.min(baseDpr, Math.round((renderDpr + 0.1) * 100) / 100);
-                applyRenderScale();
-            }
-
-            lastScaleNow = now;
-        }
-
-        function animate(now) {
-            requestAnimationFrame(animate);
-            updateFpsHudAndScale(now);
-
-            if (gameActive) {
-                const dt = Math.min(clock.getDelta(), 0.05);
-                const time = clock.getElapsedTime();
-
-                updatePlayer(dt);
-
-                biomeCooldown -= dt;
-                if (biomeCooldown <= 0) {
-                    biomeCooldown = 0.5;
-                    checkCurrentBiome(camera.position.x, camera.position.z);
-                }
-                
-                if(waterMesh) waterMesh.material.uniforms.time.value = time;
-                if(cloudGroup) cloudGroup.position.x += dt * 2.0; 
-
-                hudCooldown -= dt;
-                if (hudCooldown <= 0) {
-                    hudCooldown = 0.066;
-
-                    const px = Math.round(camera.position.x);
-                    const pz = Math.round(camera.position.z);
-                    ui.posDisplay.textContent = `${px}, ${pz}`;
-                    
-                    camera.getWorldDirection(tmpDir);
-                    const angle = Math.atan2(tmpDir.x, tmpDir.z); 
-                    const deg = -angle * (180 / Math.PI);
-                    ui.minimapArrow.style.transform = `translate(-50%, -50%) rotate(${deg}deg)`;
-                }
-            }
-
-            renderScene();
-        }
-
-        function renderScene() {
-            renderer.setViewport(0, 0, viewportW, viewportH);
-            renderer.setScissor(0, 0, viewportW, viewportH);
-            renderer.setScissorTest(true);
-            renderer.clear();
-            renderer.render(scene, camera);
-
-            renderer.setViewport(minimapViewport.x, minimapViewport.y, minimapViewport.w, minimapViewport.h);
-            renderer.setScissor(minimapViewport.x, minimapViewport.y, minimapViewport.w, minimapViewport.h);
-            renderer.clearDepth(); 
-
-            mapCamera.position.x = camera.position.x;
-            mapCamera.position.z = camera.position.z;
-            mapCamera.position.y = 200; 
-            mapCamera.lookAt(camera.position.x, 0, camera.position.z);
-
-            renderer.render(scene, mapCamera);
-            renderer.setScissorTest(false);
-        }
-
-        init();
-
-    </script>
+    <script src="js/config.js?v=20260529h"></script>
+    <script src="js/collision-engine.js?v=20260529h"></script>
+    <script src="js/ui-engine.js?v=20260529h"></script>
+    <script src="js/map-engine.js?v=20260529h"></script>
+    <script src="js/player-engine.js?v=20260529h"></script>
+    <script src="js/game-engine.js?v=20260529h"></script>
 </body>
 </html>
