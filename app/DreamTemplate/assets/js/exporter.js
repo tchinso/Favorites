@@ -34,6 +34,7 @@ async function exportCardImage(styleId) {
 
 async function buildStandaloneHtml(styleId, label, cardHtml) {
   const css = await collectCssText();
+  const portableCardHtml = await inlineLocalImageSources(cardHtml);
   const title = `${label} Card`;
   return `<!DOCTYPE html>
 <html lang="ko">
@@ -61,7 +62,7 @@ body {
 </style>
 </head>
 <body>
-${cardHtml}
+${portableCardHtml}
 ${styleId === "messenger" || styleId === "messenger-html" ? messengerToggleScript() : ""}
 </body>
 </html>`;
@@ -109,6 +110,57 @@ async function collectCssText() {
   } catch {
     return "";
   }
+}
+
+async function inlineLocalImageSources(html) {
+  const sources = collectLocalImageSources(html);
+  if (!sources.length) return html;
+
+  let nextHtml = html;
+  for (const src of sources) {
+    const dataUrl = await imageSourceToDataUrl(src);
+    if (!dataUrl) continue;
+    nextHtml = nextHtml.split(src).join(dataUrl);
+  }
+  return nextHtml;
+}
+
+function collectLocalImageSources(html) {
+  const sources = new Set();
+  const srcAttrPattern = /<img\b[^>]*\bsrc="([^"]+)"/gi;
+  for (const match of html.matchAll(srcAttrPattern)) {
+    if (isPortableCandidate(match[1])) sources.add(match[1]);
+  }
+
+  const jsonImagePattern = /"((?:\.\/)?(?:messenger|assets)\/[^"]+\.(?:png|jpe?g|webp|gif|svg))"/gi;
+  for (const match of html.matchAll(jsonImagePattern)) {
+    if (isPortableCandidate(match[1])) sources.add(match[1]);
+  }
+  return Array.from(sources);
+}
+
+function isPortableCandidate(src) {
+  return Boolean(src) && !/^(?:data:|https?:|blob:|#)/i.test(src);
+}
+
+async function imageSourceToDataUrl(src) {
+  try {
+    const response = await fetch(src);
+    if (!response.ok) return "";
+    const blob = await response.blob();
+    return await blobToDataUrl(blob);
+  } catch {
+    return "";
+  }
+}
+
+function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
 }
 
 function escapeTitle(value) {

@@ -150,6 +150,11 @@ button {
   padding: 8px;
 }
 
+.style-group.is-collapsed .style-group-list,
+.style-group-list[hidden] {
+  display: none;
+}
+
 .style-tab {
   min-height: 64px;
   display: flex;
@@ -3917,58 +3922,6 @@ button {
   letter-spacing: -0.01em;
 }
 
-.pl-topbar-btns {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  flex-shrink: 0;
-}
-
-.pl-ico-btn {
-  width: 36px;
-  height: 36px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  border: 1.5px solid #f5d7e4;
-  border-radius: 12px;
-  background: var(--pl-card);
-  color: #76566a;
-  font-family: Arial, sans-serif;
-  cursor: pointer;
-}
-
-.pl-ico-btn svg {
-  width: 15px;
-  height: 15px;
-  stroke-width: 2;
-}
-
-.pl-add-btn {
-  height: 36px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0 15px;
-  border: 0;
-  border-radius: 12px;
-  background: linear-gradient(135deg, var(--pl-acc), #ec7eaf);
-  color: #ffffff;
-  box-shadow: 0 4px 14px rgba(244, 164, 200, 0.32);
-  cursor: pointer;
-  font-family: "Nunito", sans-serif;
-  font-size: 13px;
-  font-weight: 800;
-  letter-spacing: 0.01em;
-}
-
-.pl-add-btn svg {
-  width: 12px;
-  height: 12px;
-  stroke-width: 2.5;
-}
-
 .pl-cover {
   height: 280px;
   display: flex;
@@ -4197,7 +4150,7 @@ button {
   font-weight: 500;
 }
 
-/* Renai TV Show */
+/* Face Match Board */
 .renai-stage {
   position: relative;
   width: 1320px;

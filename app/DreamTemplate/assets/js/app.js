@@ -316,7 +316,7 @@ function renderStyleRail() {
     }).join("");
 
     return `
-      <section class="style-group${activeInGroup ? " has-active" : ""}" style="--accent:${configs[0]?.accent || "#111827"}">
+      <section class="style-group${activeInGroup ? " has-active" : ""}${isOpen ? "" : " is-collapsed"}" style="--accent:${configs[0]?.accent || "#111827"}">
         <button type="button" class="style-group-toggle" data-group-toggle="${group.id}" aria-expanded="${isOpen ? "true" : "false"}">
           <span>${group.label}</span>
           <small>${configs.length}개</small>

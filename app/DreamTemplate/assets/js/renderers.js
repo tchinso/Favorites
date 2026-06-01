@@ -776,11 +776,6 @@ function renderPlaylist(data) {
           <span class="pl-logo-label">playlist</span>
           <div class="pl-title-row"><span>${e(data.name || "My Playlist")}</span></div>
         </div>
-        <div class="pl-topbar-btns">
-          <button class="pl-ico-btn" type="button" title="이미지 저장">${lineIcon('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>')}</button>
-          <button class="pl-ico-btn" type="button" title="테마 설정">${lineIcon('<circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>')}</button>
-          <button class="pl-add-btn" type="button">${lineIcon('<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>')}<span>추가</span></button>
-        </div>
       </header>
       <div class="pl-cover ${data.coverImage ? "has-img" : ""}" style="${backgroundStyle(data.coverImage)}">${data.coverImage ? "" : `<div class="pl-cover-placeholder"><div>${lineIcon('<path d="M12 21s-7-4.5-9.5-9C.5 8 2.5 3 7 3c2 0 3.5 1 5 3 1.5-2 3-3 5-3 4.5 0 6.5 5 4.5 9-2.5 4.5-9.5 9-9.5 9z"/>')}</div><h3>사진 넣기</h3><p>클릭하여 업로드</p></div>`}</div>
       <div class="pl-meta"><span>♥</span><b>${(data.tracks || []).length} TRACKS</b></div>
