@@ -21,6 +21,8 @@ const elements = {
   copyButton: document.querySelector("#copyHtml"),
   saveButton: document.querySelector("#saveDraft"),
   loadButton: document.querySelector("#loadDraft"),
+  collapseGroupsButton: document.querySelector("#collapseGroups"),
+  expandGroupsButton: document.querySelector("#expandGroups"),
   resetStyleButton: document.querySelector("#resetStyle"),
   resetAllButton: document.querySelector("#resetAll"),
   toast: document.querySelector("#toast"),
@@ -57,6 +59,24 @@ function bindEvents() {
   elements.editorFields.addEventListener("input", handleFieldInput);
   elements.editorFields.addEventListener("change", handleFieldChange);
   elements.editorFields.addEventListener("click", handleEditorAction);
+  elements.previewRoot.addEventListener("click", handlePreviewAction);
+  elements.previewRoot.addEventListener("keydown", handlePreviewKeydown);
+
+  elements.collapseGroupsButton.addEventListener("click", () => {
+    STYLE_GROUPS.forEach((group) => {
+      state.openGroups[group.id] = false;
+    });
+    renderStyleRail();
+    persistSoon("카테고리를 모두 접었습니다.");
+  });
+
+  elements.expandGroupsButton.addEventListener("click", () => {
+    STYLE_GROUPS.forEach((group) => {
+      state.openGroups[group.id] = true;
+    });
+    renderStyleRail();
+    persistSoon("카테고리를 모두 펼쳤습니다.");
+  });
 
   elements.imageButton.addEventListener("click", async () => {
     await runExport(() => exportCardImage(state.activeStyle), "이미지 파일을 저장했습니다.");
@@ -182,6 +202,92 @@ function handleEditorAction(event) {
   persistSoon(action === "clear-image" ? "이미지를 비웠습니다." : "목록을 갱신했습니다.");
 }
 
+function handlePreviewAction(event) {
+  const sendButton = event.target.closest("[data-msg-send]");
+  if (sendButton) {
+    sendNextMessengerItem(sendButton.closest("[data-messenger-card]"));
+    return;
+  }
+
+  const photo = event.target.closest(".msg-photo");
+  if (!photo) return;
+  const item = photo.closest(".msg-item");
+  const comment = item?.querySelector(".msg-comment");
+  if (comment) comment.classList.toggle("hide");
+}
+
+function handlePreviewKeydown(event) {
+  const input = event.target.closest("[data-msg-input]");
+  if (!input || event.key !== "Enter") return;
+  event.preventDefault();
+  sendNextMessengerItem(input.closest("[data-messenger-card]"));
+}
+
+function sendNextMessengerItem(card) {
+  if (!card) return;
+  const sequence = readMessengerSequence(card);
+  const index = Number(card.dataset.nextIndex) || 0;
+  if (index >= sequence.length) return;
+
+  appendMessengerItem(card, sequence[index]);
+  card.dataset.nextIndex = String(index + 1);
+
+  const input = card.querySelector("[data-msg-input]");
+  if (input) input.value = "";
+}
+
+function readMessengerSequence(card) {
+  const script = card.querySelector("[data-msg-sequence]");
+  if (!script) return [];
+  try {
+    const parsed = JSON.parse(script.textContent || "[]");
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function appendMessengerItem(card, message) {
+  const history = card.querySelector("[data-msg-history]");
+  if (!history) return;
+
+  const item = document.createElement("div");
+  item.className = "msg-item";
+
+  const photos = document.createElement("div");
+  photos.className = "msg-photos";
+
+  const images = Array.isArray(message?.images) ? message.images.filter(Boolean) : [message?.image, message?.image2].filter(Boolean);
+  if (images.length) {
+    images.forEach((src) => {
+      const photo = document.createElement("div");
+      photo.className = "msg-photo";
+      const img = document.createElement("img");
+      img.src = src;
+      img.alt = "";
+      photo.append(img);
+      photos.append(photo);
+    });
+  } else {
+    const photo = document.createElement("div");
+    photo.className = "msg-photo placeholder";
+    const placeholder = document.createElement("span");
+    placeholder.textContent = "PHOTO";
+    photo.append(placeholder);
+    photos.append(photo);
+  }
+
+  const comment = document.createElement("div");
+  comment.className = "msg-comment";
+  comment.textContent = message?.text || "";
+
+  item.append(photos, comment);
+  history.append(item);
+  setTimeout(() => {
+    history.scrollTop = history.scrollHeight;
+  }, 50);
+}
+
 function writeFieldValue(field) {
   const value = field.type === "checkbox" ? field.checked : field.value;
   setByPath(getActiveData(), field.dataset.field, value);
@@ -214,7 +320,7 @@ function renderStyleRail() {
         <button type="button" class="style-group-toggle" data-group-toggle="${group.id}" aria-expanded="${isOpen ? "true" : "false"}">
           <span>${group.label}</span>
           <small>${configs.length}개</small>
-          <b>${isOpen ? "접기" : "펼치기"}</b>
+          <i aria-hidden="true">${isOpen ? "⌃" : "⌄"}</i>
         </button>
         <div class="style-group-list"${isOpen ? "" : " hidden"}>${tabs}</div>
       </section>
@@ -326,7 +432,19 @@ function normalizeState() {
     state.activeStyle = STYLE_CONFIGS[0].id;
   }
 
+  normalizeMessengerData();
   applyActiveVariant();
+}
+
+function normalizeMessengerData() {
+  const data = state.styles?.messenger;
+  if (!data || !Array.isArray(data.messages)) return;
+
+  data.messages = data.messages.map((message) => ({
+    image: message.image || (Array.isArray(message.images) ? message.images[0] : "") || "",
+    image2: message.image2 || (Array.isArray(message.images) ? message.images[1] : "") || "",
+    text: message.text || "",
+  }));
 }
 
 function applyActiveVariant() {

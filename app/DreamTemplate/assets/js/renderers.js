@@ -13,6 +13,17 @@ function renderCard(styleId, data) {
     timeline: renderTimeline,
     couple: renderCouple,
     messenger: renderMessenger,
+    catchphrase: renderCatchphrase,
+    tamagotchi: renderTamagotchi,
+    idcard: renderIdCard,
+    toypack: renderToypack,
+    playlist: renderPlaylist,
+    renaitvshow: renderRenaiTvShow,
+    lifefourcut: renderLifeFourCut,
+    photoalbum: renderPhotoAlbum,
+    netflixscreenshot: renderNetflixScreenshot,
+    movieticket: renderMovieTicket,
+    internetboard: renderInternetBoard,
   };
   return renderers[styleId]?.(data) || "";
 }
@@ -70,9 +81,9 @@ function renderInstagramProfile(data) {
       <div class="ig-profile-head">
         <div class="${data.hasStoryRing ? "story-ring" : ""}">${avatar(data.avatar, "ig-profile-avatar")}</div>
         <div class="ig-stats">
-          <b>${e(data.posts)}</b><span>게시물</span>
-          <b>${e(data.followers)}</b><span>팔로워</span>
-          <b>${e(data.following)}</b><span>팔로잉</span>
+          <div><b>${e(data.posts)}</b><span>게시물</span></div>
+          <div><b>${e(data.followers)}</b><span>팔로워</span></div>
+          <div><b>${e(data.following)}</b><span>팔로잉</span></div>
         </div>
       </div>
       <div class="ig-bio">
@@ -467,26 +478,565 @@ function renderPerson(person, side) {
 }
 
 function renderMessenger(data) {
-  const messages = (data.messages || []).map((message) => {
-    const images = (message.images || []).filter(Boolean);
-    const imageMarkup = images.length
-      ? images.map((src) => `<div class="msg-photo"><img src="${e(src)}" alt=""></div>`).join("")
-      : `<div class="msg-photo placeholder"><span>PHOTO</span></div>`;
-    return `
-      <div class="msg-item">
-        <div class="msg-photos">${imageMarkup}</div>
-        ${message.showComment ? `<div class="msg-comment">${nl2br(message.text || "")}</div>` : ""}
-      </div>
-    `;
-  }).join("");
+  const initial = normalizeMessengerMessage({
+    image: data.initialImage,
+    text: data.initialText,
+  });
+  const sequence = (data.messages || []).map(normalizeMessengerMessage);
+  const sequenceJson = JSON.stringify(sequence)
+    .replaceAll("<", "\\u003c")
+    .replaceAll(">", "\\u003e")
+    .replaceAll("&", "\\u0026");
   return `
-    <article class="card-frame messenger-card" style="--msg-point:${e(data.pointColor)}" data-export-card="messenger">
-      <header class="msg-header"><h1>${e(data.headerTitle || "New Message")}</h1><a>${e(data.cancelText || "Cancel")}</a></header>
-      <section class="msg-to"><span>To:</span><b>${e(data.recipient || "recipient")}</b><i>＋</i></section>
-      <section class="msg-history">${messages}</section>
-      <footer class="msg-input"><span class="msg-plus">＋</span><p><span>${e(data.inputPlaceholder || "Add comment or Send")}</span><b>↑</b></p></footer>
+    <article class="card-frame messenger-card" style="--msg-point:${e(data.pointColor)}" data-export-card="messenger" data-messenger-card data-next-index="0">
+      <header class="msg-header">
+        <h1>${e(data.headerTitle || "New Message")}</h1>
+        <a class="cancel-btn">${e(data.cancelText || "Cancel")}</a>
+      </header>
+      <section class="msg-to">
+        <div class="to-left-group">
+          <span>To:</span>
+          <b class="recipient-badge">${e(data.recipient || "recipient")}</b>
+        </div>
+        <div class="add-btn" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
+        </div>
+      </section>
+      <section class="msg-history" data-msg-history>${renderMessengerItem(initial)}</section>
+      <footer class="msg-input">
+        <span class="msg-plus" aria-hidden="true">+</span>
+        <div class="msg-pill">
+          <input data-msg-input type="text" placeholder="${e(data.inputPlaceholder || "Add comment or Send")}">
+          <button type="button" class="msg-send" data-msg-send aria-label="Send">
+            <svg viewBox="0 0 24 24"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
+          </button>
+        </div>
+      </footer>
+      <script type="application/json" data-msg-sequence>${sequenceJson}</script>
     </article>
   `;
+}
+
+function normalizeMessengerMessage(message = {}) {
+  const images = Array.isArray(message.images)
+    ? message.images.filter(Boolean)
+    : [message.image, message.image2].filter(Boolean);
+  return {
+    images,
+    text: message.text || "",
+  };
+}
+
+function renderMessengerItem(message) {
+  const images = Array.isArray(message.images) ? message.images : [];
+  const photo = images.length
+    ? images.map((image) => `<div class="msg-photo"><img src="${e(image)}" alt=""></div>`).join("")
+    : `<div class="msg-photo placeholder"><span>PHOTO</span></div>`;
+  return `
+    <div class="msg-item">
+      <div class="msg-photos">${photo}</div>
+      <div class="msg-comment">${nl2br(message.text || "")}</div>
+    </div>
+  `;
+}
+
+function renderCatchphrase(data) {
+  const infoRows = (data.infoRows || [])
+    .filter((row) => row.label || row.value)
+    .map((row) => `
+      <div class="cp-info-block">
+        <div class="cp-info-label">${e(row.label || "")}</div>
+        <div class="cp-info-value">${nl2br(row.value || "")}</div>
+      </div>
+    `).join("");
+  const keywords = parseKeywords(data.keywords)
+    .map((word) => `<span class="cp-kwtag">${e(word)}</span>`)
+    .join("");
+  const tone = Number(data.gradientTone) || 0;
+  const alpha = (Number(data.gradientOpacity) || 0) / 100;
+  const height = Number(data.gradientHeight) || 70;
+  const imageX = (Number(data.imageX) || 50) - 50;
+  const imageY = (Number(data.imageY) || 50) - 50;
+  const zoom = (Number(data.imageZoom) || 100) / 100;
+  const grad = `linear-gradient(to top, rgba(${tone},${tone},${tone},${alpha.toFixed(2)}) 0%, rgba(${tone},${tone},${tone},${(alpha * 0.6).toFixed(2)}) ${Math.round(height * 0.45)}%, rgba(${tone},${tone},${tone},0) ${height}%)`;
+  const font = data.nameFont === "Playfair Display" ? "'Playfair Display', serif" : "'Nunito', sans-serif";
+  return `
+    <article class="card-frame cp-card" style="--acc:${e(data.accentColor)};--ctxt:${e(data.textColor)};--cbg:${e(data.bgColor)}" data-export-card="catchphrase">
+      ${data.image ? `<img class="cp-img" src="${e(data.image)}" alt="" style="transform:translate(${imageX * 8}px, ${imageY * 6}px) scale(${zoom})">` : ""}
+      <div class="cp-grad" style="background:${grad}"></div>
+      ${data.badge ? `<div class="cp-badge">${e(String(data.badge).toUpperCase())}</div>` : ""}
+      ${data.keyTop ? `<div class="cp-keytop"><span class="cp-keytop-sparkle">✦</span><span class="cp-keytop-txt">${e(String(data.keyTop).toUpperCase())}</span></div>` : ""}
+      <div class="cp-main">
+        ${data.name ? `<h1 class="cp-name" style="font-family:${font}">${e(String(data.name).toUpperCase())}</h1>` : ""}
+        <div class="cp-divider"></div>
+        <p class="cp-phrase">${nl2br(data.phrase || "")}</p>
+      </div>
+      <div class="cp-info">
+        <div class="cp-info-list">${infoRows}</div>
+        ${keywords ? `<div class="cp-info-block"><div class="cp-info-label">Symbol</div><div class="cp-kwtags">${keywords}</div></div>` : ""}
+      </div>
+      <div class="cp-bar"></div>
+    </article>
+  `;
+}
+
+function renderTamagotchi(data) {
+  const themes = {
+    default: ["#ffe4e8", "#ff8fab", "#ffc2d1", "#fb6f92", "#ffffff"],
+    white: ["#f5f5f5", "#ffffff", "#ffffff", "#d1d1d1", "#ffffff"],
+    black: ["#333333", "#1a1a1a", "#444444", "#000000", "#333333"],
+    blue: ["#e0f2fe", "#7dd3fc", "#bae6fd", "#38bdf8", "#ffffff"],
+    mint: ["#dcfce7", "#6ee7b7", "#a7f3d0", "#34d399", "#ffffff"],
+    purple: ["#f3e8ff", "#d8b4fe", "#e9d5ff", "#c084fc", "#ffffff"],
+    lemon: ["#fffde7", "#fff176", "#fff9c4", "#fbc02d", "#ffffff"],
+  };
+  const [bg, shell, light, shadow, bezel] = themes[data.theme] || themes.default;
+  const zoom = (Number(data.imageZoom) || 100) / 100;
+  const tx = Number(data.imageX) || 0;
+  const ty = Number(data.imageY) || 0;
+  return `
+    <article class="card-frame tama-wrap" style="--tama-bg:${bg};--tama-shell:${shell};--tama-light:${light};--tama-shadow:${shadow};--tama-bezel:${bezel}" data-export-card="tamagotchi">
+      <div class="tama-shell">
+        <div class="tama-keychain"></div>
+        <div class="tama-brand">Tamagotchi</div>
+        <div class="tama-bezel">
+          <div class="tama-lcd">
+            <div class="tama-overlay"></div>
+            <div class="tama-top"><span>${e(String(data.name || "MY CHAR").toUpperCase()).slice(0, 8)}</span><span>${e(data.days || "DAYS:01")}</span></div>
+            <div class="tama-slot">
+              ${data.image ? `<img src="${e(data.image)}" alt="" style="transform:translate(calc(-50% + ${tx}px), calc(-50% + ${ty}px)) scale(${zoom})">` : `<div class="tama-trigger">TAP TO<br>HATCH!</div>`}
+            </div>
+            <div class="tama-bottom"><span>${e(data.hearts || "♥♥♡♡")}</span><span>${e(data.stars || "★★☆☆")}</span></div>
+          </div>
+        </div>
+        <div class="tama-buttons"><i></i><i></i><i></i></div>
+      </div>
+    </article>
+  `;
+}
+
+function renderIdCard(data) {
+  const color = data.accentColor || "#2050a0";
+  const light = data.themeMode === "light";
+  const side = data.side || "front";
+  const type = data.type || "company";
+  const content = side === "back" ? renderIdBack(data, type, color, light) : renderIdFront(data, type, color, light);
+  return `
+    <article class="card-frame idc-stage">
+      <div class="idc-lanyard"><i></i><b style="background:${e(color)}"></b><i></i></div>
+      <div class="idc-card" data-export-card="idcard">${content}</div>
+    </article>
+  `;
+}
+
+function renderIdFront(data, type, color, light) {
+  if (type === "sentinel") return renderIdSentinelFront(data, color, light);
+  if (type === "student") return renderIdStudentFront(data, color, light);
+  if (type === "university") return renderIdUniversityFront(data, color, light);
+  if (type === "lovers") return renderIdLoversFront(data, color, light);
+  const bg = light ? "#ffffff" : "linear-gradient(160deg,#303340,#3a3d48)";
+  return `
+    <section class="idc-face idc-emp" style="background:${bg};--idc:${e(color)};--idc-main:${light ? "#222" : "#fff"};--idc-sub:${light ? "#666" : "rgba(255,255,255,.7)"}">
+      <div class="idc-emp-dec a"></div><div class="idc-emp-dec b"></div><div class="idc-corner tr"></div><div class="idc-corner bl"></div>
+      <header class="idc-emp-top"><span class="idc-logo">${e((data.companyName || "C").charAt(0))}</span><b>${e(data.companyName || "Company")}</b></header>
+      ${renderIdPhoto(data.photo)}
+      <div class="idc-center">
+        <small>EMPLOYEE</small>
+        <h2>${e(data.name || "Name")}</h2>
+        <p>${e(data.englishName || "English Name")}</p>
+        ${data.access ? `<em>${e(data.access)}</em>` : ""}
+      </div>
+      <div class="idc-fields">
+        ${idRow("DEPT", data.department)}
+        ${idRow("POSITION", data.position)}
+      </div>
+      <div class="idc-twin"><span><small>JOINED</small><b>${e(data.joined || "")}</b></span><span><small>VALID</small><b>${e(data.valid || "")}</b></span></div>
+      <footer class="idc-bottom"><span>${e(data.idNumber || "EMP-0000")}</span><i>◎</i></footer>
+    </section>
+  `;
+}
+
+function renderIdSentinelFront(data, color, light) {
+  return `
+    <section class="idc-face idc-sentinel" style="--idc:${e(color)};background:${light ? "#fff" : `linear-gradient(170deg,${shade(color, -20)},#060810,${shade(color, -10)})`};--idc-main:${light ? "#222" : "#fff"};--idc-sub:${light ? "#666" : "rgba(255,255,255,.7)"}">
+      <header class="idc-sgb-head"><span>◎</span><div><b>S G B</b><small>SENTINEL GUIDANCE BUREAU</small></div><em>${e(data.sentinelClass || "S-Class").split("-")[0]}</em></header>
+      ${renderIdPhoto(data.photo)}
+      <h2 class="idc-code">${e(data.codename || "CODENAME")}</h2>
+      <p class="idc-pill">${e(data.ability || "ABILITY")}</p>
+      <div class="idc-fields">${idRow("CLASS", data.sentinelClass)}${idRow("AFFILIATION", data.affiliation)}</div>
+      <footer class="idc-bottom"><span>NO. ${e(data.idNumber || "SGB-0000")}</span></footer>
+    </section>
+  `;
+}
+
+function renderIdStudentFront(data, color, light) {
+  return `
+    <section class="idc-face idc-student" style="--idc:${e(color)};--idc-main:${light ? "#222" : "#fff"};--idc-sub:${light ? "#666" : "rgba(255,255,255,.7)"};background:${light ? "#fff" : "#2d3340"}">
+      <header class="idc-stu-head"><span>◎</span><div><b>${e(data.school || "School")}</b><small>STUDENT ID / ${e(data.schoolType || "")}</small></div></header>
+      ${renderIdPhoto(data.photo)}
+      <h2 class="idc-stu-name">${e(data.name || "Name")}</h2>
+      <div class="idc-fields">${idRow("ENROLLMENT", data.enrollment)}${idRow("GRADUATION", data.graduation)}${idRow("GRADE", data.grade)}</div>
+      <p class="idc-note">This card certifies the holder as a registered student.</p>
+      <footer class="idc-barcode">${barcodeBars(data.idNumber || "STU-0000")}</footer>
+      <div class="idc-colorbar"></div>
+    </section>
+  `;
+}
+
+function renderIdUniversityFront(data, color, light) {
+  return `
+    <section class="idc-face idc-uni" style="--idc:${e(color)};--idc-main:${light ? "#222" : "#fff"};--idc-sub:${light ? "#666" : "rgba(255,255,255,.7)"};background:${light ? "#fff" : "#2d3038"}">
+      <header class="idc-uni-head"><span>◎</span><div><b>${e(data.university || "University")}</b><small>STUDENT IDENTIFICATION</small></div><em>STUDENT</em></header>
+      ${renderIdPhoto(data.photo)}
+      <h2 class="idc-stu-name">${e(data.name || "Name")}</h2>
+      <p class="idc-major">${e(data.major || "Major")}</p>
+      <div class="idc-grid"><span><small>YEAR</small><b>${e(data.year || "")}</b></span><span><small>ADMITTED</small><b>${e(data.joined || "")}</b></span></div>
+      <footer class="idc-bottom center"><small>STUDENT NO.</small><span>${e(data.idNumber || "U-0000")}</span></footer>
+      <div class="idc-colorbar"></div>
+    </section>
+  `;
+}
+
+function renderIdLoversFront(data, color, light) {
+  return `
+    <section class="idc-face idc-luv" style="--idc:${e(color)};--idc-main:${light ? "#2d2228" : "#fff"};--idc-sub:${light ? "#8a767d" : "rgba(255,255,255,.7)"};background:${light ? "#fff" : "#2d2530"}">
+      <div class="idc-luv-border"></div><div class="idc-luv-inner">
+      <header><b>${e(data.club || "Lover's Club")}</b><small>LOVERS CARD</small></header>
+      ${renderIdPhoto(data.photo)}
+      <h2>${e(data.name || "Name")}</h2><p>@${e(data.nickname || "nickname")}</p>
+      <div class="idc-fields">${idRow("DATE OF BIRTH", data.birth)}${idRow("CLASS", data.className)}${idRow("NUMBER", data.number)}${idRow("NAME", data.bias)}${idRow("POSITION", data.position)}${idRow("MEMBERSHIP", data.membership)}</div>
+      <footer>${e(data.idNumber || "FC-0000")} <span>♥ ♥ ♥</span></footer>
+      </div>
+    </section>
+  `;
+}
+
+function renderIdBack(data, type, color, light) {
+  const title = type === "sentinel" ? "SENTINEL GUIDANCE BUREAU" : type === "university" ? data.university : type === "lovers" ? data.club : type === "student" ? "Student ID" : data.companyName;
+  return `
+    <section class="idc-face idc-back" style="--idc:${e(color)};background:${light ? "#f7f7f5" : "#303340"};--idc-main:${light ? "#222" : "#fff"};--idc-sub:${light ? "#777" : "rgba(255,255,255,.75)"}">
+      <h2>${e(title || "Identification Card")}</h2>
+      <i></i>
+      <b>NOTICE</b>
+      <p>This card certifies the holder as an official member.<br>Cannot be lent, transferred, or duplicated.<br>Report loss immediately for reissue.<br>Misuse is subject to disciplinary action.</p>
+      <div class="idc-barcode">${barcodeBars(data.idNumber || "0000")}</div>
+      <footer><span>${e(data.idNumber || "0000")}</span><em></em></footer>
+    </section>
+  `;
+}
+
+function renderIdPhoto(src) {
+  return `<div class="idc-photo">${src ? `<img src="${e(src)}" alt="">` : `<div class="idc-np"><i></i><b></b></div>`}</div>`;
+}
+
+function idRow(label, value) {
+  return `<div class="idc-row"><span>${e(label)}</span><b>${e(value || "")}</b></div>`;
+}
+
+function renderToypack(data) {
+  const imageX = Number(data.imageX) || 0;
+  const imageY = Number(data.imageY) || 0;
+  const imageZoom = (Number(data.imageZoom) || 100) / 100;
+  return `
+    <article class="card-frame toy-card" style="--toy-c1:${e(data.color1)};--toy-c2:${e(data.color2)};--toy-ac:${e(data.accentColor)};--toy-bg:${toyGradient(data.gradient, data.color1, data.color2)};--toy-img-x:${imageX}px;--toy-img-y:${imageY}px;--toy-img-z:${imageZoom}" data-export-card="toypack">
+      <div class="toy-hole"></div>
+      <div class="toy-cut"><span>✂</span></div>
+      ${data.series ? `<div class="toy-series">${e(String(data.series).toUpperCase())}</div>` : ""}
+      <div class="toy-pixels" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+      <section class="toy-inner">
+        <div class="toy-code">${barcodeBars("NO.01")}</div>
+        <div class="toy-image">
+          ${data.image ? `<img src="${e(data.image)}" alt="">` : `<span></span>`}
+        </div>
+        ${data.mainName ? `<h2>${e(data.mainName)}</h2>` : ""}
+      </section>
+      <div class="toy-badge">+ 한정판 +</div>
+      <div class="toy-number-badge">No. 01</div>
+      <section class="toy-info"><b>CAUTION</b><p>Do not eat, no matter how cute it is.<br>For ages 3+. Keep out of reach of small children.<br>Avoid direct sunlight and humid environments.</p></section>
+      <footer>${data.subName ? `* ${e(data.subName)} *` : "* * *"}</footer>
+    </article>
+  `;
+}
+
+function renderPlaylist(data) {
+  const tracks = (data.tracks || []).map((track, index) => `
+    <div class="pl-track">
+      <span class="pl-num">${index + 1}</span>
+      <span class="pl-play">▶</span>
+      ${track.thumb ? `<div class="pl-art" style="${backgroundStyle(track.thumb)}"></div>` : `<div class="pl-art-ph">♪</div>`}
+      <div class="pl-info"><b>${e(track.title || "Track")}</b><span>${e(track.artist || "—")}</span></div>
+      ${track.link ? `<a class="pl-link" href="${e(track.link)}">↗</a>` : "<i></i>"}
+    </div>
+  `).join("");
+  const bg = { white: ["#fffafd", "#fdf2f8", "#ffffff"], soft: ["#fce7f3", "#fbcfe0", "#ffffff"], blush: ["#ffd7e3", "#fbcfe0", "#ffffff"] }[data.bgTone] || ["#fffafd", "#fdf2f8", "#ffffff"];
+  return `
+    <article class="card-frame pl-card" style="--pl-acc:${e(data.accentColor)};--pl-bg:${bg[0]};--pl-bg2:${bg[1]};--pl-card:${bg[2]}" data-export-card="playlist">
+      <header class="pl-top">
+        <div class="pl-logo-area">
+          <span class="pl-logo-label">playlist</span>
+          <div class="pl-title-row"><span>${e(data.name || "My Playlist")}</span></div>
+        </div>
+        <div class="pl-topbar-btns">
+          <button class="pl-ico-btn" type="button" title="이미지 저장">${lineIcon('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>')}</button>
+          <button class="pl-ico-btn" type="button" title="테마 설정">${lineIcon('<circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>')}</button>
+          <button class="pl-add-btn" type="button">${lineIcon('<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>')}<span>추가</span></button>
+        </div>
+      </header>
+      <div class="pl-cover ${data.coverImage ? "has-img" : ""}" style="${backgroundStyle(data.coverImage)}">${data.coverImage ? "" : `<div class="pl-cover-placeholder"><div>${lineIcon('<path d="M12 21s-7-4.5-9.5-9C.5 8 2.5 3 7 3c2 0 3.5 1 5 3 1.5-2 3-3 5-3 4.5 0 6.5 5 4.5 9-2.5 4.5-9.5 9-9.5 9z"/>')}</div><h3>사진 넣기</h3><p>클릭하여 업로드</p></div>`}</div>
+      <div class="pl-meta"><span>♥</span><b>${(data.tracks || []).length} TRACKS</b></div>
+      <div class="pl-divider"><i></i><span>♥ Tracks</span><i></i></div>
+      <section class="pl-list">${tracks || `<div class="pl-empty"><div class="pl-empty-icon">${lineIcon('<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>')}</div><h3>아직 비어 있어요</h3><p>추가 버튼으로 트랙을 넣어보세요</p></div>`}</section>
+    </article>
+  `;
+}
+
+function renderRenaiTvShow(data) {
+  const cardA = data.cards?.[0] || {};
+  const cardB = data.cards?.[1] || {};
+  return `
+    <article class="card-frame renai-stage${data.singleMode ? " single" : ""}" style="--rn-theme:${e(data.themeColor)};--rn-deep:${e(data.themeDeep)};--rn-bg1:${e(data.bg1)};--rn-bg2:${e(data.bg2)}" data-export-card="renaitvshow">
+      <div class="renai-pattern"></div>
+      <span class="renai-corner tl">✦</span><span class="renai-corner br">✦</span><span class="renai-tag">CHARACTER PROFILE</span>
+      ${renaiSilhouette(data.leftFullImage, "i.")}
+      <div class="renai-center">
+        ${renaiProfileCard(cardA)}
+        <div class="renai-relation">
+          ${renaiAvatar(cardA.faceImage, "A")}
+          <div><span>→</span><p>${e(data.relationA || "캐릭터 관계 서술")}</p><span>←</span><p>${e(data.relationB || "캐릭터 관계 서술")}</p></div>
+          ${renaiAvatar(cardB.faceImage, "B")}
+        </div>
+        ${renaiProfileCard(cardB)}
+      </div>
+      ${renaiSilhouette(data.rightFullImage, "ii.")}
+    </article>
+  `;
+}
+
+function renaiProfileCard(card) {
+  const attrs = (card.attrs || []).map((row) => `<div class="renai-attr"><b>${e(row.label || "")}</b><p>${nl2br(row.value || "")}</p></div>`).join("");
+  return `
+    <section class="renai-card">
+      <header><h2>${e(card.title || "ORIGINAL CHARACTER : NAME")}</h2><span></span><span></span><span></span></header>
+      <div class="renai-card-body"><div class="renai-attrs">${attrs}</div><div class="renai-face">${card.faceImage ? `<img src="${e(card.faceImage)}" alt="">` : `<span>얼굴 이미지</span>`}<div class="renai-colors"><i></i><i></i></div></div></div>
+    </section>
+  `;
+}
+
+function renaiSilhouette(src, label) {
+  return `<aside class="renai-sil"><b>${label}</b><div>${src ? `<img src="${e(src)}" alt="">` : `<span>전신 PNG</span>`}</div></aside>`;
+}
+
+function renaiAvatar(src, label) {
+  return `<div class="renai-avatar">${src ? `<img src="${e(src)}" alt="">` : `<span>${e(label)}</span>`}</div>`;
+}
+
+function renderLifeFourCut(data) {
+  const theme = {
+    white: ["#f8f9fa", "#ffffff", "#2b2b2b", "#f4f5f6"],
+    midnight: ["#121212", "#1c1c1c", "#d4d4d4", "#242424"],
+    rose: ["#fcf5f5", "#fff0f3", "#8c5a61", "#ffe9ec"],
+    sage: ["#f3f5f2", "#e8ece6", "#4a5c48", "#dfe4dd"],
+    lavender: ["#f6f5fc", "#ebe8fc", "#5c548a", "#e3dff5"],
+  }[data.theme] || ["#f8f9fa", "#ffffff", "#2b2b2b", "#f4f5f6"];
+  const imgs = (data.images || []).slice(0, 4);
+  while (imgs.length < 4) imgs.push("");
+  return `
+    <article class="card-frame l4-stage" style="--l4-bg:${theme[0]};--l4-frame:${theme[1]};--l4-text:${theme[2]};--l4-slot:${theme[3]};--l4-font:'${e(data.font || "Cormorant Garamond")}', serif">
+      <div class="l4-frame" data-export-card="lifefourcut">
+        ${imgs.map((src) => `<div class="l4-slot">${src ? `<img src="${e(src)}" alt="">` : `<span>+</span>`}</div>`).join("")}
+        <div class="l4-text">${e(data.title || "Cherished Memories")}</div>
+      </div>
+    </article>
+  `;
+}
+
+function renderPhotoAlbum(data) {
+  const count = Math.max(1, Math.min(9, Number(data.slotCount) || 6));
+  const imgs = (data.images || []).slice(0, count);
+  while (imgs.length < count) imgs.push("");
+  return `
+    <article class="card-frame album-card" style="--pa-t1:${e(data.theme1)};--pa-t2:${e(data.theme2)};--pa-bg:${e(data.bgColor)};--pa-paper:${e(data.paperColor)}" data-export-card="photoalbum">
+      <div class="album-meta"><span>${e(data.page || "PAGE. 01")}</span><span>${e(data.date || "DATE. YYYY. MM. DD")}</span></div>
+      <header><h1>${e(data.title || "Pair Title")}</h1><i></i><p><span>${e(data.nameA || "Character A")}</span><b>×</b><span>${e(data.nameB || "Character B")}</span></p></header>
+      <blockquote>${e(data.quote || "")}</blockquote>
+      <section class="album-grid">${imgs.map((src) => `<div class="album-slot"><div>${src ? `<img src="${e(src)}" alt="">` : `<span><b>+</b><small>photo</small></span>`}</div></div>`).join("")}</section>
+      <footer>${e(data.credit || "@YOUR_NAME")}</footer>
+    </article>
+  `;
+}
+
+function renderNetflixScreenshot(data) {
+  const y = data.letterbox ? "670px" : "760px";
+  const subtitle = data.line1 && data.line2
+    ? `<p style="bottom:92px">${e(data.line1)}</p><p style="bottom:52px">${e(data.line2)}</p>`
+    : `<p style="bottom:${data.letterbox ? "52px" : "40px"}">${e(data.line1 || data.line2 || "")}</p>`;
+  return `
+    <article class="card-frame ns-card ${data.vignette ? "has-vignette" : ""} ${data.letterbox ? "has-letterbox" : ""} ns-${e(data.subtitleStyle || "netflix")}" style="--ns-filter:${netflixFilter(data)};--ns-x:${e(data.imageX)}%;--ns-y:${e(data.imageY)}%;--ns-z:${(Number(data.imageZoom) || 100) / 100};--ns-bright:${Number(data.brightness) || 1};--ns-sub-y:${y}" data-export-card="netflixscreenshot">
+      ${data.image ? `<img src="${e(data.image)}" alt="">` : `<div class="ns-empty">UPLOAD FRAME</div>`}
+      ${data.blur ? `<div class="ns-blur">${data.image ? `<img src="${e(data.image)}" alt="">` : ""}</div>` : ""}
+      <div class="ns-subs">${subtitle}</div>
+    </article>
+  `;
+}
+
+function renderMovieTicket(data) {
+  const type = data.ticketType || "movie";
+  const body = type === "boarding" ? renderBoardingPass(data) : type === "receipt" ? renderReceipt(data) : renderCinemaTicket(data);
+  return `<article class="card-frame ticket-stage" style="--tk-c1:${e(data.color1)};--tk-c2:${e(data.color2)}">${body}</article>`;
+}
+
+function renderCinemaTicket(data) {
+  return `
+    <section class="tk-movie" data-export-card="movieticket">
+      <div class="tk-movie-main"><div class="tk-movie-head">ADMIT ONE ✦ CINEMA</div>${ticketImage(data.image, "tk-movie-img")}<h1>${e(data.title || "MOVIE TITLE")}</h1><h2>${e(data.subtitle || "")}</h2><p>${e(data.cast || "")}</p>
+      <div class="tk-info">${ticketInfo("DATE", data.date)}${ticketInfo("TIME", data.time)}${ticketInfo("SEAT", data.seat)}${ticketInfo("INFO", data.info)}</div></div>
+      <footer><div>${barcodeBars(data.title || "MOVIE")}</div><span>${e(data.stubText || "THANK YOU FOR COMING")}</span></footer>
+    </section>
+  `;
+}
+
+function renderBoardingPass(data) {
+  return `
+    <section class="tk-boarding" data-export-card="movieticket">
+      <main><header><b>${e(data.airline || "AIRLINE NAME")}</b><span>${e(data.classBadge || "FIRST CLASS")}</span></header><div class="tk-bp-body">${ticketImage(data.image, "tk-bp-img")}<div><div class="tk-route"><section><b>${e(data.fromCode || "ICN")}</b><span>${e(data.fromCity || "SEOUL")}</span></section><i>✈</i><section><b>${e(data.toCode || "JFK")}</b><span>${e(data.toCity || "NEW YORK")}</span></section></div><div class="tk-grid">${ticketInfo("PASSENGER", data.passenger, true)}${ticketInfo("FLIGHT", data.flight)}${ticketInfo("DATE", data.date)}${ticketInfo("TIME", data.time)}${ticketInfo("GATE", data.gate)}${ticketInfo("SEAT", data.seat)}${ticketInfo("REMARKS", data.info)}</div></div></div></main>
+      <aside><small>BOARDING PASS</small><h2>${e(data.fromCode || "ICN")} <span>➔</span> ${e(data.toCode || "JFK")}</h2><div><small>SEAT</small><b>${e(data.seat || "01A")}</b></div>${barcodeBars(data.flight || "FL000")}</aside>
+    </section>
+  `;
+}
+
+function renderReceipt(data) {
+  const rows = (data.items || []).map((item) => `<tr><td><b>${e(item.name || "ITEM")}</b><span>${e(item.qty || "1 x")}</span></td><td>${e(item.price || "0")}</td></tr>`).join("");
+  return `
+    <section class="tk-receipt" data-export-card="movieticket">
+      <header><h1>${e(data.receiptStore || "STORE NAME")}</h1><small>RECEIPT OF TRANSACTION</small></header>
+      <div class="tk-rc-meta">${idRow("Date:", data.date)}${idRow("Order:", data.order)}${idRow("Client:", data.client)}${idRow("Server:", data.server)}</div>
+      ${ticketImage(data.image, "tk-rc-img")}
+      <table><thead><tr><th>ITEM</th><th>PRICE</th></tr></thead><tbody>${rows}</tbody></table>
+      <div class="tk-total"><span>TOTAL</span><b>${e(data.total || "30,000")}</b></div>
+      <footer>${barcodeBars(data.order || "#00142")}<span>${e(data.receiptMessage || "HAVE A NICE DAY")}</span></footer>
+    </section>
+  `;
+}
+
+function renderInternetBoard(data) {
+  const controls = data.showPreviewControls !== false;
+  const comments = Array.isArray(data.comments) ? data.comments : [];
+  const commentHtml = comments.map((comment) => `
+    <div class="chat-bubble">
+      <div class="chat-header">
+        <span class="chat-name">익명톡</span>
+        ${controls ? `<div class="chat-actions"><button class="chat-action-btn" type="button">수정</button><button class="chat-action-btn" type="button">삭제</button></div>` : ""}
+      </div>
+      <div class="chat-text">${nl2br(comment.text || "")}</div>
+    </div>
+  `).join("");
+  const commentsBox = comments.length || controls ? `
+    <div class="comments-box${comments.length ? "" : " empty"}">
+      ${commentHtml}
+      ${controls ? `
+        <div class="comment-input-wrap">
+          <input type="text" class="msg-input" placeholder="따뜻한 댓글을 남겨주세요." readonly>
+          <button class="btn-send" type="button" aria-label="댓글 보내기"><i class="ri-send-plane-2-fill"></i></button>
+        </div>
+      ` : ""}
+    </div>
+  ` : "";
+  return `
+    <article class="card-frame ab-post-card post-card${data.darkMode ? " dark-mode" : ""}" data-export-card="internetboard">
+      <div class="post-header">
+        <div class="post-header-left">
+          <div class="avatar-box">${e(data.avatarText || "익")}</div>
+          <div class="post-user-info">
+            <div class="name-time-row">
+              <h4 class="post-author">${e(data.author || "익명사용자")}</h4>
+              <p class="post-date">${e(data.date || "방금 전")}</p>
+            </div>
+            <span class="post-tag-badge">${e(data.tag || "☕ 일상")}</span>
+          </div>
+        </div>
+        ${controls ? `<div class="post-actions"><button class="post-action-btn edit" type="button">수정</button><button class="post-action-btn delete" type="button">삭제</button></div>` : ""}
+      </div>
+      <div class="post-content">
+        <h3>${e(data.title || "제목을 입력하세요")}</h3>
+        <div class="post-text">${nl2br(data.content || "")}</div>
+      </div>
+      ${data.image ? `<img src="${e(data.image)}" class="post-image" alt="">` : ""}
+      <div class="stats-row">
+        ${anonStat(anonEyeIcon(), data.views)}
+        ${anonStat(anonHeartIcon(), data.likes)}
+        ${anonStat(anonBookmarkIcon(), data.bookmarks)}
+      </div>
+      ${controls ? `
+        <div class="btn-group">
+          ${anonAction("ri-share-forward-line", "공유")}
+          ${anonAction("ri-screenshot-2-line", "캡처")}
+          ${anonAction("ri-file-copy-line", "복사")}
+        </div>
+      ` : ""}
+      ${commentsBox}
+    </article>
+  `;
+}
+
+function anonStat(icon, value) {
+  return `<span>${icon}${e(value || "0")}</span>`;
+}
+
+function anonAction(icon, label) {
+  return `<button class="icon-btn" type="button"><i class="${icon}"></i>${e(label)}</button>`;
+}
+
+function anonEyeIcon() {
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 3c5.392 0 9.878 3.88 10.819 9-.94 5.12-5.427 9-10.819 9-5.392 0-9.878-3.88-10.819-9C2.121 6.88 6.608 3 12 3zm0 16a9.005 9.005 0 0 0 8.777-7 9.005 9.005 0 0 0-17.554 0A9.005 9.005 0 0 0 12 19zm0-2a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-2a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/></svg>`;
+}
+
+function anonHeartIcon() {
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="#ff5252"><path d="M12.001 4.529c2.349-2.109 5.979-2.039 8.242.228 2.262 2.268 2.34 5.88.236 8.236l-8.48 8.492-8.478-8.492c-2.104-2.356-2.025-5.974.236-8.236 2.265-2.264 5.888-2.34 8.244-.228z"/></svg>`;
+}
+
+function anonBookmarkIcon() {
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="#ffb300"><path d="M5 2h14a1 1 0 0 1 1 1v19.143a.5.5 0 0 1-.766.424L12 18.03l-7.234 4.536A.5.5 0 0 1 4 22.143V3a1 1 0 0 1 1-1z"/></svg>`;
+}
+
+function ticketImage(src, className) {
+  return `<div class="${className} tk-img">${src ? `<img src="${e(src)}" alt="">` : `<span>+<small>Photo</small></span>`}</div>`;
+}
+
+function ticketInfo(label, value, full = false) {
+  return `<div class="${full ? "full" : ""}"><small>${e(label)}</small><b>${e(value || "")}</b></div>`;
+}
+
+function barcodeBars(value) {
+  const seed = String(value || "0000").split("").reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  return `<svg class="mini-barcode" viewBox="0 0 120 20" preserveAspectRatio="none" aria-hidden="true">${Array.from({ length: 45 }, (_, index) => {
+    const width = ((seed + index * 7) % 3) + 1;
+    const x = index * 2.7;
+    return index % 2 ? "" : `<rect x="${x}" y="1" width="${width}" height="14"></rect>`;
+  }).join("")}<text x="60" y="19" text-anchor="middle">${e(value)}</text></svg>`;
+}
+
+function toyGradient(value, color1, color2) {
+  if (value === "radial") return `radial-gradient(circle, ${e(color1)}, ${e(color2)})`;
+  const direction = value === "vertical" ? "180deg" : value === "horizontal" ? "90deg" : "135deg";
+  return `linear-gradient(${direction}, ${e(color1)}, ${e(color2)})`;
+}
+
+function netflixFilter(data) {
+  const brightness = `brightness(${Number(data.brightness) || 1})`;
+  const lut = {
+    none: "",
+    tealOrange: "contrast(1.1) saturate(1.1) sepia(0.1) hue-rotate(-5deg)",
+    warm: "sepia(0.2) brightness(0.95) contrast(1.05)",
+    cold: "contrast(1.05) saturate(0.9) hue-rotate(170deg) sepia(0.1)",
+    bw: "grayscale(1) contrast(1.1) brightness(0.9)",
+  }[data.lut] || "";
+  return `${brightness} ${lut}`;
+}
+
+function shade(hex, amount) {
+  const value = String(hex || "#000000").replace("#", "");
+  const rgb = [0, 2, 4].map((start) => Math.max(0, Math.min(255, parseInt(value.slice(start, start + 2), 16) + amount)));
+  return `#${rgb.map((item) => item.toString(16).padStart(2, "0")).join("")}`;
 }
 
 window.CardStudioRenderers = {

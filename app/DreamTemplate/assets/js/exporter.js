@@ -43,8 +43,9 @@ async function buildStandaloneHtml(styleId, label, cardHtml) {
 <title>${escapeTitle(title)}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Courier+Prime:wght@400;700&family=DM+Mono:wght@400;500&family=DM+Serif+Display:ital@0;1&family=EB+Garamond:ital,wght@0,400;0,500;1,400;1,500;1,600&family=Fredoka+One&family=Gowun+Batang&family=Hahmlet:wght@400;600&family=Hi+Melody&family=IBM+Plex+Mono:wght@400;600;700&family=Instrument+Serif:ital@0;1&family=Inter:wght@300;400;500;600;700&family=Lora:ital,wght@1,500;1,600&family=Nanum+Gothic&family=Nanum+Myeongjo:wght@400;700&family=Nanum+Pen+Script&family=Noto+Sans+KR:wght@300;400;500;600;700;800;900&family=Noto+Serif+KR:wght@400;700&family=Nunito:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,400&family=Outfit:wght@300;400;500;600;700;800;900&family=Pinyon+Script&family=Playfair+Display:ital,wght@0,700;0,800;1,700&family=Roboto:wght@400;500;700;900&family=Space+Mono:wght@400;700&family=Special+Elite&family=VT323&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css">
 <style>
 ${css}
 body {
@@ -117,12 +118,93 @@ function escapeTitle(value) {
 function messengerToggleScript() {
   return `<script>
 document.addEventListener("click", function(event) {
+  var sendButton = event.target.closest("[data-msg-send]");
+  if (sendButton) {
+    sendNextMessengerItem(sendButton.closest("[data-messenger-card]"));
+    return;
+  }
+
   var photo = event.target.closest(".msg-photo");
   if (!photo) return;
   var item = photo.closest(".msg-item");
   var comment = item && item.querySelector(".msg-comment");
-  if (comment) comment.hidden = !comment.hidden;
+  if (comment) comment.classList.toggle("hide");
 });
+
+document.addEventListener("keydown", function(event) {
+  var input = event.target.closest("[data-msg-input]");
+  if (!input || event.key !== "Enter") return;
+  event.preventDefault();
+  sendNextMessengerItem(input.closest("[data-messenger-card]"));
+});
+
+function sendNextMessengerItem(card) {
+  if (!card) return;
+  var sequence = readMessengerSequence(card);
+  var index = Number(card.dataset.nextIndex) || 0;
+  if (index >= sequence.length) return;
+
+  appendMessengerItem(card, sequence[index]);
+  card.dataset.nextIndex = String(index + 1);
+
+  var input = card.querySelector("[data-msg-input]");
+  if (input) input.value = "";
+}
+
+function readMessengerSequence(card) {
+  var script = card.querySelector("[data-msg-sequence]");
+  if (!script) return [];
+  try {
+    var parsed = JSON.parse(script.textContent || "[]");
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    return [];
+  }
+}
+
+function appendMessengerItem(card, message) {
+  var history = card.querySelector("[data-msg-history]");
+  if (!history) return;
+
+  var item = document.createElement("div");
+  item.className = "msg-item";
+
+  var photos = document.createElement("div");
+  photos.className = "msg-photos";
+
+  var images = message && Array.isArray(message.images)
+    ? message.images.filter(Boolean)
+    : [message && message.image, message && message.image2].filter(Boolean);
+
+  if (images.length) {
+    images.forEach(function(src) {
+      var photo = document.createElement("div");
+      photo.className = "msg-photo";
+      var img = document.createElement("img");
+      img.src = src;
+      img.alt = "";
+      photo.append(img);
+      photos.append(photo);
+    });
+  } else {
+    var photo = document.createElement("div");
+    photo.className = "msg-photo placeholder";
+    var placeholder = document.createElement("span");
+    placeholder.textContent = "PHOTO";
+    photo.append(placeholder);
+    photos.append(photo);
+  }
+
+  var comment = document.createElement("div");
+  comment.className = "msg-comment";
+  comment.textContent = message && message.text ? message.text : "";
+
+  item.append(photos, comment);
+  history.append(item);
+  setTimeout(function() {
+    history.scrollTop = history.scrollHeight;
+  }, 50);
+}
 </script>`;
 }
 

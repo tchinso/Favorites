@@ -14,6 +14,17 @@ function renderEditor(styleId, data) {
     timeline: timelineEditor,
     couple: coupleEditor,
     messenger: messengerEditor,
+    catchphrase: catchphraseEditor,
+    tamagotchi: tamagotchiEditor,
+    idcard: idCardEditor,
+    toypack: toypackEditor,
+    playlist: playlistEditor,
+    renaitvshow: renaiTvShowEditor,
+    lifefourcut: lifeFourCutEditor,
+    photoalbum: photoAlbumEditor,
+    netflixscreenshot: netflixScreenshotEditor,
+    movieticket: movieTicketEditor,
+    internetboard: internetBoardEditor,
   };
   return templates[styleId]?.(data) || "";
 }
@@ -335,16 +346,321 @@ function messengerEditor(data) {
     ${field(data, "cancelText", "취소 문구")}
     ${field(data, "pointColor", "포인트색", { type: "color" })}
     ${field(data, "inputPlaceholder", "입력창 문구")}
-  `) + section("사진 묶음", `
-    ${listHeader("메시지 묶음", "messages", "묶음 추가")}
-    ${(data.messages || []).map((_, index) => listItem(`묶음 ${index + 1}`, "messages", index, `
-      <div class="grid-3">
-        ${imageField(data, `messages.${index}.images.0`, "사진 1")}
-        ${imageField(data, `messages.${index}.images.1`, "사진 2")}
-        ${imageField(data, `messages.${index}.images.2`, "사진 3")}
-      </div>
-      ${textarea(data, `messages.${index}.text`, "코멘트")}
-      ${checkbox(data, `messages.${index}.showComment`, "코멘트 표시")}
+  `) + section("처음 보이는 메시지", `
+    ${imageField(data, "initialImage", "처음 사진")}
+    ${textarea(data, "initialText", "처음 메시지")}
+  `) + section("보내기 순서", `
+    ${listHeader("전송될 메시지", "messages", "메시지 추가")}
+    ${(data.messages || []).map((_, index) => listItem(`메시지 ${index + 1}`, "messages", index, `
+      ${imageField(data, `messages.${index}.image`, "사진 1")}
+      ${imageField(data, `messages.${index}.image2`, "사진 2")}
+      ${textarea(data, `messages.${index}.text`, "메시지")}
+    `)).join("")}
+  `);
+}
+
+function catchphraseEditor(data) {
+  return section("이미지", `
+    ${imageField(data, "image", "메인 이미지")}
+    <div class="grid-3">
+      ${field(data, "imageX", "이미지 X", { type: "range", min: 0, max: 100 })}
+      ${field(data, "imageY", "이미지 Y", { type: "range", min: 0, max: 100 })}
+      ${field(data, "imageZoom", "이미지 크기", { type: "range", min: 60, max: 200 })}
+    </div>
+  `) + section("텍스트", `
+    ${field(data, "name", "이름")}
+    ${field(data, "keyTop", "상단 키워드")}
+    ${textarea(data, "phrase", "캐치프레이즈")}
+    ${field(data, "badge", "우측 배지")}
+    ${select(data, "nameFont", "이름 글꼴", [
+      { value: "Nunito", label: "Nunito" },
+      { value: "Playfair Display", label: "Playfair" },
+    ])}
+  `) + section("정보", `
+    ${listHeader("정보 항목", "infoRows", "항목 추가")}
+    ${(data.infoRows || []).map((_, index) => listItem(`정보 ${index + 1}`, "infoRows", index, `
+      ${field(data, `infoRows.${index}.label`, "라벨")}
+      ${field(data, `infoRows.${index}.value`, "값")}
+    `)).join("")}
+    ${field(data, "keywords", "Symbol 키워드", { placeholder: "쉼표로 구분" })}
+  `) + section("색상/그라데이션", `
+    <div class="grid-3">${field(data, "accentColor", "강조 컬러", { type: "color" })}${field(data, "bgColor", "배경 컬러", { type: "color" })}${field(data, "textColor", "텍스트 컬러", { type: "color" })}</div>
+    <div class="grid-3">${field(data, "gradientTone", "그라데이션 색조", { type: "range", min: 0, max: 255 })}${field(data, "gradientOpacity", "그라데이션 강도", { type: "range", min: 0, max: 100 })}${field(data, "gradientHeight", "그라데이션 높이", { type: "range", min: 20, max: 100 })}</div>
+  `);
+}
+
+function tamagotchiEditor(data) {
+  return section("다마고치", `
+    ${select(data, "theme", "테마", [
+      { value: "default", label: "Peach" },
+      { value: "white", label: "White" },
+      { value: "black", label: "Black" },
+      { value: "purple", label: "Purple" },
+      { value: "blue", label: "Blue" },
+      { value: "mint", label: "Mint" },
+      { value: "lemon", label: "Lemon" },
+    ])}
+    ${imageField(data, "image", "캐릭터 이미지")}
+    <div class="grid-3">
+      ${field(data, "imageX", "이미지 X", { type: "range", min: -120, max: 120 })}
+      ${field(data, "imageY", "이미지 Y", { type: "range", min: -120, max: 120 })}
+      ${field(data, "imageZoom", "이미지 크기", { type: "range", min: 40, max: 220 })}
+    </div>
+    ${field(data, "name", "이름", { placeholder: "최대 8자" })}
+    <div class="grid-3">${field(data, "days", "DAYS")}${field(data, "hearts", "하트")}${field(data, "stars", "별")}</div>
+  `);
+}
+
+function idCardEditor(data) {
+  const common = section("카드 유형", `
+    ${select(data, "type", "유형", [
+      { value: "company", label: "Employee ID" },
+      { value: "sentinel", label: "Sentinel / Guide" },
+      { value: "student", label: "Student ID" },
+      { value: "university", label: "University ID" },
+      { value: "lovers", label: "Lovers Card" },
+    ])}
+    ${select(data, "side", "면", [
+      { value: "front", label: "Front" },
+      { value: "back", label: "Back" },
+    ])}
+    ${select(data, "themeMode", "테마", [
+      { value: "dark", label: "Dark" },
+      { value: "light", label: "Light" },
+    ])}
+    <div class="grid-2">${field(data, "accentColor", "포인트색", { type: "color" })}${imageField(data, "photo", "증명사진")}</div>
+  `);
+  const type = data.type || "company";
+  const fields = {
+    company: section("Employee", `
+      ${field(data, "companyName", "Company")}
+      ${field(data, "name", "Name")}
+      ${field(data, "englishName", "English")}
+      <div class="grid-2">${field(data, "department", "Dept")}${field(data, "position", "Position")}</div>
+      <div class="grid-3">${field(data, "idNumber", "No.")}${field(data, "joined", "Joined")}${field(data, "valid", "Valid")}</div>
+      ${field(data, "access", "Access Level")}
+    `),
+    sentinel: section("Sentinel / Guide", `
+      ${field(data, "codename", "Codename")}
+      ${field(data, "ability", "Ability")}
+      <div class="grid-2">${field(data, "sentinelType", "Type")}${field(data, "sentinelClass", "Class")}</div>
+      ${field(data, "affiliation", "Affiliation")}
+      ${field(data, "idNumber", "No.")}
+    `),
+    student: section("Student", `
+      ${field(data, "school", "School")}
+      ${field(data, "schoolType", "Type")}
+      ${field(data, "name", "Name")}
+      ${field(data, "grade", "Grade")}
+      <div class="grid-3">${field(data, "enrollment", "Enrollment")}${field(data, "graduation", "Graduation")}${field(data, "idNumber", "No.")}</div>
+    `),
+    university: section("University", `
+      ${field(data, "university", "University")}
+      ${field(data, "major", "Major")}
+      ${field(data, "name", "Name")}
+      <div class="grid-3">${field(data, "year", "Year")}${field(data, "idNumber", "No.")}${field(data, "joined", "Admission")}</div>
+      <div class="grid-2">${field(data, "library", "Library")}${field(data, "dormitory", "Dormitory")}</div>
+    `),
+    lovers: section("Lovers Card", `
+      ${field(data, "club", "Club Name")}
+      ${field(data, "name", "Name")}
+      ${field(data, "nickname", "Nickname")}
+      ${field(data, "bias", "Favorite")}
+      <div class="grid-3">${field(data, "birth", "Birth")}${field(data, "className", "Class")}${field(data, "number", "Number")}</div>
+      <div class="grid-2">${field(data, "position", "Position")}${field(data, "membership", "Membership")}</div>
+      ${field(data, "idNumber", "No.")}
+    `),
+  }[type];
+  return common + fields;
+}
+
+function toypackEditor(data) {
+  return section("이미지/이름", `
+    ${imageField(data, "image", "패키지 이미지")}
+    <div class="grid-3">
+      ${field(data, "imageX", "이미지 X", { type: "range", min: -140, max: 140 })}
+      ${field(data, "imageY", "이미지 Y", { type: "range", min: -140, max: 140 })}
+      ${field(data, "imageZoom", "이미지 크기", { type: "range", min: 20, max: 300 })}
+    </div>
+    ${field(data, "mainName", "캐릭터 이름")}
+    ${field(data, "subName", "서브 타이틀")}
+    ${field(data, "series", "시리즈")}
+  `) + section("색상", `
+    <div class="grid-3">${field(data, "color1", "컬러 1", { type: "color" })}${field(data, "color2", "컬러 2", { type: "color" })}${field(data, "accentColor", "포인트", { type: "color" })}</div>
+    ${select(data, "gradient", "그라데이션", [
+      { value: "diagonal", label: "↗" },
+      { value: "vertical", label: "↓" },
+      { value: "horizontal", label: "→" },
+      { value: "radial", label: "Radial" },
+    ])}
+  `);
+}
+
+function playlistEditor(data) {
+  return section("플레이리스트", `
+    ${field(data, "name", "플레이리스트 이름")}
+    ${imageField(data, "coverImage", "커버 이미지")}
+    ${field(data, "accentColor", "포인트색", { type: "color" })}
+    ${select(data, "bgTone", "배경", [
+      { value: "white", label: "화이트" },
+      { value: "soft", label: "소프트" },
+      { value: "blush", label: "블러쉬" },
+    ])}
+  `) + section("트랙", `
+    ${listHeader("트랙", "tracks", "트랙 추가")}
+    ${(data.tracks || []).map((_, index) => listItem(`트랙 ${index + 1}`, "tracks", index, `
+      ${imageField(data, `tracks.${index}.thumb`, "썸네일")}
+      ${field(data, `tracks.${index}.title`, "제목")}
+      ${field(data, `tracks.${index}.artist`, "아티스트")}
+      ${field(data, `tracks.${index}.link`, "링크")}
+    `)).join("")}
+  `);
+}
+
+function renaiTvShowEditor(data) {
+  const cardEditor = (cardIndex, title) => section(title, `
+    ${field(data, `cards.${cardIndex}.title`, "카드 제목")}
+    ${imageField(data, `cards.${cardIndex}.faceImage`, "얼굴 이미지")}
+    ${listHeader("속성", `cards.${cardIndex}.attrs`, "항목 추가")}
+    ${(data.cards?.[cardIndex]?.attrs || []).map((_, index) => listItem(`항목 ${index + 1}`, `cards.${cardIndex}.attrs`, index, `
+      ${field(data, `cards.${cardIndex}.attrs.${index}.label`, "라벨")}
+      ${textarea(data, `cards.${cardIndex}.attrs.${index}.value`, "내용")}
+    `)).join("")}
+  `);
+  return section("보드", `
+    <div class="grid-3">${field(data, "themeColor", "테마", { type: "color" })}${field(data, "themeDeep", "딥 컬러", { type: "color" })}${checkbox(data, "singleMode", "싱글 모드")}</div>
+    <div class="grid-2">${field(data, "bg1", "배경 1", { type: "color" })}${field(data, "bg2", "배경 2", { type: "color" })}</div>
+    <div class="grid-2">${imageField(data, "leftFullImage", "왼쪽 전신")}${imageField(data, "rightFullImage", "오른쪽 전신")}</div>
+    ${field(data, "relationA", "관계 화살표 A→B")}
+    ${field(data, "relationB", "관계 화살표 B→A")}
+  `) + cardEditor(0, "카드 1") + cardEditor(1, "카드 2");
+}
+
+function lifeFourCutEditor(data) {
+  return section("인생네컷", `
+    ${select(data, "theme", "테마", [
+      { value: "white", label: "Pure White" },
+      { value: "midnight", label: "Midnight Black" },
+      { value: "rose", label: "Rose Blush" },
+      { value: "sage", label: "Sage Green" },
+      { value: "lavender", label: "Lavender Fog" },
+    ])}
+    ${select(data, "font", "글꼴", [
+      { value: "Cormorant Garamond", label: "Cormorant" },
+      { value: "Gowun Batang", label: "Gowun Batang" },
+      { value: "Pinyon Script", label: "Pinyon Script" },
+    ])}
+    ${field(data, "title", "하단 문구")}
+    <div class="grid-2">${[0, 1, 2, 3].map((index) => imageField(data, `images.${index}`, `사진 ${index + 1}`)).join("")}</div>
+  `);
+}
+
+function photoAlbumEditor(data) {
+  return section("포토앨범", `
+    <div class="grid-3">${field(data, "theme1", "테마 1", { type: "color" })}${field(data, "theme2", "테마 2", { type: "color" })}${field(data, "bgColor", "배경", { type: "color" })}</div>
+    ${field(data, "paperColor", "종이색", { type: "color" })}
+    <div class="grid-2">${field(data, "page", "페이지")}${field(data, "date", "날짜")}</div>
+    ${field(data, "title", "타이틀")}
+    <div class="grid-2">${field(data, "nameA", "이름 A")}${field(data, "nameB", "이름 B")}</div>
+    ${textarea(data, "quote", "인용문")}
+    ${field(data, "credit", "크레딧")}
+    ${field(data, "slotCount", "사진 수", { type: "range", min: 1, max: 9 })}
+  `) + section("사진", `
+    <div class="grid-3">${Array.from({ length: 9 }, (_, index) => imageField(data, `images.${index}`, `사진 ${index + 1}`)).join("")}</div>
+  `);
+}
+
+function netflixScreenshotEditor(data) {
+  return section("프레임", `
+    ${imageField(data, "image", "영상 이미지")}
+    <div class="grid-3">${field(data, "imageX", "이미지 X", { type: "range", min: 0, max: 100 })}${field(data, "imageY", "이미지 Y", { type: "range", min: 0, max: 100 })}${field(data, "imageZoom", "이미지 크기", { type: "range", min: 10, max: 300 })}</div>
+    <div class="grid-2">${field(data, "line1", "상단 자막")}${field(data, "line2", "하단 자막")}</div>
+    ${select(data, "subtitleStyle", "자막 스타일", [
+      { value: "netflix", label: "Netflix" },
+      { value: "festival", label: "영화제" },
+      { value: "documentary", label: "다큐" },
+      { value: "anime", label: "애니" },
+    ])}
+    ${select(data, "lut", "LUT", [
+      { value: "none", label: "None" },
+      { value: "tealOrange", label: "Teal Orange" },
+      { value: "warm", label: "Warm" },
+      { value: "cold", label: "Cold" },
+      { value: "bw", label: "B/W" },
+    ])}
+    ${field(data, "brightness", "밝기", { type: "range", min: 0.5, max: 1.3, step: 0.01 })}
+    ${checkbox(data, "letterbox", "레터박스")}
+    ${checkbox(data, "vignette", "소프트 비네팅")}
+    ${checkbox(data, "blur", "뎁스 블러")}
+  `);
+}
+
+function movieTicketEditor(data) {
+  const common = section("티켓 설정", `
+    ${select(data, "ticketType", "유형", [
+      { value: "movie", label: "Movie" },
+      { value: "boarding", label: "Boarding" },
+      { value: "receipt", label: "Receipt" },
+    ])}
+    <div class="grid-2">${field(data, "color1", "컬러 1", { type: "color" })}${field(data, "color2", "컬러 2", { type: "color" })}</div>
+    ${imageField(data, "image", "사진")}
+  `);
+  const type = data.ticketType || "movie";
+  const fields = {
+    movie: section("Movie", `
+      ${field(data, "title", "제목")}
+      ${field(data, "subtitle", "부제")}
+      ${field(data, "cast", "캐스트")}
+      <div class="grid-2">${field(data, "date", "날짜")}${field(data, "time", "시간")}</div>
+      <div class="grid-2">${field(data, "seat", "좌석")}${field(data, "info", "정보")}</div>
+      ${field(data, "stubText", "스텁 문구")}
+    `),
+    boarding: section("Boarding", `
+      ${field(data, "airline", "항공사")}
+      ${field(data, "classBadge", "클래스")}
+      <div class="grid-2">${field(data, "fromCode", "출발 코드")}${field(data, "toCode", "도착 코드")}</div>
+      <div class="grid-2">${field(data, "fromCity", "출발 도시")}${field(data, "toCity", "도착 도시")}</div>
+      ${field(data, "passenger", "승객")}
+      <div class="grid-4">${field(data, "flight", "편명")}${field(data, "date", "날짜")}${field(data, "time", "시간")}${field(data, "gate", "게이트")}</div>
+      <div class="grid-2">${field(data, "seat", "좌석")}${field(data, "info", "비고")}</div>
+    `),
+    receipt: section("Receipt", `
+      ${field(data, "receiptStore", "가게명")}
+      <div class="grid-2">${field(data, "date", "날짜")}${field(data, "order", "주문번호")}</div>
+      <div class="grid-2">${field(data, "client", "Client")}${field(data, "server", "Server")}</div>
+      ${listHeader("영수증 항목", "items", "항목 추가")}
+      ${(data.items || []).map((_, index) => listItem(`항목 ${index + 1}`, "items", index, `
+        ${field(data, `items.${index}.name`, "이름")}
+        <div class="grid-2">${field(data, `items.${index}.qty`, "수량")}${field(data, `items.${index}.price`, "금액")}</div>
+      `)).join("")}
+      ${field(data, "total", "합계")}
+      ${field(data, "receiptMessage", "하단 문구")}
+    `),
+  }[type];
+  return common + fields;
+}
+
+function internetBoardEditor(data) {
+  return section("게시글", `
+    ${select(data, "tag", "태그", [
+      { value: "☕ 일상", label: "☕ 일상" },
+      { value: "☁️ 플러피", label: "☁️ 플러피" },
+      { value: "🔥 핫이슈", label: "🔥 핫이슈" },
+      { value: "🤫 고민", label: "🤫 고민" },
+      { value: "💖 연애", label: "💖 연애" },
+      { value: "💻 직장", label: "💻 직장" },
+    ])}
+    ${checkbox(data, "darkMode", "다크 모드")}
+    <div class="grid-2">${field(data, "author", "작성자")}${field(data, "date", "시간")}</div>
+    <div class="grid-2">${field(data, "avatarText", "아바타 글자")}${checkbox(data, "showPreviewControls", "미리보기 버튼 표시")}</div>
+    ${field(data, "title", "제목")}
+    ${textarea(data, "content", "본문", "오늘 어떤 일이 있었나요?")}
+    ${imageField(data, "image", "첨부 이미지")}
+    <div class="grid-3">${field(data, "views", "조회수")}${field(data, "likes", "좋아요")}${field(data, "bookmarks", "북마크")}</div>
+  `) + section("댓글", `
+    ${listHeader("댓글", "comments", "댓글 추가")}
+    ${(data.comments || []).map((_, index) => listItem(`댓글 ${index + 1}`, "comments", index, `
+      ${textarea(data, `comments.${index}.text`, "내용", "따뜻한 댓글을 남겨주세요.")}
     `)).join("")}
   `);
 }
