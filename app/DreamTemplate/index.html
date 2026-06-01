@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Unified Card Studio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css">
+  <link rel="stylesheet" href="assets/css/app.css">
+  <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js" defer></script>
+  <script src="assets/js/defaults.js" defer></script>
+  <script src="assets/js/utils.js" defer></script>
+  <script src="assets/js/storage.js" defer></script>
+  <script src="assets/js/renderers.js" defer></script>
+  <script src="assets/js/templates.js" defer></script>
+  <script src="assets/js/exporter.js" defer></script>
+  <script src="assets/js/app.js" defer></script>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="editor-panel">
+      <header class="app-header">
+        <p>Unified Card Studio</p>
+        <h1>커스텀 카드 제작</h1>
+      </header>
+
+      <nav class="style-rail" id="styleRail" aria-label="스타일 선택"></nav>
+
+      <div class="draft-panel">
+        <span id="draftStatus">자동 임시저장 대기 중</span>
+        <div class="draft-actions">
+          <button type="button" id="saveDraft">임시저장</button>
+          <button type="button" id="loadDraft">불러오기</button>
+        </div>
+      </div>
+
+      <section class="editor-current">
+        <div class="editor-title-row">
+          <div>
+            <h2 id="editorTitle">Style</h2>
+            <p id="editorDescription"></p>
+          </div>
+          <button type="button" id="resetStyle">현재 초기화</button>
+        </div>
+        <div id="editorFields" class="editor-fields"></div>
+      </section>
+
+      <button type="button" id="resetAll" class="danger-button">전체 임시저장 비우기</button>
+    </aside>
+
+    <main class="preview-panel">
+      <div class="preview-toolbar">
+        <div>
+          <strong>미리보기</strong>
+          <span>변경 내용은 자동 임시저장됩니다.</span>
+        </div>
+        <div class="export-actions">
+          <button type="button" id="exportImage">이미지 저장</button>
+          <button type="button" id="downloadHtml">HTML 저장</button>
+          <button type="button" id="copyHtml">HTML 복사</button>
+        </div>
+      </div>
+      <section class="preview-stage" aria-label="카드 미리보기">
+        <div id="previewRoot"></div>
+      </section>
+    </main>
+  </div>
+
+  <div class="toast" id="toast" hidden></div>
+</body>
+</html>
