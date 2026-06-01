@@ -1,6 +1,6 @@
 (() => {
 const APP_VERSION = "2026.06.01";
-const STORAGE_KEY = "unified-card-studio-v1";
+const STORAGE_KEY = "card-template-studio-v2";
 
 const BASE_STYLE_CONFIGS = [
   {
@@ -139,7 +139,7 @@ const DEFAULT_STYLE_DATA = {
     storyTagX: 38,
     storyTagY: 44,
     dmDate: "오늘",
-    dmInput: "메시지 입력...",
+    dmInput: "메시지...",
     dmMessages: [
       { side: "recv", text: "안녕! 이건 받은 메시지야.", image: "" },
       { side: "sent", text: "보낸 메시지는 포인트색으로 보여.", image: "" },
@@ -183,6 +183,7 @@ const DEFAULT_STYLE_DATA = {
     profileTitle: "캐릭터 이름",
     profileSubtitle: "영문명 또는 부제목",
     profileImage: "",
+    showExtra: false,
     extraTitle: "기본 정보",
     extraText: "추가 소개를 입력하세요.",
     infoRows: [

@@ -218,6 +218,7 @@ function wikiEditor(data) {
     ${imageField(data, "profileImage", "프로필 이미지")}
     ${field(data, "profileTitle", "이름")}
     ${field(data, "profileSubtitle", "부제목")}
+    ${checkbox(data, "showExtra", "기타 정보 박스 표시")}
     ${field(data, "extraTitle", "추가 정보 제목")}
     ${textarea(data, "extraText", "추가 정보 내용")}
     ${listHeader("정보 행", "infoRows", "정보 추가")}
