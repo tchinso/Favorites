@@ -24,6 +24,7 @@ function renderCard(styleId, data) {
     netflixscreenshot: renderNetflixScreenshot,
     movieticket: renderMovieTicket,
     internetboard: renderInternetBoard,
+    poster: renderPoster,
   };
   return renderers[styleId]?.(data) || "";
 }
@@ -111,10 +112,18 @@ function renderInstagramPost(data) {
     <div class="ig-actions"><div class="ig-actions-left">${heart}${comment}${send}</div>${bookmark}</div>
     <div class="ig-caption">
       <b>좋아요 ${e(data.likes || "0")}개</b>
-      <p><strong>${e(data.username || "username")}</strong> ${nl2br(data.caption || "")}</p>
+      <p><strong>${e(data.username || "username")}</strong> ${renderHashtagText(data.caption || "", data.hashtagColor || "#00ADC8")}</p>
       <small>${e(data.postTime || "방금 전")}</small>
     </div>
   `;
+}
+
+function renderHashtagText(value, color) {
+  const tagStyle = ` style="color:${e(color)}"`;
+  return String(value || "")
+    .split(/\r?\n/)
+    .map((line) => e(line).replace(/(^|\s)(#[^\s#]+)/g, (_, prefix, tag) => `${prefix}<span class="ig-hashtag"${tagStyle}>${tag}</span>`))
+    .join("<br>");
 }
 
 function renderInstagramStory(data) {
@@ -913,9 +922,210 @@ function renderReceipt(data) {
   `;
 }
 
+function renderPoster(data) {
+  const mode = data.mode || "book";
+  const body = {
+    book: renderPosterBook,
+    magazine: renderPosterMagazine,
+    movie: renderPosterMovie,
+    device: renderPosterDevice,
+  }[mode]?.(data) || renderPosterBook(data);
+  const rootClass = data.textTheme === "dark" ? " theme-black" : "";
+  return `
+    <article class="card-frame poster-card capture-area${rootClass}" style="${posterRootStyle(data)}" data-export-card="poster">
+      <div class="poster-noise${data.showNoise ? " visible" : ""}"></div>
+      <div class="poster-tilt-wrap">${body}</div>
+    </article>
+  `;
+}
+
+function renderPosterBook(data) {
+  const coverClass = posterCoverClass(data, "book-front");
+  return `
+    <div class="mockup-book">
+      <div class="book-wrapper">
+        <div class="book-spine" style="background-color:${e(data.spineColor || "#1a1a1a")}">
+          <div class="spine-bg-layer cover-bg" style="${posterCoverBg(data, true)}"></div>
+          <div class="spine-rib" style="top:30px;"></div>
+          <div class="spine-rib" style="bottom:60px;"></div>
+          <div class="spine-text text-drag center-x" style="top:50%;">${e(data.bookSpineTitle || "TITLE")}</div>
+          <div class="spine-text text-drag center-x" style="font-size:7px; letter-spacing:1px; --base-rot:0deg; bottom:20px;">${e(data.bookSpinePublisher || "PUB")}</div>
+        </div>
+        <div class="book-pages"></div>
+        <div class="${coverClass}">
+          <div class="cover-bg" style="${posterCoverBg(data)}"></div>
+          <div class="sheen-overlay"></div>
+          <div class="deco-group${data.showText !== false ? " visible" : ""} book-deco-frame"></div>
+          ${posterPlaceholder("📖")}
+          <div class="${posterTextOverlayClass(data)}" style="${posterOverlayStyle(data)}">
+            <div class="dyn-title sync-title text-drag" style="${posterTitleStyle(data, "font-family:'Nanum Myeongjo', serif;")}">${e(data.title || "BOOK TITLE")}</div>
+            <div class="dyn-author sync-author text-drag">${e(data.author || "AUTHOR NAME")}</div>
+          </div>
+          <div class="deco-group${data.showText !== false ? " visible" : ""} text-drag center-x theme-target book-publisher-logo">${e(data.bookPublisher || "PUBLISHER")}</div>
+          ${posterBarcode(data)}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderPosterMagazine(data) {
+  const coverClass = posterCoverClass(data, "magazine-front");
+  return `
+    <div class="mockup-magazine">
+      <div class="${coverClass}">
+        <div class="cover-bg" style="${posterCoverBg(data)}"></div>
+        <div class="sheen-overlay"></div>
+        <div class="deco-group${data.showText !== false ? " visible" : ""} mag-masthead text-drag center-x">${e(data.magazineMasthead || "MAGAZINE")}</div>
+        <div class="deco-group${data.showText !== false ? " visible" : ""} mag-side-text text-drag">${e(data.magazineSideText || "ISSUE NO. 01 / SPRING 2026")}</div>
+        <div class="deco-group${data.showText !== false ? " visible" : ""} mag-blurb mag-blurb-left text-drag">
+          <div class="blurb-title">${e(data.magazineLeftTitle || "FEATURED")}</div>
+          <div class="blurb-sub">${e(data.magazineLeftSub || "The Sound of Style")}</div>
+        </div>
+        <div class="deco-group${data.showText !== false ? " visible" : ""} mag-blurb mag-blurb-right text-drag" style="text-align:right;">
+          <div class="blurb-title">${e(data.magazineRightTitle || "TRENDS")}</div>
+          <div class="blurb-sub">${e(data.magazineRightSub || "Future of Fashion")}</div>
+        </div>
+        ${posterPlaceholder("📰")}
+        <div class="${posterTextOverlayClass(data)}" style="padding-bottom:60px;${posterOverlayStyle(data)}">
+          <div class="dyn-title sync-title text-drag" style="${posterTitleStyle(data)}">${e(data.title || "MAIN STORY")}</div>
+          <div class="dyn-author sync-author text-drag" style="margin-top:6px; font-size:12px;">${e(data.author || "Read the exclusive interview")}</div>
+        </div>
+        <div class="deco-group${data.showText !== false ? " visible" : ""} mag-issue-info text-drag">${e(data.magazineIssue || "JUNE 2026 / ISSUE NO. 142")}</div>
+        ${posterBarcode(data)}
+      </div>
+    </div>
+  `;
+}
+
+function renderPosterMovie(data) {
+  const coverClass = posterCoverClass(data, "movie-front");
+  const creditsVisible = data.showText !== false && data.showCredits !== false;
+  return `
+    <div class="mockup-movie">
+      <div class="${coverClass}">
+        <div class="cover-bg" style="${posterCoverBg(data)}"></div>
+        <div class="sheen-overlay"></div>
+        <div class="deco-group${creditsVisible ? " visible" : ""} movie-laurel text-drag center-x">
+          <svg viewBox="0 0 100 40" style="pointer-events:none; width:45px; height:18px; fill:currentColor;">
+            <path d="M40,30 C20,30 10,15 15,10 C20,15 35,25 40,30 Z"></path>
+            <path d="M60,30 C80,30 90,15 85,10 C80,15 65,25 60,30 Z"></path>
+            <circle cx="50" cy="20" r="4"></circle>
+          </svg>
+          <span style="pointer-events:auto; display:block;">${nl2br(`${data.movieLaurel || "OFFICIAL SELECTION"}\n${data.movieFestival || "FESTIVAL FILM"}`)}</span>
+        </div>
+        ${posterPlaceholder("🎬")}
+        <div class="${posterTextOverlayClass(data)}" style="${posterOverlayStyle(data)}">
+          <div class="dyn-author sync-author text-drag">${e(data.author || "A FILM BY DIRECTOR")}</div>
+          <div class="dyn-title sync-title text-drag" style="${posterTitleStyle(data, "font-family:'Oswald', sans-serif;")}">${e(data.title || "MOVIE TITLE")}</div>
+        </div>
+        <div class="deco-group${creditsVisible ? " visible" : ""} movie-credits-block text-drag center-x">
+          <div class="mc-cast sync-author">${e(data.movieCast || "ACTOR A · ACTOR B · ACTOR C")}</div>
+          <div class="mc-crew">${nl2br(data.movieCrew || "director of photography JOHN DOE edited by JANE SMITH production designer TOM LEE\nmusic by ALAN SMITHEE produced by MOVIE STUDIO")}</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderPosterDevice(data) {
+  const coverClass = posterCoverClass(data, "device-screen");
+  const tags = (data.webTags || []).map((tag) => `<div class="wn-tag">${e(tag.text || "#태그")}</div>`).join("");
+  return `
+    <div class="mockup-device">
+      <div class="device-frame">
+        <div class="device-notch"></div>
+        <div class="${coverClass}">
+          <div class="cover-bg" style="${posterCoverBg(data)}"></div>
+          <div class="deco-group${data.showText !== false ? " visible" : ""} app-ui-top">
+            <div class="app-status-bar">
+              <span class="text-drag">${e(data.webStatusLeft || "12:26")}</span>
+              <span class="text-drag">${e(data.webStatusRight || "LTE 🔋")}</span>
+            </div>
+            <span class="text-drag app-back-btn">${e(data.webBack || "←")}</span>
+          </div>
+          <div class="sheen-overlay"></div>
+          ${posterPlaceholder("📱")}
+          <div class="${posterTextOverlayClass(data)}" style="${posterOverlayStyle(data)}">
+            <div class="dyn-author sync-author text-drag" style="font-size:11px; margin-bottom:4px; opacity:0.9; letter-spacing:0.5px;">${e(data.author || "AUTHOR NAME")}</div>
+            <div class="dyn-title sync-title text-drag" style="${posterTitleStyle(data, "font-size:28px; line-height:1.2;")}">${e(data.title || "NOVEL TITLE")}</div>
+            <div class="deco-group${data.showText !== false ? " visible" : ""} wn-stats text-drag">
+              <span style="color:#ffc107; font-size:11px;">${e(data.webRatingStars || "★★★★★")}</span>
+              <span style="font-weight:800; font-size:11px; margin-left:2px; color:#ffc107;">${e(data.webRating || "4.9")}</span>
+              <span style="color:rgba(255,255,255,0.8); font-size:9px; margin-left:6px; font-weight:600;">${e(data.webViews || "👁️ 1.2M")}</span>
+            </div>
+            <div class="deco-group${data.showText !== false ? " visible" : ""} wn-tags text-drag">${tags}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function posterCoverClass(data, baseClass) {
+  return `${baseClass} draggable-cover${data.image ? " has-image" : ""}${data.showSheen !== false ? " has-sheen" : ""}`;
+}
+
+function posterCoverBg(data, spine = false) {
+  const position = spine ? "left center" : `${Number(data.imageX) || 50}% ${Number(data.imageY) || 50}%`;
+  const scale = Math.max(1, (Number(data.zoom) || 100) / 100);
+  const brightness = Math.max(0.3, (Number(data.brightness) || 100) / 100);
+  const bg = data.image ? `background-image:url('${String(data.image).replaceAll("'", "\\'")}');` : "";
+  return `${bg}background-position:${position};transform:scale(${scale});filter:brightness(${brightness});`;
+}
+
+function posterRootStyle(data) {
+  const textColor = data.textTheme === "dark" ? "#111111" : (data.textColor || "#ffffff");
+  return [
+    `background:${e(data.bgColor || "#e9e9eb")}`,
+    `--poster-text-color:${e(textColor)}`,
+    `--glow-color:${posterRgba(data.glowColor || "#000000", 0.4)}`,
+    `--grad-color:${posterRgba(data.gradientColor || "#000000", 0.85)}`,
+  ].join(";");
+}
+
+function posterTextOverlayClass(data) {
+  return `cover-text-overlay${data.showText === false ? "" : " visible"}${data.showShadow === false ? "" : " has-shadow"}`;
+}
+
+function posterOverlayStyle(data) {
+  return data.showGradient ? "background:linear-gradient(to top, var(--grad-color) 0%, transparent 70%);" : "";
+}
+
+function posterTitleStyle(data, base = "") {
+  const styles = [base];
+  if (data.fontFamily) styles.push(`font-family:'${e(data.fontFamily)}', sans-serif;`);
+  if (data.titleSize) styles.push(`font-size:${Number(data.titleSize) || ""}px;`);
+  return styles.filter(Boolean).join("");
+}
+
+function posterPlaceholder(icon) {
+  return `<div class="cover-placeholder"><div class="ph-icon">${icon}</div><div class="ph-text">이미지를 업로드하세요</div></div>`;
+}
+
+function posterBarcode(data) {
+  return `
+    <div class="cover-barcode${data.showBarcode ? " visible" : ""}">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 30" preserveAspectRatio="none">
+        <rect width="60" height="30" fill="white"></rect>
+        <g fill="black"><rect x="3" y="2" width="1" height="22"></rect><rect x="5" y="2" width="2" height="22"></rect><rect x="8" y="2" width="1" height="22"></rect><rect x="10" y="2" width="1" height="22"></rect><rect x="12" y="2" width="3" height="22"></rect><rect x="16" y="2" width="1" height="22"></rect><rect x="18" y="2" width="2" height="22"></rect><rect x="22" y="2" width="1" height="22"></rect><rect x="24" y="2" width="1" height="22"></rect><rect x="26" y="2" width="3" height="22"></rect><rect x="30" y="2" width="1" height="22"></rect><rect x="32" y="2" width="2" height="22"></rect><rect x="35" y="2" width="1" height="22"></rect><rect x="37" y="2" width="1" height="22"></rect><rect x="39" y="2" width="2" height="22"></rect><rect x="42" y="2" width="1" height="22"></rect><rect x="44" y="2" width="3" height="22"></rect><rect x="48" y="2" width="1" height="22"></rect><rect x="50" y="2" width="2" height="22"></rect><rect x="53" y="2" width="1" height="22"></rect><rect x="55" y="2" width="2" height="22"></rect></g>
+      </svg>
+    </div>
+  `;
+}
+
+function posterRgba(hex, alpha) {
+  const match = String(hex || "").match(/^#?([0-9a-f]{6})$/i);
+  if (!match) return `rgba(0,0,0,${alpha})`;
+  const value = match[1];
+  const rgb = [0, 2, 4].map((start) => parseInt(value.slice(start, start + 2), 16));
+  return `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${alpha})`;
+}
+
 function renderInternetBoard(data) {
   const controls = data.showPreviewControls !== false;
   const comments = Array.isArray(data.comments) ? data.comments : [];
+  const tagText = formatInternetBoardTag(data);
   const commentHtml = comments.map((comment) => `
     <div class="chat-bubble">
       <div class="chat-header">
@@ -946,7 +1156,7 @@ function renderInternetBoard(data) {
               <h4 class="post-author">${e(data.author || "익명사용자")}</h4>
               <p class="post-date">${e(data.date || "방금 전")}</p>
             </div>
-            <span class="post-tag-badge">${e(data.tag || "☕ 일상")}</span>
+            <span class="post-tag-badge">${e(tagText)}</span>
           </div>
         </div>
         ${controls ? `<div class="post-actions"><button class="post-action-btn edit" type="button">수정</button><button class="post-action-btn delete" type="button">삭제</button></div>` : ""}
@@ -963,14 +1173,21 @@ function renderInternetBoard(data) {
       </div>
       ${controls ? `
         <div class="btn-group">
+          ${anonAction("ri-heart-3-line", "좋아요")}
+          ${anonAction("ri-bookmark-line", "북마크")}
           ${anonAction("ri-share-forward-line", "공유")}
-          ${anonAction("ri-screenshot-2-line", "캡처")}
-          ${anonAction("ri-file-copy-line", "복사")}
         </div>
       ` : ""}
       ${commentsBox}
     </article>
   `;
+}
+
+function formatInternetBoardTag(data) {
+  const legacy = String(data.tag || "").trim();
+  const emoji = String(data.tagEmoji || "").trim() || legacy.split(/\s+/)[0] || "☕";
+  const name = String(data.tagName || "").trim() || legacy.replace(emoji, "").trim() || "일상";
+  return `${emoji} ${name}`.trim();
 }
 
 function anonStat(icon, value) {

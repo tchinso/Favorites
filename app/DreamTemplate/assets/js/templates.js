@@ -25,6 +25,7 @@ function renderEditor(styleId, data) {
     netflixscreenshot: netflixScreenshotEditor,
     movieticket: movieTicketEditor,
     internetboard: internetBoardEditor,
+    poster: posterEditor,
   };
   return templates[styleId]?.(data) || "";
 }
@@ -151,6 +152,7 @@ function instagramEditor(data) {
       ${imageField(data, "postImage", "게시물 이미지")}
       ${field(data, "likes", "좋아요 수")}
       ${textarea(data, "caption", "본문")}
+      ${field(data, "hashtagColor", "해시태그 색", { type: "color" })}
       ${field(data, "postTime", "시간")}
     `),
     story: section("스토리", `
@@ -642,14 +644,7 @@ function movieTicketEditor(data) {
 
 function internetBoardEditor(data) {
   return section("게시글", `
-    ${select(data, "tag", "태그", [
-      { value: "☕ 일상", label: "☕ 일상" },
-      { value: "☁️ 플러피", label: "☁️ 플러피" },
-      { value: "🔥 핫이슈", label: "🔥 핫이슈" },
-      { value: "🤫 고민", label: "🤫 고민" },
-      { value: "💖 연애", label: "💖 연애" },
-      { value: "💻 직장", label: "💻 직장" },
-    ])}
+    <div class="grid-2">${field(data, "tagEmoji", "태그 이모지")}${field(data, "tagName", "태그 이름")}</div>
     ${checkbox(data, "darkMode", "다크 모드")}
     <div class="grid-2">${field(data, "author", "작성자")}${field(data, "date", "시간")}</div>
     <div class="grid-2">${field(data, "avatarText", "아바타 글자")}${checkbox(data, "showPreviewControls", "미리보기 버튼 표시")}</div>
@@ -663,6 +658,81 @@ function internetBoardEditor(data) {
       ${textarea(data, `comments.${index}.text`, "내용", "따뜻한 댓글을 남겨주세요.")}
     `)).join("")}
   `);
+}
+
+function posterEditor(data) {
+  const common = section("아트워크", `
+    ${select(data, "mode", "목업 종류", [
+      { value: "book", label: "책표지" },
+      { value: "magazine", label: "잡지" },
+      { value: "movie", label: "영화 포스터" },
+      { value: "device", label: "웹소설" },
+    ])}
+    ${imageField(data, "image", "표지 이미지")}
+    <div class="grid-2">${field(data, "imageX", "이미지 X", { type: "range", min: 0, max: 100 })}${field(data, "imageY", "이미지 Y", { type: "range", min: 0, max: 100 })}</div>
+    <div class="grid-2">${field(data, "zoom", "이미지 확대", { type: "range", min: 100, max: 250 })}${field(data, "brightness", "이미지 밝기", { type: "range", min: 30, max: 150 })}</div>
+  `);
+
+  const style = section("스타일", `
+    ${select(data, "textTheme", "전체 텍스트 테마", [
+      { value: "light", label: "라이트 (White)" },
+      { value: "dark", label: "다크 (Black)" },
+    ])}
+    <div class="grid-2">${field(data, "bgColor", "캔버스 배경색", { type: "color" })}${field(data, "spineColor", "책등 색상", { type: "color" })}</div>
+    <div class="grid-2">${field(data, "textColor", "텍스트 색", { type: "color" })}${field(data, "glowColor", "그림자 색", { type: "color" })}</div>
+    ${field(data, "gradientColor", "텍스트 배경색", { type: "color" })}
+    <div class="grid-2">${checkbox(data, "showNoise", "필름 노이즈")}${checkbox(data, "showSheen", "종이/화면 광택")}</div>
+    <div class="grid-2">${checkbox(data, "showBarcode", "바코드 표시")}${checkbox(data, "showCredits", "영화 크레딧/로렐 표시")}</div>
+    <div class="grid-2">${checkbox(data, "showText", "표지 텍스트/UI 표시")}${checkbox(data, "showShadow", "텍스트 입체 그림자")}</div>
+    ${checkbox(data, "showGradient", "텍스트용 어두운 배경")}
+  `);
+
+  const text = section("공통 텍스트", `
+    ${field(data, "author", "서브 텍스트")}
+    ${field(data, "title", "메인 타이틀")}
+    ${select(data, "fontFamily", "서체", [
+      { value: "", label: "원본 기본값" },
+      { value: "Playfair Display", label: "Playfair Display" },
+      { value: "Instrument Serif", label: "Instrument Serif" },
+      { value: "Oswald", label: "Oswald" },
+      { value: "Bebas Neue", label: "Bebas Neue" },
+      { value: "Noto Serif KR", label: "Noto Serif KR" },
+      { value: "Nanum Myeongjo", label: "Nanum Myeongjo" },
+      { value: "Inter", label: "Inter" },
+    ])}
+    ${field(data, "titleSize", "타이틀 크기(px)", { type: "number", min: 10, max: 100 })}
+  `);
+
+  const mode = data.mode || "book";
+  const specific = {
+    book: section("책표지 텍스트", `
+      <div class="grid-2">${field(data, "bookSpineTitle", "책등 제목")}${field(data, "bookSpinePublisher", "책등 출판사")}</div>
+      ${field(data, "bookPublisher", "하단 출판사")}
+    `),
+    magazine: section("잡지 텍스트", `
+      ${field(data, "magazineMasthead", "매거진 제호")}
+      ${field(data, "magazineSideText", "좌측 세로 문구")}
+      <div class="grid-2">${field(data, "magazineLeftTitle", "왼쪽 기사 제목")}${field(data, "magazineRightTitle", "오른쪽 기사 제목")}</div>
+      <div class="grid-2">${field(data, "magazineLeftSub", "왼쪽 기사 설명")}${field(data, "magazineRightSub", "오른쪽 기사 설명")}</div>
+      ${field(data, "magazineIssue", "이슈 정보")}
+    `),
+    movie: section("영화 포스터 텍스트", `
+      <div class="grid-2">${field(data, "movieLaurel", "로렐 상단")}${field(data, "movieFestival", "로렐 하단")}</div>
+      ${field(data, "movieCast", "출연진")}
+      ${textarea(data, "movieCrew", "크레딧")}
+    `),
+    device: section("웹소설 UI", `
+      <div class="grid-2">${field(data, "webStatusLeft", "상태바 왼쪽")}${field(data, "webStatusRight", "상태바 오른쪽")}</div>
+      ${field(data, "webBack", "뒤로가기 기호")}
+      <div class="grid-3">${field(data, "webRatingStars", "별점 표시")}${field(data, "webRating", "평점")}${field(data, "webViews", "조회수")}</div>
+      ${listHeader("태그", "webTags", "태그 추가")}
+      ${(data.webTags || []).map((_, index) => listItem(`태그 ${index + 1}`, "webTags", index, `
+        ${field(data, `webTags.${index}.text`, "내용")}
+      `)).join("")}
+    `),
+  }[mode] || "";
+
+  return common + style + text + specific;
 }
 
 window.CardStudioTemplates = {
