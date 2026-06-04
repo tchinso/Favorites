@@ -86,6 +86,7 @@ const BASE_STYLE_CONFIGS = [
   { id: "netflixscreenshot", label: "Netflix Screenshot", accent: "#b22222", canExportImage: true, canExportHtml: true, description: "영상 캡쳐 원본 템플릿의 시네마 프레임입니다." },
   { id: "movieticket", label: "Movie Ticket", accent: "#f4b3c2", canExportImage: true, canExportHtml: true, description: "영화티켓 원본 템플릿의 티켓 카드입니다." },
   { id: "internetboard", label: "Anonymous Board", accent: "#ffb6c1", canExportImage: true, canExportHtml: true, description: "익명게시판 스타일의 게시글 카드입니다." },
+  { id: "rpgmaker", label: "Tsukuru RPG", accent: "#46e0c8", canExportImage: true, canExportHtml: true, description: "RPGMaker/index.html의 캔버스 렌더 수식과 폰트 값을 그대로 사용하는 인게임 화면입니다." },
 ];
 
 const STYLE_GROUPS = [
@@ -131,6 +132,7 @@ const STYLE_VARIANTS = [
   { id: "photoalbum-card", baseStyle: "photoalbum", groupId: "gallery", label: "포토앨범", description: "포토앨범 원본 템플릿의 다이어리 폴라로이드 카드입니다." },
   { id: "movieticket-card", baseStyle: "movieticket", groupId: "others", label: "영화티켓", description: "영화티켓 원본 템플릿의 티켓 카드입니다." },
   { id: "internetboard-card", baseStyle: "internetboard", groupId: "others", label: "익명게시판", description: "익명게시판 스타일의 게시글 카드입니다." },
+  { id: "rpgmaker-card", baseStyle: "rpgmaker", groupId: "others", label: "Tsukuru RPG", description: "RPGMaker/index.html의 인게임 스크린샷 메이커 화면입니다." },
 ];
 
 const STYLE_CONFIGS = STYLE_VARIANTS.map((variant) => {
@@ -536,6 +538,29 @@ const DEFAULT_STYLE_DATA = {
       { text: "따뜻한 댓글을 미리 입력해둘 수 있습니다." },
     ],
   },
+  rpgmaker: {
+    bgImage: "",
+    bgScale: 1,
+    panX: 0,
+    panY: 0,
+    pixelSize: 6,
+    levels: 8,
+    dither: true,
+    scanline: true,
+    vignette: true,
+    dialogue: "여기까지 오느라 고생 많았다, 용사여...\n이제 진짜 모험이 시작된다.",
+    speaker: "???",
+    nameColor: "#ffcb47",
+    theme: "classic",
+    boxOpacity: 86,
+    faceImage: "",
+    faceSide: "left",
+    font: "Galmuri11",
+    fontSize: 26,
+    ratio: "4:3",
+    showArrow: true,
+    choices: "",
+  },
   poster: {
     mode: "book",
     image: "",
@@ -590,6 +615,7 @@ const DEFAULT_STYLE_DATA = {
 
 const LIST_FACTORIES = {
   instagram: {
+    highlights: () => ({ title: "new", image: "" }),
     dmMessages: () => ({ side: "recv", text: "새 메시지", image: "" }),
   },
   youtube: {

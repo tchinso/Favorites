@@ -10,6 +10,30 @@
   --shadow: 0 16px 40px rgba(15, 23, 42, 0.12);
 }
 
+@font-face {
+  font-family: "Galmuri11";
+  src: url("https://cdn.jsdelivr.net/npm/galmuri/dist/Galmuri11.woff2") format("woff2");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Galmuri14";
+  src: url("https://cdn.jsdelivr.net/npm/galmuri/dist/Galmuri14.woff2") format("woff2");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "DungGeunMo";
+  src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2001@1.1/DungGeunMo.woff") format("woff");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "NeoDunggeunmo";
+  src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2206-01@1.0/NeoDunggeunmoPro-Regular.woff2") format("woff2");
+  font-display: swap;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -5535,6 +5559,55 @@ button {
 .ab-post-card.is-exporting .comment-input-wrap,
 .ab-post-card.is-exporting .comments-box.empty {
   display: none !important;
+}
+
+/* RPGMaker */
+.rpgmaker-card {
+  position: relative;
+  width: max-content;
+  overflow: hidden;
+  border: 2px solid #243150;
+  border-radius: 12px;
+  background: #000000;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.45);
+  color: #e8ecf7;
+  font-family: "Galmuri11", "DungGeunMo", ui-monospace, Menlo, Consolas, monospace;
+  image-rendering: pixelated;
+  -webkit-font-smoothing: none;
+}
+
+.rpgmaker-canvas {
+  display: block;
+  width: auto;
+  height: auto;
+  background: #05070d;
+  image-rendering: pixelated;
+}
+
+.rpgmaker-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 10px;
+  padding: 24px;
+  background: #05070d;
+  color: #8ea0c4;
+  font-size: 13px;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.rpgmaker-empty[hidden] {
+  display: none;
+}
+
+.rpgmaker-empty .big {
+  color: #46e0c8;
+  font-family: "Galmuri11", "DungGeunMo", monospace;
+  font-size: 16px;
 }
 
 /* Poster */

@@ -338,6 +338,7 @@ function renderEditorPanel() {
 
 function renderPreview() {
   elements.previewRoot.innerHTML = renderCurrentCard();
+  window.CardStudioRenderers.hydrateCard?.(elements.previewRoot);
 }
 
 function renderCurrentCard() {
@@ -433,7 +434,16 @@ function normalizeState() {
   }
 
   normalizeMessengerData();
+  normalizeInstagramData();
   applyActiveVariant();
+}
+
+function normalizeInstagramData() {
+  const data = state.styles?.instagram;
+  if (!data) return;
+  if (!Array.isArray(data.highlights)) data.highlights = [];
+  while (data.highlights.length < 1) data.highlights.push({ title: "new", image: "" });
+  if (data.highlights.length > 3) data.highlights.length = 3;
 }
 
 function normalizeMessengerData() {

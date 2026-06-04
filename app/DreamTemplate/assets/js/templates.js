@@ -25,6 +25,7 @@ function renderEditor(styleId, data) {
     netflixscreenshot: netflixScreenshotEditor,
     movieticket: movieTicketEditor,
     internetboard: internetBoardEditor,
+    rpgmaker: rpgMakerEditor,
     poster: posterEditor,
   };
   return templates[styleId]?.(data) || "";
@@ -120,6 +121,36 @@ function listItem(title, listName, index, body) {
   `;
 }
 
+function normalizeInstagramHighlights(data) {
+  if (!Array.isArray(data.highlights)) data.highlights = [];
+  while (data.highlights.length < 1) data.highlights.push({ title: "new", image: "" });
+  if (data.highlights.length > 3) data.highlights.length = 3;
+  return data.highlights;
+}
+
+function instagramHighlightEditor(data) {
+  const highlights = normalizeInstagramHighlights(data);
+  const addButton = highlights.length < 3
+    ? `<button type="button" data-action="add-item" data-list="highlights">하이라이트 추가</button>`
+    : "";
+  return section("하이라이트", `
+    <div class="list-header">
+      <h4>최소 1개 / 최대 3개</h4>
+      ${addButton}
+    </div>
+    ${highlights.map((_, index) => `
+      <div class="repeat-card">
+        <div class="repeat-head">
+          <strong>하이라이트 ${index + 1}</strong>
+          ${highlights.length > 1 ? `<button type="button" data-action="remove-item" data-list="highlights" data-index="${index}">삭제</button>` : ""}
+        </div>
+        ${imageField(data, `highlights.${index}.image`, `하이라이트 ${index + 1}`)}
+        ${field(data, `highlights.${index}.title`, "이름")}
+      </div>
+    `).join("")}
+  `);
+}
+
 function instagramEditor(data) {
   const common = section("공통", `
     ${select(data, "subtype", "화면 유형", [
@@ -139,12 +170,7 @@ function instagramEditor(data) {
       ${field(data, "displayName", "표시 이름")}
       ${textarea(data, "bio", "바이오")}
       <div class="grid-3">${field(data, "posts", "게시물")}${field(data, "followers", "팔로워")}${field(data, "following", "팔로잉")}</div>
-      ${section("하이라이트", (data.highlights || []).map((item, index) => `
-        <div class="mini-grid">
-          ${imageField(data, `highlights.${index}.image`, `하이라이트 ${index + 1}`)}
-          ${field(data, `highlights.${index}.title`, "이름")}
-        </div>
-      `).join(""))}
+      ${instagramHighlightEditor(data)}
       ${section("피드 사진", (data.feedImages || []).map((_, index) => imageField(data, `feedImages.${index}`, `피드 ${index + 1}`)).join(""))}
     `),
     post: section("게시물", `
@@ -657,6 +683,64 @@ function internetBoardEditor(data) {
     ${(data.comments || []).map((_, index) => listItem(`댓글 ${index + 1}`, "comments", index, `
       ${textarea(data, `comments.${index}.text`, "내용", "따뜻한 댓글을 남겨주세요.")}
     `)).join("")}
+  `);
+}
+
+function rpgMakerEditor(data) {
+  return section("배경", `
+    ${imageField(data, "bgImage", "배경 사진")}
+    <div class="grid-3">
+      ${field(data, "bgScale", "이미지 확대", { type: "range", min: 1, max: 4, step: 0.01 })}
+      ${field(data, "panX", "이미지 X", { type: "range", min: -400, max: 400 })}
+      ${field(data, "panY", "이미지 Y", { type: "range", min: -400, max: 400 })}
+    </div>
+    <div class="grid-2">
+      ${field(data, "pixelSize", "픽셀 크기", { type: "range", min: 1, max: 20 })}
+      ${field(data, "levels", "색 단계", { type: "range", min: 2, max: 32 })}
+    </div>
+    <div class="grid-3">${checkbox(data, "dither", "디더링")}${checkbox(data, "scanline", "스캔라인")}${checkbox(data, "vignette", "비네팅")}</div>
+  `) + section("대사", `
+    ${textarea(data, "dialogue", "대사", "여기에 대사를 입력... 줄바꿈도 가능!")}
+    <div class="grid-2">${field(data, "speaker", "화자 이름")}${field(data, "nameColor", "이름 색", { type: "color" })}</div>
+    ${select(data, "theme", "메시지 창 테마", [
+      { value: "classic", label: "클래식 블루" },
+      { value: "dark", label: "다크" },
+      { value: "parchment", label: "양피지" },
+      { value: "rose", label: "로즈" },
+      { value: "mono", label: "흑백" },
+      { value: "galge", label: "미연시 핑크" },
+      { value: "sky", label: "청량 하늘" },
+      { value: "mint", label: "파스텔 민트" },
+      { value: "neon", label: "네온 사이버" },
+      { value: "royal", label: "왕실 골드" },
+      { value: "gameboy", label: "게임보이" },
+      { value: "horror", label: "고딕 호러" },
+    ])}
+    ${field(data, "boxOpacity", "창 투명도", { type: "range", min: 40, max: 100 })}
+  `) + section("얼굴 그래픽", `
+    ${imageField(data, "faceImage", "얼굴 이미지")}
+    ${select(data, "faceSide", "얼굴 위치", [
+      { value: "left", label: "왼쪽" },
+      { value: "right", label: "오른쪽" },
+    ])}
+  `) + section("폰트 / 화면", `
+    ${select(data, "font", "픽셀 폰트", [
+      { value: "Galmuri11", label: "Galmuri11" },
+      { value: "Galmuri14", label: "Galmuri14" },
+      { value: "DungGeunMo", label: "DungGeunMo" },
+      { value: "NeoDunggeunmo", label: "NeoDunggeunmo" },
+      { value: "monospace", label: "monospace" },
+    ])}
+    <div class="grid-2">
+      ${field(data, "fontSize", "글자 크기", { type: "range", min: 16, max: 48 })}
+      ${select(data, "ratio", "화면 비율", [
+        { value: "4:3", label: "4:3" },
+        { value: "16:9", label: "16:9" },
+        { value: "1:1", label: "1:1" },
+      ])}
+    </div>
+    ${checkbox(data, "showArrow", "▼ 계속 화살표 표시")}
+    ${textarea(data, "choices", "선택지", "한 줄에 하나씩 입력")}
   `);
 }
 

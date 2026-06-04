@@ -24,6 +24,7 @@ function renderCard(styleId, data) {
     netflixscreenshot: renderNetflixScreenshot,
     movieticket: renderMovieTicket,
     internetboard: renderInternetBoard,
+    rpgmaker: renderRpgMaker,
     poster: renderPoster,
   };
   return renderers[styleId]?.(data) || "";
@@ -66,7 +67,9 @@ function renderInstagram(data) {
 }
 
 function renderInstagramProfile(data) {
-  const highlights = (data.highlights || [])
+  const highlightItems = Array.isArray(data.highlights) ? data.highlights.slice(0, 3) : [];
+  while (highlightItems.length < 1) highlightItems.push({ title: "new", image: "" });
+  const highlights = highlightItems
     .map((item) => `
       <div class="ig-highlight">
         <div class="ig-highlight-ring">${mediaBox(item.image, "ig-highlight-img", "HL")}</div>
@@ -1122,6 +1125,459 @@ function posterRgba(hex, alpha) {
   return `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${alpha})`;
 }
 
+function renderRpgMaker(data) {
+  const state = normalizeRpgMakerState(data);
+  const size = ({ "4:3": [816, 624], "16:9": [1024, 576], "1:1": [720, 720] })[state.ratio] || [816, 624];
+  const json = JSON.stringify(state).replaceAll("<", "\\u003c").replaceAll(">", "\\u003e");
+  return `
+    <article class="card-frame rpgmaker-card" data-export-card="rpgmaker" data-rpgmaker-card>
+      <canvas class="rpgmaker-canvas" width="${size[0]}" height="${size[1]}"></canvas>
+      <div class="rpgmaker-empty">
+        <div class="big">사진을 넣어줘</div>
+        <div>왼쪽에서 배경 이미지를 올리면<br>바로 픽셀풍 + 메시지 창이 합성돼</div>
+      </div>
+      <script type="application/json" data-rpgmaker-state>${json}</script>
+      <script>${rpgMakerHydratorScript()}</script>
+    </article>
+  `;
+}
+
+function normalizeRpgMakerState(data) {
+  const number = (value, fallback) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  };
+  return {
+    bgImage: data.bgImage || "",
+    bgScale: number(data.bgScale, 1),
+    panX: number(data.panX, 0),
+    panY: number(data.panY, 0),
+    pixelSize: number(data.pixelSize, 6),
+    levels: number(data.levels, 8),
+    dither: data.dither !== false,
+    scanline: data.scanline !== false,
+    vignette: data.vignette !== false,
+    dialogue: String(data.dialogue || ""),
+    speaker: String(data.speaker || ""),
+    nameColor: data.nameColor || "#ffcb47",
+    theme: data.theme || "classic",
+    boxOpacity: number(data.boxOpacity, 86),
+    faceImage: data.faceImage || "",
+    faceSide: data.faceSide === "right" ? "right" : "left",
+    font: data.font || "Galmuri11",
+    fontSize: number(data.fontSize, 26),
+    ratio: data.ratio || "4:3",
+    showArrow: data.showArrow !== false,
+    choices: String(data.choices || ""),
+  };
+}
+
+function rpgMakerHydratorScript() {
+  return `(${installRpgMakerHydrator.toString()})();window.CardStudioRpgMakerHydrate(document.currentScript.closest("[data-rpgmaker-card]"));`;
+}
+
+function hydrateCard(root = document) {
+  installRpgMakerHydrator();
+  window.CardStudioRpgMakerHydrate(root);
+}
+
+function installRpgMakerHydrator() {
+  if (window.CardStudioRpgMakerHydrate) return;
+
+  const THEMES = {
+    classic: { fill: ["#1b3a8f", "#0c1c4d"], border: "#cfe0ff", inner: "#7fa8ff", text: "#ffffff", nameBox: "#10204f" },
+    dark: { fill: ["#10131c", "#05070d"], border: "#3a4360", inner: "#6b7798", text: "#e8ecf7", nameBox: "#0a0d15" },
+    parchment: { fill: ["#e8d6a8", "#caa86a"], border: "#5a3d1c", inner: "#a07a3c", text: "#3a2a12", nameBox: "#b89a5c" },
+    rose: { fill: ["#7a2046", "#3d0f24"], border: "#ffd0e0", inner: "#ff7fb0", text: "#fff0f5", nameBox: "#4d1430" },
+    mono: { fill: ["#202020", "#000000"], border: "#ffffff", inner: "#888888", text: "#ffffff", nameBox: "#111111" },
+    galge: { fill: ["#fff2f8", "#ffd9ea"], border: "#ff8fc0", inner: "#ffb3d4", text: "#5a2742", nameBox: "#ff9ec8" },
+    sky: { fill: ["#e3f3ff", "#bfe2ff"], border: "#5aa8e6", inner: "#9cd0f2", text: "#163a59", nameBox: "#a9d8f7" },
+    neon: { fill: ["#1a0036", "#06010f"], border: "#ff2bd6", inner: "#22e0ff", text: "#eafcff", nameBox: "#2a0552" },
+    gameboy: { fill: ["#306230", "#0f380f"], border: "#9bbc0f", inner: "#8bac0f", text: "#cfe89b", nameBox: "#0f380f" },
+    royal: { fill: ["#3a1f6b", "#190b38"], border: "#ffd86b", inner: "#b89cff", text: "#fff4d6", nameBox: "#26145a" },
+    horror: { fill: ["#1a0606", "#000000"], border: "#c41d1d", inner: "#5a1414", text: "#f0d2d2", nameBox: "#160404" },
+    mint: { fill: ["#e9fff6", "#c4f4e2"], border: "#3fc79a", inner: "#8fe3c5", text: "#0f4435", nameBox: "#aaf0d8" },
+  };
+  const RATIOS = { "4:3": [816, 624], "16:9": [1024, 576], "1:1": [720, 720] };
+  const BAYER = [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]];
+  const FONTS = {
+    Galmuri11: "https://cdn.jsdelivr.net/npm/galmuri/dist/Galmuri11.woff2",
+    Galmuri14: "https://cdn.jsdelivr.net/npm/galmuri/dist/Galmuri14.woff2",
+    DungGeunMo: "https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2001@1.1/DungGeunMo.woff",
+    NeoDunggeunmo: "https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2206-01@1.0/NeoDunggeunmoPro-Regular.woff2",
+  };
+  const loadedFonts = new Set(["monospace"]);
+
+  function hydrate(root) {
+    const cards = root?.matches?.("[data-rpgmaker-card]")
+      ? [root]
+      : Array.from((root || document).querySelectorAll?.("[data-rpgmaker-card]") || []);
+    cards.forEach(hydrateOne);
+  }
+
+  function hydrateOne(card) {
+    const canvas = card.querySelector(".rpgmaker-canvas");
+    const stateScript = card.querySelector("[data-rpgmaker-state]");
+    if (!canvas || !stateScript) return;
+    let state;
+    try {
+      state = JSON.parse(stateScript.textContent || "{}");
+    } catch {
+      state = {};
+    }
+    state = normalizeState(state);
+    const token = {};
+    card._rpgmakerToken = token;
+    ensureFont(state.font).then(() => {
+      Promise.all([loadImage(state.bgImage), loadImage(state.faceImage)]).then(([bgImg, faceImg]) => {
+        if (card._rpgmakerToken !== token) return;
+        draw(card, canvas, state, bgImg, faceImg);
+      });
+    });
+  }
+
+  function normalizeState(data) {
+    const num = (value, fallback) => {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : fallback;
+    };
+    const opacity = num(data.boxOpacity, 86);
+    return {
+      bgImage: data.bgImage || "",
+      bgScale: Math.max(1, Math.min(4, num(data.bgScale, 1))),
+      panX: num(data.panX, 0),
+      panY: num(data.panY, 0),
+      pixelSize: Math.max(1, num(data.pixelSize, 6) | 0),
+      levels: Math.max(2, num(data.levels, 8) | 0),
+      dither: data.dither !== false,
+      scanline: data.scanline !== false,
+      vignette: data.vignette !== false,
+      dialogue: String(data.dialogue || ""),
+      speaker: String(data.speaker || ""),
+      nameColor: data.nameColor || "#ffcb47",
+      theme: THEMES[data.theme] ? data.theme : "classic",
+      boxOpacity: opacity > 1 ? opacity / 100 : opacity,
+      faceImage: data.faceImage || "",
+      faceSide: data.faceSide === "right" ? "right" : "left",
+      font: data.font || "Galmuri11",
+      fontSize: Math.max(16, Math.min(48, num(data.fontSize, 26) | 0)),
+      ratio: RATIOS[data.ratio] ? data.ratio : "4:3",
+      showArrow: data.showArrow !== false,
+      choices: String(data.choices || "").split(/\r?\n/).map((item) => item.trim()).filter(Boolean).slice(0, 4),
+    };
+  }
+
+  function ensureFont(font) {
+    if (!font || font === "monospace" || loadedFonts.has(font) || !FONTS[font] || !window.FontFace) {
+      return Promise.resolve();
+    }
+    const ff = new FontFace(font, "url(" + FONTS[font] + ")");
+    return ff.load().then((face) => {
+      document.fonts.add(face);
+      loadedFonts.add(font);
+    }).catch(() => {});
+  }
+
+  function loadImage(src) {
+    return new Promise((resolve) => {
+      if (!src) {
+        resolve(null);
+        return;
+      }
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => resolve(null);
+      img.src = src;
+    });
+  }
+
+  function cssFont(state, px) {
+    const fam = loadedFonts.has(state.font) ? state.font : (loadedFonts.has("Galmuri11") ? "Galmuri11" : "monospace");
+    return px + "px '" + fam + "', monospace";
+  }
+
+  function coverRect(img, tw, th) {
+    const ir = img.width / img.height;
+    const tr = tw / th;
+    let sw, sh, sx, sy;
+    if (ir > tr) {
+      sh = img.height;
+      sw = sh * tr;
+      sx = (img.width - sw) / 2;
+      sy = 0;
+    } else {
+      sw = img.width;
+      sh = sw / tr;
+      sx = 0;
+      sy = (img.height - sh) / 2;
+    }
+    return [sx, sy, sw, sh];
+  }
+
+  function viewRect(img, tw, th, scale, panX, panY) {
+    const base = coverRect(img, tw, th);
+    const cw = base[2] / scale;
+    const ch = base[3] / scale;
+    let cx = base[0] + (base[2] - cw) / 2 + panX;
+    let cy = base[1] + (base[3] - ch) / 2 + panY;
+    cx = Math.max(0, Math.min(img.width - cw, cx));
+    cy = Math.max(0, Math.min(img.height - ch, cy));
+    return [cx, cy, cw, ch];
+  }
+
+  function pixelate(img, tw, th, opts) {
+    const px = Math.max(1, opts.pixelSize | 0);
+    const sw = Math.max(1, Math.round(tw / px));
+    const sh = Math.max(1, Math.round(th / px));
+    const small = document.createElement("canvas");
+    small.width = sw;
+    small.height = sh;
+    const sc = small.getContext("2d");
+    const crop = opts.crop || coverRect(img, tw, th);
+    sc.imageSmoothingEnabled = true;
+    sc.drawImage(img, crop[0], crop[1], crop[2], crop[3], 0, 0, sw, sh);
+    const levels = Math.max(2, opts.levels | 0);
+    const id = sc.getImageData(0, 0, sw, sh);
+    const d = id.data;
+    const step = 255 / (levels - 1);
+    for (let y = 0; y < sh; y += 1) {
+      for (let x = 0; x < sw; x += 1) {
+        const i = (y * sw + x) * 4;
+        const dith = opts.dither ? (BAYER[y & 3][x & 3] / 16 - 0.5) * step : 0;
+        for (let c = 0; c < 3; c += 1) {
+          let v = d[i + c] + dith;
+          v = Math.round(v / step) * step;
+          d[i + c] = v < 0 ? 0 : v > 255 ? 255 : v;
+        }
+      }
+    }
+    sc.putImageData(id, 0, 0);
+    const out = document.createElement("canvas");
+    out.width = tw;
+    out.height = th;
+    const oc = out.getContext("2d");
+    oc.imageSmoothingEnabled = false;
+    oc.drawImage(small, 0, 0, sw, sh, 0, 0, tw, th);
+    return out;
+  }
+
+  function wrapLines(ctx, state, text, maxW, fontPx) {
+    ctx.font = cssFont(state, fontPx);
+    const out = [];
+    String(text || "").split("\n").forEach((paragraph) => {
+      if (paragraph === "") {
+        out.push("");
+        return;
+      }
+      let line = "";
+      Array.from(paragraph).forEach((ch) => {
+        const test = line + ch;
+        if (ctx.measureText(test).width > maxW && line !== "") {
+          out.push(line);
+          line = ch;
+        } else {
+          line = test;
+        }
+      });
+      out.push(line);
+    });
+    return out;
+  }
+
+  function rr(c, x, y, w, h, r) {
+    c.beginPath();
+    c.moveTo(x + r, y);
+    c.arcTo(x + w, y, x + w, y + h, r);
+    c.arcTo(x + w, y + h, x, y + h, r);
+    c.arcTo(x, y + h, x, y, r);
+    c.arcTo(x, y, x + w, y, r);
+    c.closePath();
+  }
+
+  function draw(card, canvas, state, bgImg, faceImg) {
+    const ctx = canvas.getContext("2d");
+    const size = RATIOS[state.ratio];
+    const W = size[0];
+    const H = size[1];
+    if (canvas.width !== W || canvas.height !== H) {
+      canvas.width = W;
+      canvas.height = H;
+    }
+    const empty = card.querySelector(".rpgmaker-empty");
+    if (!bgImg) {
+      ctx.clearRect(0, 0, W, H);
+      if (empty) empty.hidden = false;
+      return;
+    }
+    if (empty) empty.hidden = true;
+    ctx.imageSmoothingEnabled = false;
+    ctx.clearRect(0, 0, W, H);
+    const bgCache = pixelate(bgImg, W, H, {
+      pixelSize: state.pixelSize,
+      levels: state.levels,
+      dither: state.dither,
+      crop: viewRect(bgImg, W, H, state.bgScale, state.panX, state.panY),
+    });
+    ctx.drawImage(bgCache, 0, 0);
+
+    if (state.vignette) {
+      const g = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.72);
+      g.addColorStop(0, "rgba(0,0,0,0)");
+      g.addColorStop(1, "rgba(0,0,0,0.55)");
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, W, H);
+    }
+
+    const th = THEMES[state.theme];
+    const m = Math.round(W * 0.035);
+    const boxH = Math.round(H * 0.30);
+    const bx = m;
+    const by = H - boxH - m;
+    const bw = W - m * 2;
+    const bh = boxH;
+    const rad = Math.round(W * 0.018);
+
+    ctx.globalAlpha = state.boxOpacity;
+    const grad = ctx.createLinearGradient(0, by, 0, by + bh);
+    grad.addColorStop(0, th.fill[0]);
+    grad.addColorStop(1, th.fill[1]);
+    rr(ctx, bx, by, bw, bh, rad);
+    ctx.fillStyle = grad;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    ctx.lineWidth = Math.max(3, Math.round(W * 0.006));
+    ctx.strokeStyle = th.border;
+    rr(ctx, bx, by, bw, bh, rad);
+    ctx.stroke();
+    ctx.lineWidth = Math.max(1, Math.round(W * 0.0022));
+    ctx.strokeStyle = th.inner;
+    const pad2 = Math.round(W * 0.012);
+    rr(ctx, bx + pad2, by + pad2, bw - pad2 * 2, bh - pad2 * 2, Math.max(2, rad - pad2));
+    ctx.stroke();
+
+    let textX = bx + Math.round(W * 0.035);
+    let textW = bw - Math.round(W * 0.07);
+    let faceCache = null;
+    if (faceImg) {
+      faceCache = pixelate(faceImg, 256, 256, {
+        pixelSize: Math.max(2, Math.round(state.pixelSize * 0.7)),
+        levels: state.levels,
+        dither: state.dither,
+      });
+      const fs = Math.round(bh * 0.74);
+      const fy = by + (bh - fs) / 2;
+      const fx = state.faceSide === "left" ? bx + Math.round(W * 0.025) : bx + bw - fs - Math.round(W * 0.025);
+      ctx.fillStyle = "rgba(0,0,0,0.35)";
+      rr(ctx, fx - 4, fy - 4, fs + 8, fs + 8, 8);
+      ctx.fill();
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(faceCache, fx, fy, fs, fs);
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = th.inner;
+      rr(ctx, fx, fy, fs, fs, 6);
+      ctx.stroke();
+      if (state.faceSide === "left") {
+        textX = fx + fs + Math.round(W * 0.03);
+        textW = bx + bw - textX - Math.round(W * 0.035);
+      } else {
+        textX = bx + Math.round(W * 0.035);
+        textW = fx - textX - Math.round(W * 0.03);
+      }
+    }
+
+    if (state.speaker.trim()) {
+      ctx.font = cssFont(state, Math.round(state.fontSize * 0.9));
+      const nm = state.speaker.trim();
+      const nw = ctx.measureText(nm).width + Math.round(W * 0.04);
+      const nh = Math.round(state.fontSize * 1.5);
+      const nx = bx + Math.round(W * 0.025);
+      const ny = by - nh * 0.55;
+      ctx.globalAlpha = state.boxOpacity;
+      rr(ctx, nx, ny, nw, nh, 8);
+      ctx.fillStyle = th.nameBox;
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = th.border;
+      rr(ctx, nx, ny, nw, nh, 8);
+      ctx.stroke();
+      ctx.fillStyle = state.nameColor;
+      ctx.textBaseline = "middle";
+      ctx.textAlign = "left";
+      ctx.fillText(nm, nx + Math.round(W * 0.02), ny + nh / 2 + 1);
+    }
+
+    const fs = state.fontSize;
+    const lines = wrapLines(ctx, state, state.dialogue, textW, fs);
+    const lineH = Math.round(fs * 1.4);
+    let ty = by + Math.round(bh * 0.16) + (state.speaker.trim() ? Math.round(fs * 0.2) : 0);
+    if (faceCache) ty = by + Math.round(bh * 0.16);
+    ctx.textBaseline = "top";
+    ctx.textAlign = "left";
+    ctx.font = cssFont(state, fs);
+    lines.forEach((line, index) => {
+      ctx.fillStyle = "rgba(0,0,0,0.6)";
+      ctx.fillText(line, textX + 2, ty + index * lineH + 2);
+      ctx.fillStyle = th.text;
+      ctx.fillText(line, textX, ty + index * lineH);
+    });
+
+    if (state.choices.length) {
+      const cfs = Math.round(fs * 0.92);
+      ctx.font = cssFont(state, cfs);
+      let maxw = 0;
+      state.choices.forEach((choice) => {
+        maxw = Math.max(maxw, ctx.measureText(choice).width);
+      });
+      const cw = maxw + Math.round(W * 0.08);
+      const chh = Math.round(cfs * 1.7);
+      const ch = state.choices.length * chh + Math.round(W * 0.02);
+      const cxp = bx + bw - cw - Math.round(W * 0.03);
+      const cyp = by - ch - Math.round(H * 0.02);
+      ctx.globalAlpha = state.boxOpacity;
+      rr(ctx, cxp, cyp, cw, ch, 10);
+      ctx.fillStyle = th.fill[1];
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.lineWidth = Math.max(2, Math.round(W * 0.004));
+      ctx.strokeStyle = th.border;
+      rr(ctx, cxp, cyp, cw, ch, 10);
+      ctx.stroke();
+      ctx.textBaseline = "middle";
+      state.choices.forEach((choice, index) => {
+        const yy = cyp + Math.round(W * 0.01) + chh * index + chh / 2;
+        if (index === 0) {
+          ctx.fillStyle = "rgba(255,255,255,0.12)";
+          rr(ctx, cxp + 6, cyp + Math.round(W * 0.01) + chh * index + 4, cw - 12, chh - 8, 6);
+          ctx.fill();
+          ctx.fillStyle = th.border;
+          ctx.fillText("▶", cxp + Math.round(W * 0.018), yy);
+        }
+        ctx.fillStyle = "rgba(0,0,0,0.6)";
+        ctx.fillText(choice, cxp + Math.round(W * 0.05) + 2, yy + 1);
+        ctx.fillStyle = th.text;
+        ctx.fillText(choice, cxp + Math.round(W * 0.05), yy);
+      });
+    } else if (state.showArrow) {
+      ctx.fillStyle = th.border;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "alphabetic";
+      ctx.font = cssFont(state, Math.round(fs * 0.9));
+      ctx.fillText("▼", bx + bw - Math.round(W * 0.05), by + bh - Math.round(bh * 0.14));
+    }
+
+    if (state.scanline) {
+      ctx.globalAlpha = 0.18;
+      ctx.fillStyle = "#000";
+      for (let y = 0; y < H; y += 3) ctx.fillRect(0, y, W, 1);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  window.CardStudioRpgMakerHydrate = hydrate;
+}
+
 function renderInternetBoard(data) {
   const controls = data.showPreviewControls !== false;
   const comments = Array.isArray(data.comments) ? data.comments : [];
@@ -1253,5 +1709,6 @@ function shade(hex, amount) {
 
 window.CardStudioRenderers = {
   renderCard,
+  hydrateCard,
 };
 })();
