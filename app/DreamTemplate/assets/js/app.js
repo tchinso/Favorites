@@ -61,6 +61,7 @@ function bindEvents() {
   elements.editorFields.addEventListener("click", handleEditorAction);
   elements.previewRoot.addEventListener("click", handlePreviewAction);
   elements.previewRoot.addEventListener("keydown", handlePreviewKeydown);
+  elements.previewRoot.addEventListener("linestamp:update", handleLineStampUpdate);
 
   elements.collapseGroupsButton.addEventListener("click", () => {
     STYLE_GROUPS.forEach((group) => {
@@ -151,7 +152,13 @@ async function handleFieldChange(event) {
     const file = imageInput.files?.[0];
     if (!file) return;
     const dataUrl = await fileToDataUrl(file);
-    setByPath(getActiveData(), imageInput.dataset.imageField, dataUrl);
+    const activeData = getActiveData();
+    setByPath(activeData, imageInput.dataset.imageField, dataUrl);
+    if (getActiveConfig().baseStyle === "linestamp" && imageInput.dataset.imageField === "backgroundImage") {
+      activeData.bgPanX = "";
+      activeData.bgPanY = "";
+      activeData.bgScale = 100;
+    }
     renderEditorPanel();
     renderPreview();
     persistSoon("이미지를 적용했습니다.");
@@ -178,6 +185,14 @@ function handleEditorAction(event) {
   const config = getActiveConfig();
   const activeData = getActiveData();
   const action = button.dataset.action;
+
+  if (action.startsWith("linestamp-")) {
+    handleLineStampEditorAction(action, button, activeData);
+    renderEditorPanel();
+    renderPreview();
+    persistSoon("라인스탬프 설정을 갱신했습니다.");
+    return;
+  }
 
   if (action === "add-item") {
     const list = button.dataset.list;
@@ -221,6 +236,27 @@ function handlePreviewKeydown(event) {
   if (!input || event.key !== "Enter") return;
   event.preventDefault();
   sendNextMessengerItem(input.closest("[data-messenger-card]"));
+}
+
+function handleLineStampUpdate(event) {
+  if (getActiveConfig().baseStyle !== "linestamp") return;
+  event.stopPropagation();
+
+  const data = getActiveData();
+  const previousSelected = data.selectedLayerId;
+  const detail = event.detail || {};
+  if (Array.isArray(detail.layers)) data.layers = structuredClone(detail.layers);
+  ["selectedLayerId", "bgPanX", "bgPanY", "bgScale", "bgColor", "bgLocked"].forEach((key) => {
+    if (key in detail) data[key] = detail[key];
+  });
+  normalizeLineStampData();
+
+  if (String(previousSelected) !== String(data.selectedLayerId)) {
+    renderEditorPanel();
+  } else {
+    syncLineStampEditorValues(data);
+  }
+  persistSoon("라인스탬프 위치를 저장했습니다.");
 }
 
 function sendNextMessengerItem(card) {
@@ -286,6 +322,118 @@ function appendMessengerItem(card, message) {
   setTimeout(() => {
     history.scrollTop = history.scrollHeight;
   }, 50);
+}
+
+function handleLineStampEditorAction(action, button, data) {
+  normalizeLineStampData();
+
+  if (action === "linestamp-select-layer") {
+    data.selectedLayerId = Number(button.dataset.layerId);
+    return;
+  }
+
+  if (action === "linestamp-add-layer") {
+    const selected = getLineStampSelectedLayer(data);
+    const maxLayerId = Math.max(0, ...data.layers.map((layer) => Number(layer.id) || 0));
+    const nextId = Math.max(Number(data.nextLayerId) || 1, maxLayerId + 1);
+    const layer = {
+      ...structuredClone(DEFAULT_STYLE_DATA.linestamp.layers[0]),
+      ...(selected ? structuredClone(selected) : {}),
+      id: nextId,
+      text: selected?.text ? `${selected.text} copy` : "새 텍스트",
+      x: 300,
+      y: 300,
+    };
+    data.layers.push(layer);
+    data.selectedLayerId = layer.id;
+    data.nextLayerId = nextId + 1;
+    return;
+  }
+
+  if (action === "linestamp-remove-layer") {
+    const index = getLineStampSelectedIndex(data);
+    if (index >= 0) data.layers.splice(index, 1);
+    data.selectedLayerId = data.layers[Math.max(0, index - 1)]?.id ?? data.layers[0]?.id ?? null;
+    return;
+  }
+
+  if (action === "linestamp-move-layer") {
+    const index = getLineStampSelectedIndex(data);
+    if (index < 0) return;
+    const direction = button.dataset.direction;
+    const nextIndex = direction === "up" ? index + 1 : index - 1;
+    if (nextIndex < 0 || nextIndex >= data.layers.length) return;
+    [data.layers[index], data.layers[nextIndex]] = [data.layers[nextIndex], data.layers[index]];
+    return;
+  }
+
+  if (action === "linestamp-align") {
+    alignLineStampLayer(data, button.dataset.align);
+    return;
+  }
+
+  if (action === "linestamp-reset-bg") {
+    data.bgPanX = "";
+    data.bgPanY = "";
+    data.bgScale = 100;
+  }
+}
+
+function getLineStampSelectedIndex(data) {
+  return (data.layers || []).findIndex((layer) => String(layer.id) === String(data.selectedLayerId));
+}
+
+function getLineStampSelectedLayer(data) {
+  return data.layers?.[getLineStampSelectedIndex(data)] || data.layers?.[0] || null;
+}
+
+function alignLineStampLayer(data, align) {
+  const layer = getLineStampSelectedLayer(data);
+  if (!layer) return;
+
+  const measurement = measureLineStampLayer(layer);
+  const pad = 20;
+  const hw = measurement.width / 2;
+  const hh = (Number(layer.fontSize) || 60) / 2;
+
+  if (align === "left") layer.x = hw + pad;
+  if (align === "center") layer.x = 300;
+  if (align === "right") layer.x = 600 - hw - pad;
+  if (align === "top") layer.y = hh + pad;
+  if (align === "middle") layer.y = 300;
+  if (align === "bottom") layer.y = 600 - hh - pad;
+  if (align === "center-all") {
+    layer.x = 300;
+    layer.y = 300;
+  }
+}
+
+function measureLineStampLayer(layer) {
+  if (!measureLineStampLayer.canvas) {
+    measureLineStampLayer.canvas = document.createElement("canvas");
+  }
+  const context = measureLineStampLayer.canvas.getContext("2d");
+  context.font = makeLineStampFont(layer);
+  if ("letterSpacing" in context) context.letterSpacing = `${Number(layer.letterSpacing) || 0}px`;
+  return { width: context.measureText(layer.text || "").width };
+}
+
+function makeLineStampFont(layer) {
+  const weight = layer.style === "bold" ? "700" : "400";
+  const italic = layer.style === "italic" ? "italic " : "";
+  return `${italic}${weight} ${Number(layer.fontSize) || 60}px ${layer.font || "'Noto Sans KR',sans-serif"}`;
+}
+
+function syncLineStampEditorValues(data) {
+  elements.editorFields.querySelectorAll("[data-field]").forEach((field) => {
+    const value = getByPath(data, field.dataset.field);
+    if (value == null) return;
+    if (field.type === "checkbox") {
+      field.checked = Boolean(value);
+    } else {
+      field.value = value;
+    }
+  });
 }
 
 function writeFieldValue(field) {
@@ -435,6 +583,7 @@ function normalizeState() {
 
   normalizeMessengerData();
   normalizeInstagramData();
+  normalizeLineStampData();
   applyActiveVariant();
 }
 
@@ -455,6 +604,41 @@ function normalizeMessengerData() {
     image2: message.image2 || (Array.isArray(message.images) ? message.images[1] : "") || "",
     text: message.text || "",
   }));
+}
+
+function normalizeLineStampData() {
+  const data = state.styles?.linestamp;
+  if (!data) return;
+
+  const defaultLayer = DEFAULT_STYLE_DATA.linestamp.layers[0];
+  if (!Array.isArray(data.layers)) data.layers = [];
+  data.layers = data.layers.map((layer, index) => {
+    const next = { ...structuredClone(defaultLayer), ...layer };
+    next.id = Number(next.id) || index + 1;
+    next.fontSize = Number(next.fontSize) || 60;
+    next.letterSpacing = Number(next.letterSpacing) || 0;
+    next.x = Number.isFinite(Number(next.x)) ? Number(next.x) : 300;
+    next.y = Number.isFinite(Number(next.y)) ? Number(next.y) : 300;
+    next.strokeWidth = Number(next.strokeWidth) || 0;
+    next.shadowBlur = Number(next.shadowBlur) || 0;
+    next.shadowOffsetX = Number(next.shadowOffsetX) || 0;
+    next.shadowOffsetY = Number(next.shadowOffsetY) || 0;
+    next.opacity = Number(next.opacity) > 1 ? Number(next.opacity) / 100 : Number(next.opacity);
+    if (!Number.isFinite(next.opacity)) next.opacity = 1;
+    next.rotate = Number(next.rotate) || 0;
+    next.gradDir = Number(next.gradDir) || 0;
+    return next;
+  });
+
+  const maxLayerId = Math.max(0, ...data.layers.map((layer) => Number(layer.id) || 0));
+  data.nextLayerId = Math.max(Number(data.nextLayerId) || 1, maxLayerId + 1);
+  if (data.layers.length && !data.layers.some((layer) => String(layer.id) === String(data.selectedLayerId))) {
+    data.selectedLayerId = data.layers[data.layers.length - 1].id;
+  }
+  if (!data.layers.length) data.selectedLayerId = null;
+
+  data.bgScale = Math.max(10, Math.min(300, Number(data.bgScale) || 100));
+  data.bgColor = data.bgColor || "transparent";
 }
 
 function applyActiveVariant() {

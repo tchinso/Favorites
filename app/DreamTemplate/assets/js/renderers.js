@@ -25,6 +25,7 @@ function renderCard(styleId, data) {
     movieticket: renderMovieTicket,
     internetboard: renderInternetBoard,
     rpgmaker: renderRpgMaker,
+    linestamp: renderLineStamp,
     poster: renderPoster,
   };
   return renderers[styleId]?.(data) || "";
@@ -567,14 +568,16 @@ function renderCatchphrase(data) {
   const tone = Number(data.gradientTone) || 0;
   const alpha = (Number(data.gradientOpacity) || 0) / 100;
   const height = Number(data.gradientHeight) || 70;
-  const imageX = (Number(data.imageX) || 50) - 50;
-  const imageY = (Number(data.imageY) || 50) - 50;
-  const zoom = (Number(data.imageZoom) || 100) / 100;
+  const imageX = Number.isFinite(Number(data.imageX)) ? Number(data.imageX) : 50;
+  const imageY = Number.isFinite(Number(data.imageY)) ? Number(data.imageY) : 50;
+  const zoom = Math.max(1, (Number(data.imageZoom) || 100) / 100);
+  const imageOffset = ((1 - zoom) * 50).toFixed(3);
+  const imageSize = (zoom * 100).toFixed(3);
   const grad = `linear-gradient(to top, rgba(${tone},${tone},${tone},${alpha.toFixed(2)}) 0%, rgba(${tone},${tone},${tone},${(alpha * 0.6).toFixed(2)}) ${Math.round(height * 0.45)}%, rgba(${tone},${tone},${tone},0) ${height}%)`;
   const font = data.nameFont === "Playfair Display" ? "'Playfair Display', serif" : "'Nunito', sans-serif";
   return `
     <article class="card-frame cp-card" style="--acc:${e(data.accentColor)};--ctxt:${e(data.textColor)};--cbg:${e(data.bgColor)}" data-export-card="catchphrase">
-      ${data.image ? `<img class="cp-img" src="${e(data.image)}" alt="" style="transform:translate(${imageX * 8}px, ${imageY * 6}px) scale(${zoom})">` : ""}
+      ${data.image ? `<img class="cp-img" src="${e(data.image)}" alt="" style="left:${imageOffset}%;top:${imageOffset}%;width:${imageSize}%;height:${imageSize}%;object-position:${imageX}% ${imageY}%">` : ""}
       <div class="cp-grad" style="background:${grad}"></div>
       ${data.badge ? `<div class="cp-badge">${e(String(data.badge).toUpperCase())}</div>` : ""}
       ${data.keyTop ? `<div class="cp-keytop"><span class="cp-keytop-sparkle">✦</span><span class="cp-keytop-txt">${e(String(data.keyTop).toUpperCase())}</span></div>` : ""}
@@ -1117,6 +1120,618 @@ function posterBarcode(data) {
   `;
 }
 
+function renderLineStamp(data) {
+  const state = normalizeLineStampState(data);
+  const json = JSON.stringify(state).replaceAll("<", "\\u003c").replaceAll(">", "\\u003e");
+  const hasGuide = !state.backgroundImage && !state.layers.length;
+  return `
+    <article class="card-frame linestamp-card" data-linestamp-card>
+      <canvas class="linestamp-canvas" width="600" height="600" data-export-card="linestamp"></canvas>
+      <div class="linestamp-guide"${hasGuide ? "" : " hidden"}>
+        <div class="linestamp-guide-icon">T</div>
+        <div class="linestamp-guide-text">텍스트를 추가하거나 배경 이미지를 넣어주세요</div>
+      </div>
+      <script type="application/json" data-linestamp-state>${json}</script>
+      <script>${lineStampHydratorScript()}</script>
+    </article>
+  `;
+}
+
+function normalizeLineStampState(data) {
+  const number = (value, fallback) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  };
+  const defaultLayer = {
+    id: 1,
+    text: "텍스트 입력",
+    font: "'Noto Sans KR',sans-serif",
+    fontSize: 60,
+    letterSpacing: 0,
+    x: 300,
+    y: 300,
+    color: "#111827",
+    strokeColor: "#ffffff",
+    strokeWidth: 6,
+    shadowColor: "#000000",
+    shadowBlur: 0,
+    shadowOffsetX: 0,
+    shadowOffsetY: 0,
+    opacity: 1,
+    rotate: 0,
+    outlineStyle: "line",
+    style: "normal",
+    useGrad: false,
+    g1: "#4f46e5",
+    g2: "#ec4899",
+    gradDir: 0,
+  };
+  const layers = Array.isArray(data.layers) ? data.layers : [];
+  const normalizedLayers = layers.map((layer, index) => ({
+    ...defaultLayer,
+    ...layer,
+    id: number(layer.id, index + 1),
+    fontSize: number(layer.fontSize, 60),
+    letterSpacing: number(layer.letterSpacing, 0),
+    x: number(layer.x, 300),
+    y: number(layer.y, 300),
+    strokeWidth: number(layer.strokeWidth, 6),
+    shadowBlur: number(layer.shadowBlur, 0),
+    shadowOffsetX: number(layer.shadowOffsetX, 0),
+    shadowOffsetY: number(layer.shadowOffsetY, 0),
+    opacity: Math.max(0, Math.min(1, number(layer.opacity, 1))),
+    rotate: number(layer.rotate, 0),
+    gradDir: number(layer.gradDir, 0),
+  }));
+  return {
+    backgroundImage: data.backgroundImage || "",
+    bgColor: data.bgColor || "transparent",
+    bgScale: Math.max(10, Math.min(300, number(data.bgScale, 100))),
+    bgPanX: data.bgPanX === "" ? "" : number(data.bgPanX, ""),
+    bgPanY: data.bgPanY === "" ? "" : number(data.bgPanY, ""),
+    bgLocked: data.bgLocked === true,
+    selectedLayerId: data.selectedLayerId ?? normalizedLayers.at(-1)?.id ?? null,
+    nextLayerId: Math.max(number(data.nextLayerId, normalizedLayers.length + 1), normalizedLayers.length + 1),
+    layers: normalizedLayers,
+  };
+}
+
+function lineStampHydratorScript() {
+  return `(${installLineStampHydrator.toString()})();window.CardStudioLineStampHydrate(document.currentScript.closest("[data-linestamp-card]"));`;
+}
+
+function installLineStampHydrator() {
+  if (window.CardStudioLineStampHydrate) return;
+
+  const SIZE = 600;
+
+  function hydrate(root) {
+    const cards = root?.matches?.("[data-linestamp-card]")
+      ? [root]
+      : Array.from((root || document).querySelectorAll?.("[data-linestamp-card]") || []);
+    cards.forEach(hydrateOne);
+  }
+
+  function hydrateOne(card) {
+    const canvas = card.querySelector(".linestamp-canvas");
+    const stateScript = card.querySelector("[data-linestamp-state]");
+    if (!canvas || !stateScript) return;
+
+    let state;
+    try {
+      state = normalizeState(JSON.parse(stateScript.textContent || "{}"));
+    } catch {
+      state = normalizeState({});
+    }
+
+    const api = createApi(card, canvas, state);
+    card._lineStampApi = api;
+    api.ready.then(() => api.draw(true));
+  }
+
+  function normalizeState(data) {
+    const number = (value, fallback) => {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : fallback;
+    };
+    const layers = Array.isArray(data.layers) ? data.layers : [];
+    return {
+      backgroundImage: data.backgroundImage || "",
+      bgColor: data.bgColor || "transparent",
+      bgScale: Math.max(10, Math.min(300, number(data.bgScale, 100))),
+      bgPanX: data.bgPanX === "" ? "" : number(data.bgPanX, ""),
+      bgPanY: data.bgPanY === "" ? "" : number(data.bgPanY, ""),
+      bgLocked: data.bgLocked === true,
+      selectedLayerId: data.selectedLayerId ?? layers.at(-1)?.id ?? null,
+      layers: layers.map((layer, index) => ({
+        id: number(layer.id, index + 1),
+        text: String(layer.text || ""),
+        font: layer.font || "'Noto Sans KR',sans-serif",
+        fontSize: number(layer.fontSize, 60),
+        letterSpacing: number(layer.letterSpacing, 0),
+        x: number(layer.x, SIZE / 2),
+        y: number(layer.y, SIZE / 2),
+        color: layer.color || "#111827",
+        strokeColor: layer.strokeColor || "#ffffff",
+        strokeWidth: number(layer.strokeWidth, 6),
+        shadowColor: layer.shadowColor || "#000000",
+        shadowBlur: number(layer.shadowBlur, 0),
+        shadowOffsetX: number(layer.shadowOffsetX, 0),
+        shadowOffsetY: number(layer.shadowOffsetY, 0),
+        opacity: Math.max(0, Math.min(1, number(layer.opacity, 1))),
+        rotate: number(layer.rotate, 0),
+        outlineStyle: layer.outlineStyle || "line",
+        style: layer.style || "normal",
+        useGrad: layer.useGrad === true,
+        g1: layer.g1 || "#4f46e5",
+        g2: layer.g2 || "#ec4899",
+        gradDir: number(layer.gradDir, 0),
+      })),
+    };
+  }
+
+  function createApi(card, canvas, state) {
+    const ctx = canvas.getContext("2d");
+    let bgImage = null;
+    let dragging = false;
+    let draggingBg = false;
+    let resizing = false;
+    let rotating = false;
+    let dox = 0;
+    let doy = 0;
+    let bgDox = 0;
+    let bgDoy = 0;
+    let resizeStartX = 0;
+    let resizeStartY = 0;
+    let resizeStartFontSize = 0;
+    let rotateStartAngle = 0;
+    let rotateStartRot = 0;
+
+    const ready = Promise.all([
+      loadImage(state.backgroundImage).then((img) => { bgImage = img; }),
+      document.fonts?.ready || Promise.resolve(),
+    ]).then(() => {
+      initBgPan();
+      bind();
+      updateGuide();
+    });
+
+    function bind() {
+      if (canvas._lineStampBound) return;
+      canvas._lineStampBound = true;
+      canvas.addEventListener("pointerdown", onPointerDown);
+      canvas.addEventListener("pointermove", onPointerMove);
+      canvas.addEventListener("pointerup", onPointerUp);
+      canvas.addEventListener("pointercancel", onPointerUp);
+      canvas.addEventListener("contextmenu", (event) => event.preventDefault());
+    }
+
+    function initBgPan() {
+      if (!bgImage) return;
+      const scale = getBgScale();
+      if (!Number.isFinite(Number(state.bgPanX))) {
+        state.bgPanX = (SIZE - bgImage.width * scale) / 2;
+      }
+      if (!Number.isFinite(Number(state.bgPanY))) {
+        state.bgPanY = (SIZE - bgImage.height * scale) / 2;
+      }
+    }
+
+    function getBgScale() {
+      if (!bgImage) return 1;
+      const baseScale = Math.max(SIZE / bgImage.width, SIZE / bgImage.height);
+      return baseScale * (Number(state.bgScale) || 100) / 100;
+    }
+
+    function draw(includeSelection = true, targetCtx = ctx) {
+      targetCtx.clearRect(0, 0, SIZE, SIZE);
+      if (state.bgColor !== "transparent") {
+        targetCtx.fillStyle = state.bgColor;
+        targetCtx.fillRect(0, 0, SIZE, SIZE);
+      }
+      if (bgImage) {
+        const scale = getBgScale();
+        targetCtx.save();
+        targetCtx.drawImage(bgImage, Number(state.bgPanX) || 0, Number(state.bgPanY) || 0, bgImage.width * scale, bgImage.height * scale);
+        targetCtx.restore();
+      }
+      state.layers.forEach((layer) => drawLayer(layer, targetCtx));
+      if (includeSelection) {
+        const selected = getSelectedLayer();
+        if (selected) drawSelection(selected, targetCtx);
+      }
+      updateGuide();
+    }
+
+    function drawLayer(layer, targetCtx) {
+      targetCtx.save();
+      targetCtx.globalAlpha = layer.opacity;
+      targetCtx.translate(layer.x, layer.y);
+      targetCtx.rotate(layer.rotate * Math.PI / 180);
+      targetCtx.font = makeFont(layer);
+      targetCtx.textAlign = "center";
+      targetCtx.textBaseline = "middle";
+      if ("letterSpacing" in targetCtx) targetCtx.letterSpacing = `${layer.letterSpacing}px`;
+
+      if (layer.outlineStyle === "double") {
+        targetCtx.shadowBlur = 0;
+        targetCtx.shadowColor = "transparent";
+        targetCtx.strokeStyle = layer.color;
+        targetCtx.lineWidth = layer.strokeWidth + 12;
+        targetCtx.lineJoin = "round";
+        targetCtx.strokeText(layer.text, 0, 0);
+      }
+
+      if (layer.outlineStyle !== "none" && layer.outlineStyle !== "glow" && layer.strokeWidth > 0) {
+        targetCtx.shadowBlur = 0;
+        targetCtx.shadowColor = "transparent";
+        targetCtx.strokeStyle = layer.strokeColor;
+        targetCtx.lineWidth = layer.strokeWidth;
+        targetCtx.lineJoin = "round";
+        targetCtx.strokeText(layer.text, 0, 0);
+      }
+
+      if (layer.shadowBlur > 0 || layer.shadowOffsetX !== 0 || layer.shadowOffsetY !== 0) {
+        targetCtx.shadowColor = layer.shadowColor;
+        targetCtx.shadowBlur = layer.shadowBlur;
+        targetCtx.shadowOffsetX = layer.shadowOffsetX;
+        targetCtx.shadowOffsetY = layer.shadowOffsetY;
+      } else {
+        targetCtx.shadowBlur = 0;
+        targetCtx.shadowColor = "transparent";
+        targetCtx.shadowOffsetX = 0;
+        targetCtx.shadowOffsetY = 0;
+      }
+
+      let fillStyle = layer.color;
+      if (layer.useGrad && layer.text.trim() !== "") {
+        const measured = targetCtx.measureText(layer.text);
+        const width = measured.width || 100;
+        const height = layer.fontSize;
+        const rad = ((layer.gradDir || 0) * Math.PI) / 180;
+        const cos = Math.cos(rad);
+        const sin = Math.sin(rad);
+        const radius = (Math.abs(cos) * width + Math.abs(sin) * height) / 2;
+        const gradient = targetCtx.createLinearGradient(-cos * radius, -sin * radius, cos * radius, sin * radius);
+        gradient.addColorStop(0, layer.g1);
+        gradient.addColorStop(1, layer.g2);
+        fillStyle = gradient;
+      }
+
+      if (layer.outlineStyle === "glow") {
+        const savedShadow = {
+          color: targetCtx.shadowColor,
+          blur: targetCtx.shadowBlur,
+          offX: targetCtx.shadowOffsetX,
+          offY: targetCtx.shadowOffsetY,
+        };
+        for (let glow = 3; glow >= 0; glow -= 1) {
+          targetCtx.shadowColor = layer.strokeColor;
+          targetCtx.shadowBlur = 8 + glow * 10;
+          targetCtx.shadowOffsetX = 0;
+          targetCtx.shadowOffsetY = 0;
+          targetCtx.fillStyle = fillStyle;
+          targetCtx.fillText(layer.text, 0, 0);
+        }
+        targetCtx.shadowColor = savedShadow.color;
+        targetCtx.shadowBlur = savedShadow.blur;
+        targetCtx.shadowOffsetX = savedShadow.offX;
+        targetCtx.shadowOffsetY = savedShadow.offY;
+      }
+
+      targetCtx.fillStyle = fillStyle;
+      targetCtx.fillText(layer.text, 0, 0);
+      targetCtx.restore();
+    }
+
+    function makeFont(layer) {
+      const weight = layer.style === "bold" ? "700" : "400";
+      const italic = layer.style === "italic" ? "italic " : "";
+      return `${italic}${weight} ${layer.fontSize}px ${layer.font}`;
+    }
+
+    function getSelectionHandles(layer) {
+      ctx.save();
+      ctx.font = makeFont(layer);
+      if ("letterSpacing" in ctx) ctx.letterSpacing = `${layer.letterSpacing}px`;
+      const width = ctx.measureText(layer.text).width;
+      ctx.restore();
+      const hw = width / 2 + 20;
+      const hh = layer.fontSize / 2 + 16;
+      return {
+        hw,
+        hh,
+        corners: [
+          { id: "tl", lx: -hw, ly: -hh },
+          { id: "tr", lx: hw, ly: -hh },
+          { id: "bl", lx: -hw, ly: hh },
+          { id: "br", lx: hw, ly: hh },
+        ],
+        rotate: { id: "rot", lx: 0, ly: -hh - 28 },
+      };
+    }
+
+    function localToWorld(layer, lx, ly) {
+      const rad = layer.rotate * Math.PI / 180;
+      return {
+        x: layer.x + lx * Math.cos(rad) - ly * Math.sin(rad),
+        y: layer.y + lx * Math.sin(rad) + ly * Math.cos(rad),
+      };
+    }
+
+    function drawSelection(layer, targetCtx) {
+      const { hw, hh, corners, rotate } = getSelectionHandles(layer);
+      targetCtx.save();
+      targetCtx.translate(layer.x, layer.y);
+      targetCtx.rotate(layer.rotate * Math.PI / 180);
+      targetCtx.strokeStyle = "rgba(79,70,229,0.85)";
+      targetCtx.lineWidth = 1.5;
+      targetCtx.setLineDash([6, 4]);
+      targetCtx.strokeRect(-hw, -hh, hw * 2, hh * 2);
+      targetCtx.setLineDash([]);
+      targetCtx.beginPath();
+      targetCtx.moveTo(0, -hh);
+      targetCtx.lineTo(0, -hh - 28);
+      targetCtx.strokeStyle = "rgba(79,70,229,0.6)";
+      targetCtx.stroke();
+      targetCtx.restore();
+
+      corners.forEach((corner) => {
+        const point = localToWorld(layer, corner.lx, corner.ly);
+        targetCtx.save();
+        targetCtx.translate(point.x, point.y);
+        targetCtx.rotate(layer.rotate * Math.PI / 180);
+        targetCtx.fillStyle = "#ffffff";
+        targetCtx.strokeStyle = "rgba(79,70,229,0.9)";
+        targetCtx.lineWidth = 1.5;
+        targetCtx.beginPath();
+        targetCtx.rect(-6, -6, 12, 12);
+        targetCtx.fill();
+        targetCtx.stroke();
+        targetCtx.restore();
+      });
+
+      const point = localToWorld(layer, rotate.lx, rotate.ly);
+      targetCtx.beginPath();
+      targetCtx.arc(point.x, point.y, 8, 0, Math.PI * 2);
+      targetCtx.fillStyle = "rgba(79,70,229,0.9)";
+      targetCtx.fill();
+      targetCtx.strokeStyle = "#ffffff";
+      targetCtx.lineWidth = 2;
+      targetCtx.stroke();
+      targetCtx.save();
+      targetCtx.translate(point.x, point.y);
+      targetCtx.strokeStyle = "#ffffff";
+      targetCtx.lineWidth = 1.5;
+      targetCtx.beginPath();
+      targetCtx.arc(0, 0, 4, -Math.PI * 0.8, Math.PI * 0.8);
+      targetCtx.stroke();
+      targetCtx.restore();
+    }
+
+    function getCoords(event) {
+      const rect = canvas.getBoundingClientRect();
+      return {
+        x: (event.clientX - rect.left) * (SIZE / rect.width),
+        y: (event.clientY - rect.top) * (SIZE / rect.height),
+      };
+    }
+
+    function hitTest(x, y) {
+      for (let index = state.layers.length - 1; index >= 0; index -= 1) {
+        const layer = state.layers[index];
+        ctx.font = makeFont(layer);
+        if ("letterSpacing" in ctx) ctx.letterSpacing = `${layer.letterSpacing}px`;
+        const width = ctx.measureText(layer.text).width;
+        const hw = width / 2 + 20;
+        const hh = layer.fontSize / 2 + 20;
+        const dx = x - layer.x;
+        const dy = y - layer.y;
+        const rad = -layer.rotate * Math.PI / 180;
+        const rx = dx * Math.cos(rad) - dy * Math.sin(rad);
+        const ry = dx * Math.sin(rad) + dy * Math.cos(rad);
+        if (Math.abs(rx) < hw && Math.abs(ry) < hh) return layer;
+      }
+      return null;
+    }
+
+    function hitHandle(x, y) {
+      const layer = getSelectedLayer();
+      if (!layer) return null;
+      const handles = getSelectionHandles(layer);
+      const rotatePoint = localToWorld(layer, handles.rotate.lx, handles.rotate.ly);
+      if (Math.hypot(x - rotatePoint.x, y - rotatePoint.y) < 16) return "rot";
+      for (const corner of handles.corners) {
+        const point = localToWorld(layer, corner.lx, corner.ly);
+        if (Math.hypot(x - point.x, y - point.y) < 14) return corner.id;
+      }
+      return null;
+    }
+
+    function onPointerDown(event) {
+      const { x, y } = getCoords(event);
+      canvas.setPointerCapture?.(event.pointerId);
+
+      if (event.button === 2) {
+        const layer = getSelectedLayer() || hitTest(x, y);
+        if (layer) {
+          state.selectedLayerId = layer.id;
+          rotating = true;
+          rotateStartAngle = Math.atan2(y - layer.y, x - layer.x);
+          rotateStartRot = layer.rotate;
+          canvas.style.cursor = "crosshair";
+          draw(true);
+          emitUpdate();
+        }
+        return;
+      }
+
+      const handle = hitHandle(x, y);
+      if (handle) {
+        const layer = getSelectedLayer();
+        if (handle === "rot") {
+          rotating = true;
+          rotateStartAngle = Math.atan2(y - layer.y, x - layer.x);
+          rotateStartRot = layer.rotate;
+          canvas.style.cursor = "crosshair";
+        } else {
+          resizing = true;
+          resizeStartX = x;
+          resizeStartY = y;
+          resizeStartFontSize = layer.fontSize;
+          canvas.style.cursor = "nwse-resize";
+        }
+        return;
+      }
+
+      const layer = hitTest(x, y);
+      if (layer) {
+        state.selectedLayerId = layer.id;
+        if (event.shiftKey) {
+          resizing = true;
+          resizeStartX = x;
+          resizeStartY = y;
+          resizeStartFontSize = layer.fontSize;
+          canvas.style.cursor = "nwse-resize";
+        } else {
+          dragging = true;
+          dox = x - layer.x;
+          doy = y - layer.y;
+          canvas.style.cursor = "grabbing";
+        }
+        draw(true);
+        emitUpdate();
+      } else if (bgImage && !state.bgLocked) {
+        draggingBg = true;
+        bgDox = x - (Number(state.bgPanX) || 0);
+        bgDoy = y - (Number(state.bgPanY) || 0);
+        state.selectedLayerId = null;
+        canvas.style.cursor = "grabbing";
+        draw(true);
+        emitUpdate();
+      } else {
+        state.selectedLayerId = null;
+        draw(true);
+        emitUpdate();
+      }
+    }
+
+    function onPointerMove(event) {
+      const { x, y } = getCoords(event);
+      const layer = getSelectedLayer();
+      if (rotating && layer) {
+        const angle = Math.atan2(y - layer.y, x - layer.x);
+        const delta = (angle - rotateStartAngle) * 180 / Math.PI;
+        layer.rotate = Math.round(rotateStartRot + delta);
+        draw(true);
+        return;
+      }
+      if (resizing && layer) {
+        const dist = Math.hypot(x - layer.x, y - layer.y);
+        const startDist = Math.hypot(resizeStartX - layer.x, resizeStartY - layer.y);
+        layer.fontSize = Math.max(10, Math.round(resizeStartFontSize * dist / (startDist || 1)));
+        draw(true);
+        return;
+      }
+      if (dragging && layer) {
+        layer.x = x - dox;
+        layer.y = y - doy;
+        draw(true);
+        return;
+      }
+      if (draggingBg) {
+        state.bgPanX = x - bgDox;
+        state.bgPanY = y - bgDoy;
+        draw(true);
+        return;
+      }
+
+      const handle = hitHandle(x, y);
+      if (handle === "rot") canvas.style.cursor = "crosshair";
+      else if (handle) canvas.style.cursor = "nwse-resize";
+      else canvas.style.cursor = hitTest(x, y) ? "grab" : (bgImage && !state.bgLocked ? "move" : "default");
+    }
+
+    function onPointerUp(event) {
+      dragging = false;
+      draggingBg = false;
+      resizing = false;
+      rotating = false;
+      canvas.style.cursor = "default";
+      canvas.releasePointerCapture?.(event.pointerId);
+      emitUpdate();
+    }
+
+    function getSelectedLayer() {
+      return state.layers.find((layer) => String(layer.id) === String(state.selectedLayerId)) || null;
+    }
+
+    function updateGuide() {
+      const guide = card.querySelector(".linestamp-guide");
+      if (guide) guide.hidden = Boolean(bgImage || state.layers.length);
+    }
+
+    function exportState() {
+      return {
+        backgroundImage: state.backgroundImage,
+        bgColor: state.bgColor,
+        bgScale: state.bgScale,
+        bgPanX: state.bgPanX,
+        bgPanY: state.bgPanY,
+        bgLocked: state.bgLocked,
+        selectedLayerId: state.selectedLayerId,
+        layers: state.layers.map((layer) => ({ ...layer })),
+      };
+    }
+
+    function emitUpdate() {
+      card.dispatchEvent(new CustomEvent("linestamp:update", {
+        bubbles: true,
+        detail: exportState(),
+      }));
+    }
+
+    async function download(filename) {
+      await ready;
+      const out = document.createElement("canvas");
+      out.width = SIZE;
+      out.height = SIZE;
+      draw(false, out.getContext("2d"));
+      const link = document.createElement("a");
+      link.download = filename || `linestamp-${Date.now()}.png`;
+      link.href = out.toDataURL("image/png", 1.0);
+      document.body.append(link);
+      link.click();
+      link.remove();
+    }
+
+    return { ready, draw, download };
+  }
+
+  function loadImage(src) {
+    return new Promise((resolve) => {
+      if (!src) {
+        resolve(null);
+        return;
+      }
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => resolve(null);
+      img.src = src;
+    });
+  }
+
+  async function exportActive(filename) {
+    const card = document.querySelector("[data-linestamp-card]");
+    if (!card?._lineStampApi) return false;
+    await card._lineStampApi.download(filename);
+    return true;
+  }
+
+  window.CardStudioLineStampHydrate = hydrate;
+  window.CardStudioLineStampExport = exportActive;
+}
+
 function posterRgba(hex, alpha) {
   const match = String(hex || "").match(/^#?([0-9a-f]{6})$/i);
   if (!match) return `rgba(0,0,0,${alpha})`;
@@ -1178,7 +1793,9 @@ function rpgMakerHydratorScript() {
 
 function hydrateCard(root = document) {
   installRpgMakerHydrator();
+  installLineStampHydrator();
   window.CardStudioRpgMakerHydrate(root);
+  window.CardStudioLineStampHydrate(root);
 }
 
 function installRpgMakerHydrator() {

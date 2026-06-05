@@ -7,6 +7,10 @@ async function exportCardImage(styleId) {
   if (!config?.canExportImage) {
     throw new Error("이 스타일은 HTML 내보내기만 지원합니다.");
   }
+  if (config.baseStyle === "linestamp" && window.CardStudioLineStampExport) {
+    const exported = await window.CardStudioLineStampExport(makeFilename(styleId, "png"));
+    if (exported) return;
+  }
   const target = document.querySelector("[data-export-card]");
   if (!target) throw new Error("내보낼 미리보기를 찾을 수 없습니다.");
   if (!window.html2canvas) throw new Error("이미지 내보내기 라이브러리가 아직 로드되지 않았습니다.");
@@ -46,6 +50,7 @@ async function buildStandaloneHtml(styleId, label, cardHtml) {
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Courier+Prime:wght@400;700&family=DM+Mono:wght@400;500&family=DM+Serif+Display:ital@0;1&family=EB+Garamond:ital,wght@0,400;0,500;1,400;1,500;1,600&family=Fredoka+One&family=Gowun+Batang&family=Hahmlet:wght@400;600&family=Hi+Melody&family=IBM+Plex+Mono:wght@400;600;700&family=Instrument+Serif:ital@0;1&family=Inter:wght@300;400;500;600;700&family=Lora:ital,wght@1,500;1,600&family=Nanum+Gothic&family=Nanum+Myeongjo:wght@400;700&family=Nanum+Pen+Script&family=Noto+Sans+KR:wght@300;400;500;600;700;800;900&family=Noto+Serif+KR:wght@400;700&family=Nunito:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,400&family=Outfit:wght@300;400;500;600;700;800;900&family=Pinyon+Script&family=Playfair+Display:ital,wght@0,700;0,800;1,700&family=Roboto:wght@400;500;700;900&family=Space+Mono:wght@400;700&family=Special+Elite&family=VT323&display=swap" rel="stylesheet">
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=Oswald:wght@300;400;700;900&family=Bebas+Neue&family=Raleway:wght@300;400;700&family=Anton&family=Noto+Serif+KR:wght@200;300;400;700&family=Gowun+Dodum&family=Nanum+Myeongjo:wght@400;700;800&family=Inter:wght@300;400;500;600;800;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=DM+Mono:wght@400;500&family=Jua&family=Do+Hyeon&family=Gugi&family=Gaegu&family=Nanum+Brush+Script&family=Nanum+Pen+Script&family=Hi+Melody&family=East+Sea+Dokdo&family=Sunflower:wght@700&family=Bubblegum+Sans&family=Fredoka+One&family=Pacifico&family=Boogaloo&family=Lilita+One&family=Righteous&family=Comfortaa:wght@700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css">
 <style>

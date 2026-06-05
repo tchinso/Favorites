@@ -26,6 +26,7 @@ function renderEditor(styleId, data) {
     movieticket: movieTicketEditor,
     internetboard: internetBoardEditor,
     rpgmaker: rpgMakerEditor,
+    linestamp: lineStampEditor,
     poster: posterEditor,
   };
   return templates[styleId]?.(data) || "";
@@ -741,6 +742,127 @@ function rpgMakerEditor(data) {
     </div>
     ${checkbox(data, "showArrow", "▼ 계속 화살표 표시")}
     ${textarea(data, "choices", "선택지", "한 줄에 하나씩 입력")}
+  `);
+}
+
+function lineStampEditor(data) {
+  const layers = Array.isArray(data.layers) ? data.layers : [];
+  const selectedId = data.selectedLayerId ?? layers[0]?.id;
+  let selectedIndex = layers.findIndex((layer) => String(layer.id) === String(selectedId));
+  if (selectedIndex < 0) selectedIndex = 0;
+  const selected = layers[selectedIndex];
+  const base = `layers.${selectedIndex}`;
+  const layerList = layers.length
+    ? layers.map((layer, index) => {
+      const active = index === selectedIndex ? " active" : "";
+      return `
+        <button type="button" class="linestamp-layer-tab${active}" data-action="linestamp-select-layer" data-layer-id="${a(layer.id)}">
+          <b>${e(layer.text || "(비어 있음)")}</b>
+          <span>${e(layer.fontSize || 60)}px · ${e(String(layer.font || "").split(",")[0].replaceAll("'", ""))}</span>
+        </button>
+      `;
+    }).join("")
+    : `<p class="linestamp-editor-note">레이어가 없습니다. 텍스트를 추가해 주세요.</p>`;
+
+  if (!selected) {
+    return section("텍스트 레이어", `
+      <button type="button" class="linestamp-editor-button" data-action="linestamp-add-layer">+ 추가</button>
+    `);
+  }
+
+  return section("배경 이미지", `
+    ${imageField(data, "backgroundImage", "배경 이미지")}
+    <div class="grid-3">
+      ${field(data, "bgScale", "배경 크기", { type: "range", min: 10, max: 300 })}
+      ${field(data, "bgPanX", "배경 X", { type: "number", step: 1 })}
+      ${field(data, "bgPanY", "배경 Y", { type: "number", step: 1 })}
+    </div>
+    ${select(data, "bgColor", "배경 단색", [
+      { value: "transparent", label: "투명" },
+      { value: "#ffffff", label: "White" },
+      { value: "#111827", label: "Dark" },
+      { value: "#fee2e2", label: "Red Soft" },
+      { value: "#e0e7ff", label: "Indigo Soft" },
+      { value: "#fef3c7", label: "Yellow Soft" },
+      { value: "#dcfce7", label: "Green Soft" },
+      { value: "#f3e8ff", label: "Purple Soft" },
+    ])}
+    <div class="grid-2">
+      ${checkbox(data, "bgLocked", "배경 이동 잠금")}
+      <button type="button" class="linestamp-editor-button" data-action="linestamp-reset-bg">배경 위치 초기화</button>
+    </div>
+  `) + section("텍스트 레이어", `
+    <div class="linestamp-layer-list">${layerList}</div>
+    <div class="grid-4">
+      <button type="button" class="linestamp-editor-button" data-action="linestamp-add-layer">+ 추가</button>
+      <button type="button" class="linestamp-editor-button" data-action="linestamp-move-layer" data-direction="up">위로</button>
+      <button type="button" class="linestamp-editor-button" data-action="linestamp-move-layer" data-direction="down">아래로</button>
+      <button type="button" class="linestamp-editor-button danger" data-action="linestamp-remove-layer">삭제</button>
+    </div>
+    ${field(data, `${base}.text`, "내용")}
+    ${select(data, `${base}.font`, "폰트", [
+      { value: "'Noto Sans KR',sans-serif", label: "노토산스 (기본)" },
+      { value: "'Do Hyeon','Noto Sans KR',sans-serif", label: "도현" },
+      { value: "'Gugi','Noto Sans KR',cursive", label: "구기" },
+      { value: "'Jua','Noto Sans KR',sans-serif", label: "주아" },
+      { value: "'Hi Melody','Noto Sans KR',cursive", label: "하이멜로디" },
+      { value: "'Nanum Pen Script','Noto Sans KR',cursive", label: "나눔펜체" },
+      { value: "'East Sea Dokdo','Noto Sans KR',cursive", label: "동해독도" },
+      { value: "'Fredoka One','Noto Sans KR',cursive", label: "Fredoka" },
+      { value: "'Pacifico','Noto Sans KR',cursive", label: "Pacifico" },
+      { value: "'Lilita One','Noto Sans KR',cursive", label: "Lilita" },
+    ])}
+    <div class="grid-3">
+      ${field(data, `${base}.x`, "텍스트 X", { type: "number", min: -400, max: 1000, step: 1 })}
+      ${field(data, `${base}.y`, "텍스트 Y", { type: "number", min: -400, max: 1000, step: 1 })}
+      ${field(data, `${base}.fontSize`, "크기", { type: "range", min: 10, max: 400 })}
+    </div>
+    <div class="grid-3">
+      ${field(data, `${base}.letterSpacing`, "자간", { type: "range", min: -10, max: 50 })}
+      ${field(data, `${base}.rotate`, "회전", { type: "range", min: -180, max: 180 })}
+      ${field(data, `${base}.opacity`, "투명도", { type: "range", min: 0, max: 1, step: 0.01 })}
+    </div>
+    <div class="linestamp-action-grid">
+      <button type="button" data-action="linestamp-align" data-align="left">왼쪽</button>
+      <button type="button" data-action="linestamp-align" data-align="center">가로 중앙</button>
+      <button type="button" data-action="linestamp-align" data-align="right">오른쪽</button>
+      <button type="button" data-action="linestamp-align" data-align="top">위쪽</button>
+      <button type="button" data-action="linestamp-align" data-align="middle">세로 중앙</button>
+      <button type="button" data-action="linestamp-align" data-align="bottom">아래쪽</button>
+      <button type="button" data-action="linestamp-align" data-align="center-all">정가운데</button>
+    </div>
+  `) + section("스타일", `
+    <div class="grid-3">
+      ${select(data, `${base}.style`, "글자 스타일", [
+        { value: "normal", label: "기본" },
+        { value: "italic", label: "이탤릭" },
+        { value: "bold", label: "볼드" },
+      ])}
+      ${field(data, `${base}.color`, "글자 색상", { type: "color" })}
+      ${field(data, `${base}.strokeColor`, "외곽선 색상", { type: "color" })}
+    </div>
+    <div class="grid-2">
+      ${select(data, `${base}.outlineStyle`, "외곽선", [
+        { value: "none", label: "없음" },
+        { value: "line", label: "기본선" },
+        { value: "double", label: "이중선" },
+        { value: "glow", label: "네온효과" },
+      ])}
+      ${field(data, `${base}.strokeWidth`, "외곽선 두께", { type: "range", min: 0, max: 40 })}
+    </div>
+    <div class="grid-4">
+      ${field(data, `${base}.shadowColor`, "그림자 색상", { type: "color" })}
+      ${field(data, `${base}.shadowBlur`, "그림자 흐림", { type: "range", min: 0, max: 80 })}
+      ${field(data, `${base}.shadowOffsetX`, "그림자 X", { type: "range", min: -80, max: 80 })}
+      ${field(data, `${base}.shadowOffsetY`, "그림자 Y", { type: "range", min: -80, max: 80 })}
+    </div>
+  `) + section("그라데이션", `
+    ${checkbox(data, `${base}.useGrad`, "그라데이션 사용")}
+    <div class="grid-3">
+      ${field(data, `${base}.g1`, "색상 1", { type: "color" })}
+      ${field(data, `${base}.g2`, "색상 2", { type: "color" })}
+      ${field(data, `${base}.gradDir`, "방향", { type: "range", min: -180, max: 180 })}
+    </div>
   `);
 }
 
