@@ -27,6 +27,7 @@ async function exportCardImage(styleId) {
       scale: Math.max(2, Math.min(3, window.devicePixelRatio || 2)),
       useCORS: true,
       logging: false,
+      onclone: normalizePanImagesForCanvas,
     });
   } finally {
     target.classList.remove("is-exporting");
@@ -76,6 +77,16 @@ body {
   background: #f3f4f6;
   padding: 24px;
 }
+.app-shell, .editor-panel, .preview-toolbar, .style-rail, .toast { display: none !important; }
+.preview-stage { all: unset; display: block; }
+</style>
+</head>
+<body>
+${portableCardHtml}
+${styleId === "messenger" || styleId === "messenger-html" ? messengerToggleScript() : ""}
+</body>
+</html>`;
+}
 
 async function exportMusicPlayer2(filename) {
   const frame = document.querySelector(".musicplayer2-frame");
@@ -108,15 +119,33 @@ async function exportMusicPlayer2(filename) {
   link.remove();
   return true;
 }
-.app-shell, .editor-panel, .preview-toolbar, .style-rail, .toast { display: none !important; }
-.preview-stage { all: unset; display: block; }
-</style>
-</head>
-<body>
-${portableCardHtml}
-${styleId === "messenger" || styleId === "messenger-html" ? messengerToggleScript() : ""}
-</body>
-</html>`;
+
+function normalizePanImagesForCanvas(clonedDoc) {
+  clonedDoc.querySelectorAll(".pan-frame").forEach((frame) => {
+    const computed = clonedDoc.defaultView?.getComputedStyle(frame);
+    const panX = readCssValue(frame, computed, "--pan-x", "0px");
+    const panY = readCssValue(frame, computed, "--pan-y", "0px");
+    const scale = Math.max(0.1, Number(readCssValue(frame, computed, "--pan-scale", "1")) || 1);
+
+    Array.from(frame.querySelectorAll(".pan-img"))
+      .filter((img) => img.closest(".pan-frame") === frame)
+      .forEach((img) => {
+        img.style.setProperty("inset", "auto", "important");
+        img.style.setProperty("left", `calc(50% + ${panX})`, "important");
+        img.style.setProperty("top", `calc(50% + ${panY})`, "important");
+        img.style.setProperty("width", `${scale * 100}%`, "important");
+        img.style.setProperty("height", `${scale * 100}%`, "important");
+        img.style.setProperty("transform", "translate(-50%, -50%)", "important");
+        img.style.setProperty("transform-origin", "center center", "important");
+      });
+  });
+}
+
+function readCssValue(element, computed, name, fallback) {
+  const inlineValue = element.style.getPropertyValue(name).trim();
+  if (inlineValue) return inlineValue;
+  const computedValue = computed?.getPropertyValue(name).trim();
+  return computedValue || fallback;
 }
 
 async function downloadStandaloneHtml(styleId, label, cardHtml) {
