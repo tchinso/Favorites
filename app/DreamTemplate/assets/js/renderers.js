@@ -1,5 +1,5 @@
 (() => {
-const { backgroundStyle, escapeHtml, nl2br, parseCategoryLines, parseKeywords } = window.CardStudioUtils;
+const { backgroundStyle, escapeHtml, getByPath, nl2br, parseCategoryLines, parseKeywords } = window.CardStudioUtils;
 
 const e = escapeHtml;
 
@@ -10,6 +10,7 @@ function renderCard(styleId, data) {
     wiki: renderWiki,
     netflix: renderNetflix,
     musicplayer: renderMusicPlayer,
+    musicplayer2: renderMusicPlayer2,
     timeline: renderTimeline,
     couple: renderCouple,
     messenger: renderMessenger,
@@ -34,6 +35,25 @@ function renderCard(styleId, data) {
 function mediaBox(src, className, label, extra = "") {
   const style = backgroundStyle(src);
   return `<div class="${className} media-box" style="${style}" ${extra}>${src ? "" : `<span>${e(label)}</span>`}</div>`;
+}
+
+function panSurface(data, srcPath, className, label, fields = {}, options = {}) {
+  const src = getByPath(data, srcPath) || "";
+  const scalePath = fields.scale || `${srcPath}Scale`;
+  const xPath = fields.x || `${srcPath}PanX`;
+  const yPath = fields.y || `${srcPath}PanY`;
+  const fit = options.fit === "contain" ? " contain" : "";
+  const filter = options.filter ? ` style="filter:${options.filter}"` : "";
+  const style = panStyle(data, { scale: scalePath, x: xPath, y: yPath }, options);
+  const attrs = `data-bg-pan-surface data-pan-x-field="${e(xPath)}" data-pan-y-field="${e(yPath)}" data-pan-scale-field="${e(scalePath)}"`;
+  return `<div class="${className} media-box pan-frame${src ? " has-pan-image" : ""}" style="${style}" ${attrs}>${src ? `<img class="pan-img${fit}" src="${e(src)}" alt=""${filter}>` : `<span>${e(label)}</span>`}</div>`;
+}
+
+function panStyle(data, fields = {}, options = {}) {
+  const scale = Math.max(10, Number(getByPath(data, fields.scale)) || options.scaleFallback || 100) / 100;
+  const panX = Number.isFinite(Number(getByPath(data, fields.x))) ? Number(getByPath(data, fields.x)) : 0;
+  const panY = Number.isFinite(Number(getByPath(data, fields.y))) ? Number(getByPath(data, fields.y)) : 0;
+  return `--pan-x:${panX}px;--pan-y:${panY}px;--pan-scale:${scale}`;
 }
 
 function avatar(src, className = "") {
@@ -411,12 +431,20 @@ function renderMusicPlayer(data) {
   const volumeHigh = lineIcon('<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>');
   return `
     <article class="card-frame music-card" style="--music-bg:${e(data.bgColor)};--music-point:${e(data.pointColor)};--music-text:${e(data.textColor)}" data-export-card="musicplayer">
-      ${mediaBox(data.coverImage, "music-cover", "COVER")}
+      ${panSurface(data, "coverImage", "music-cover", "COVER", { scale: "imageScale", x: "imagePanX", y: "imagePanY" })}
       <div class="music-source">${e(data.copyright || "ⓒ source")}</div>
       <div class="music-info"><h1>${e(data.title || "노래 제목")}</h1><p>${e(data.artist || "가수 이름")}</p></div>
       <div class="music-slider"><span style="width:${progress}%"></span><b style="left:${progress}%"></b></div>
       <div class="music-controls"><button>${previous}</button><button class="music-play">${play}</button><button>${next}</button></div>
       <div class="music-volume"><span>${volumeLow}</span><div class="music-slider small"><span style="width:${volume}%"></span><b style="left:${volume}%"></b></div><span>${volumeHigh}</span></div>
+    </article>
+  `;
+}
+
+function renderMusicPlayer2() {
+  return `
+    <article class="card-frame musicplayer2-card" data-export-card="musicplayer2">
+      <iframe class="musicplayer2-frame" src="musicplayer2.html" title="Music player B type"></iframe>
     </article>
   `;
 }
@@ -432,7 +460,7 @@ function renderTimeline(data) {
   return `
     <article class="card-frame timeline-card" style="--tl-color:${e(data.themeColor)}" data-export-card="timeline">
       <section class="tl-profile">
-        ${mediaBox(data.mainImage, "tl-photo", "MAIN IMAGE")}
+        ${panSurface(data, "mainImage", "tl-photo", "MAIN IMAGE", { scale: "mainImageScale", x: "mainImagePanX", y: "mainImagePanY" })}
         <div class="tl-source">ⓒ ${e(data.copyright || "source")}</div>
         <b>${e(data.catchphrase || "")}</b>
         <h1>${e(data.name || "이름")}</h1>
@@ -462,25 +490,26 @@ function renderCouple(data) {
     <article class="card-frame pair-card layout-${e(data.layout || "center")}" style="--pair-a:${e(data.colorA)};--pair-b:${e(data.colorB)};--pair-common:${e(data.colorCommon)}" data-export-card="couple">
       <header class="pair-header">
         <h1>${e(data.pairName || "PAIR NAME")}</h1>
-        ${mediaBox(data.bannerImage, "pair-banner", "BANNER")}
+        ${panSurface(data, "bannerImage", "pair-banner", "BANNER", { scale: "bannerImageScale", x: "bannerImagePanX", y: "bannerImagePanY" })}
       </header>
       <section class="pair-body">
-        ${renderPerson(data.personA, "a")}
+        ${renderPerson(data, "personA", "a")}
         <div class="pair-timeline">
           <h2>${e(data.timelineTitle || "PAIR TIMELINE")}</h2>
           ${entries}
         </div>
-        ${renderPerson(data.personB, "b")}
+        ${renderPerson(data, "personB", "b")}
       </section>
     </article>
   `;
 }
 
-function renderPerson(person, side) {
+function renderPerson(data, personPath, side) {
+  const person = getByPath(data, personPath) || {};
   const keywords = parseKeywords(person?.keywords).map((word) => `<span>${e(word)}</span>`).join("");
   return `
     <aside class="pair-person person-${side}">
-      ${mediaBox(person?.image, "pair-photo", "PROFILE")}
+      ${panSurface(data, `${personPath}.image`, "pair-photo", "PROFILE", { scale: `${personPath}.imageScale`, x: `${personPath}.imagePanX`, y: `${personPath}.imagePanY` })}
       <div class="pair-source">ⓒ ${e(person?.copyright || "source")}</div>
       <b>${e(person?.catchphrase || "")}</b>
       <h2>${e(person?.name || "Name")}</h2>
@@ -568,16 +597,11 @@ function renderCatchphrase(data) {
   const tone = Number(data.gradientTone) || 0;
   const alpha = (Number(data.gradientOpacity) || 0) / 100;
   const height = Number(data.gradientHeight) || 70;
-  const imageX = Number.isFinite(Number(data.imageX)) ? Number(data.imageX) : 50;
-  const imageY = Number.isFinite(Number(data.imageY)) ? Number(data.imageY) : 50;
-  const zoom = Math.max(1, (Number(data.imageZoom) || 100) / 100);
-  const imageOffset = ((1 - zoom) * 50).toFixed(3);
-  const imageSize = (zoom * 100).toFixed(3);
   const grad = `linear-gradient(to top, rgba(${tone},${tone},${tone},${alpha.toFixed(2)}) 0%, rgba(${tone},${tone},${tone},${(alpha * 0.6).toFixed(2)}) ${Math.round(height * 0.45)}%, rgba(${tone},${tone},${tone},0) ${height}%)`;
   const font = data.nameFont === "Playfair Display" ? "'Playfair Display', serif" : "'Nunito', sans-serif";
   return `
     <article class="card-frame cp-card" style="--acc:${e(data.accentColor)};--ctxt:${e(data.textColor)};--cbg:${e(data.bgColor)}" data-export-card="catchphrase">
-      ${data.image ? `<img class="cp-img" src="${e(data.image)}" alt="" style="left:${imageOffset}%;top:${imageOffset}%;width:${imageSize}%;height:${imageSize}%;object-position:${imageX}% ${imageY}%">` : ""}
+      ${panSurface(data, "image", "cp-img", "MAIN IMAGE", { scale: "imageScale", x: "imagePanX", y: "imagePanY" })}
       <div class="cp-grad" style="background:${grad}"></div>
       ${data.badge ? `<div class="cp-badge">${e(String(data.badge).toUpperCase())}</div>` : ""}
       ${data.keyTop ? `<div class="cp-keytop"><span class="cp-keytop-sparkle">✦</span><span class="cp-keytop-txt">${e(String(data.keyTop).toUpperCase())}</span></div>` : ""}
@@ -606,9 +630,6 @@ function renderTamagotchi(data) {
     lemon: ["#fffde7", "#fff176", "#fff9c4", "#fbc02d", "#ffffff"],
   };
   const [bg, shell, light, shadow, bezel] = themes[data.theme] || themes.default;
-  const zoom = (Number(data.imageZoom) || 100) / 100;
-  const tx = Number(data.imageX) || 0;
-  const ty = Number(data.imageY) || 0;
   return `
     <article class="card-frame tama-wrap" style="--tama-bg:${bg};--tama-shell:${shell};--tama-light:${light};--tama-shadow:${shadow};--tama-bezel:${bezel}" data-export-card="tamagotchi">
       <div class="tama-shell">
@@ -619,7 +640,7 @@ function renderTamagotchi(data) {
             <div class="tama-overlay"></div>
             <div class="tama-top"><span>${e(String(data.name || "MY CHAR").toUpperCase()).slice(0, 8)}</span><span>${e(data.days || "DAYS:01")}</span></div>
             <div class="tama-slot">
-              ${data.image ? `<img src="${e(data.image)}" alt="" style="transform:translate(calc(-50% + ${tx}px), calc(-50% + ${ty}px)) scale(${zoom})">` : `<div class="tama-trigger">TAP TO<br>HATCH!</div>`}
+              ${data.image ? panSurface(data, "image", "tama-pan", "CHAR", { scale: "imageScale", x: "imagePanX", y: "imagePanY" }) : `<div class="tama-trigger">TAP TO<br>HATCH!</div>`}
             </div>
             <div class="tama-bottom"><span>${e(data.hearts || "♥♥♡♡")}</span><span>${e(data.stars || "★★☆☆")}</span></div>
           </div>
@@ -654,7 +675,7 @@ function renderIdFront(data, type, color, light) {
     <section class="idc-face idc-emp" style="background:${bg};--idc:${e(color)};--idc-main:${light ? "#222" : "#fff"};--idc-sub:${light ? "#666" : "rgba(255,255,255,.7)"}">
       <div class="idc-emp-dec a"></div><div class="idc-emp-dec b"></div><div class="idc-corner tr"></div><div class="idc-corner bl"></div>
       <header class="idc-emp-top"><span class="idc-logo">${e((data.companyName || "C").charAt(0))}</span><b>${e(data.companyName || "Company")}</b></header>
-      ${renderIdPhoto(data.photo)}
+      ${renderIdPhoto(data)}
       <div class="idc-center">
         <small>EMPLOYEE</small>
         <h2>${e(data.name || "Name")}</h2>
@@ -675,7 +696,7 @@ function renderIdSentinelFront(data, color, light) {
   return `
     <section class="idc-face idc-sentinel" style="--idc:${e(color)};background:${light ? "#fff" : `linear-gradient(170deg,${shade(color, -20)},#060810,${shade(color, -10)})`};--idc-main:${light ? "#222" : "#fff"};--idc-sub:${light ? "#666" : "rgba(255,255,255,.7)"}">
       <header class="idc-sgb-head"><span>◎</span><div><b>S G B</b><small>SENTINEL GUIDANCE BUREAU</small></div><em>${e(data.sentinelClass || "S-Class").split("-")[0]}</em></header>
-      ${renderIdPhoto(data.photo)}
+      ${renderIdPhoto(data)}
       <h2 class="idc-code">${e(data.codename || "CODENAME")}</h2>
       <p class="idc-pill">${e(data.ability || "ABILITY")}</p>
       <div class="idc-fields">${idRow("CLASS", data.sentinelClass)}${idRow("AFFILIATION", data.affiliation)}</div>
@@ -688,7 +709,7 @@ function renderIdStudentFront(data, color, light) {
   return `
     <section class="idc-face idc-student" style="--idc:${e(color)};--idc-main:${light ? "#222" : "#fff"};--idc-sub:${light ? "#666" : "rgba(255,255,255,.7)"};background:${light ? "#fff" : "#2d3340"}">
       <header class="idc-stu-head"><span>◎</span><div><b>${e(data.school || "School")}</b><small>STUDENT ID / ${e(data.schoolType || "")}</small></div></header>
-      ${renderIdPhoto(data.photo)}
+      ${renderIdPhoto(data)}
       <h2 class="idc-stu-name">${e(data.name || "Name")}</h2>
       <div class="idc-fields">${idRow("ENROLLMENT", data.enrollment)}${idRow("GRADUATION", data.graduation)}${idRow("GRADE", data.grade)}</div>
       <p class="idc-note">This card certifies the holder as a registered student.</p>
@@ -702,7 +723,7 @@ function renderIdUniversityFront(data, color, light) {
   return `
     <section class="idc-face idc-uni" style="--idc:${e(color)};--idc-main:${light ? "#222" : "#fff"};--idc-sub:${light ? "#666" : "rgba(255,255,255,.7)"};background:${light ? "#fff" : "#2d3038"}">
       <header class="idc-uni-head"><span>◎</span><div><b>${e(data.university || "University")}</b><small>STUDENT IDENTIFICATION</small></div><em>STUDENT</em></header>
-      ${renderIdPhoto(data.photo)}
+      ${renderIdPhoto(data)}
       <h2 class="idc-stu-name">${e(data.name || "Name")}</h2>
       <p class="idc-major">${e(data.major || "Major")}</p>
       <div class="idc-grid"><span><small>YEAR</small><b>${e(data.year || "")}</b></span><span><small>ADMITTED</small><b>${e(data.joined || "")}</b></span></div>
@@ -717,7 +738,7 @@ function renderIdLoversFront(data, color, light) {
     <section class="idc-face idc-luv" style="--idc:${e(color)};--idc-main:${light ? "#2d2228" : "#fff"};--idc-sub:${light ? "#8a767d" : "rgba(255,255,255,.7)"};background:${light ? "#fff" : "#2d2530"}">
       <div class="idc-luv-border"></div><div class="idc-luv-inner">
       <header><b>${e(data.club || "Lover's Club")}</b><small>LOVERS CARD</small></header>
-      ${renderIdPhoto(data.photo)}
+      ${renderIdPhoto(data)}
       <h2>${e(data.name || "Name")}</h2><p>@${e(data.nickname || "nickname")}</p>
       <div class="idc-fields">${idRow("DATE OF BIRTH", data.birth)}${idRow("CLASS", data.className)}${idRow("NUMBER", data.number)}${idRow("NAME", data.bias)}${idRow("POSITION", data.position)}${idRow("MEMBERSHIP", data.membership)}</div>
       <footer>${e(data.idNumber || "FC-0000")} <span>♥ ♥ ♥</span></footer>
@@ -740,8 +761,10 @@ function renderIdBack(data, type, color, light) {
   `;
 }
 
-function renderIdPhoto(src) {
-  return `<div class="idc-photo">${src ? `<img src="${e(src)}" alt="">` : `<div class="idc-np"><i></i><b></b></div>`}</div>`;
+function renderIdPhoto(data) {
+  return data.photo
+    ? panSurface(data, "photo", "idc-photo", "PHOTO", { scale: "photoScale", x: "photoPanX", y: "photoPanY" })
+    : `<div class="idc-photo"><div class="idc-np"><i></i><b></b></div></div>`;
 }
 
 function idRow(label, value) {
@@ -749,20 +772,15 @@ function idRow(label, value) {
 }
 
 function renderToypack(data) {
-  const imageX = Number(data.imageX) || 0;
-  const imageY = Number(data.imageY) || 0;
-  const imageZoom = (Number(data.imageZoom) || 100) / 100;
   return `
-    <article class="card-frame toy-card" style="--toy-c1:${e(data.color1)};--toy-c2:${e(data.color2)};--toy-ac:${e(data.accentColor)};--toy-bg:${toyGradient(data.gradient, data.color1, data.color2)};--toy-img-x:${imageX}px;--toy-img-y:${imageY}px;--toy-img-z:${imageZoom}" data-export-card="toypack">
+    <article class="card-frame toy-card" style="--toy-c1:${e(data.color1)};--toy-c2:${e(data.color2)};--toy-ac:${e(data.accentColor)};--toy-bg:${toyGradient(data.gradient, data.color1, data.color2)}" data-export-card="toypack">
       <div class="toy-hole"></div>
       <div class="toy-cut"><span>✂</span></div>
       ${data.series ? `<div class="toy-series">${e(String(data.series).toUpperCase())}</div>` : ""}
       <div class="toy-pixels" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
       <section class="toy-inner">
         <div class="toy-code">${barcodeBars("NO.01")}</div>
-        <div class="toy-image">
-          ${data.image ? `<img src="${e(data.image)}" alt="">` : `<span></span>`}
-        </div>
+        ${panSurface(data, "image", "toy-image", "", { scale: "imageScale", x: "imagePanX", y: "imagePanY" }, { fit: "contain", filter: "drop-shadow(0 6px 20px rgba(220, 80, 130, 0.15))" })}
         ${data.mainName ? `<h2>${e(data.mainName)}</h2>` : ""}
       </section>
       <div class="toy-badge">+ 한정판 +</div>
@@ -785,14 +803,14 @@ function renderPlaylist(data) {
   `).join("");
   const bg = { white: ["#fffafd", "#fdf2f8", "#ffffff"], soft: ["#fce7f3", "#fbcfe0", "#ffffff"], blush: ["#ffd7e3", "#fbcfe0", "#ffffff"] }[data.bgTone] || ["#fffafd", "#fdf2f8", "#ffffff"];
   return `
-    <article class="card-frame pl-card" style="--pl-acc:${e(data.accentColor)};--pl-bg:${bg[0]};--pl-bg2:${bg[1]};--pl-card:${bg[2]}" data-export-card="playlist">
+    <article class="card-frame pl-card pl-${e(data.layout || "a")}" style="--pl-acc:${e(data.accentColor)};--pl-bg:${bg[0]};--pl-bg2:${bg[1]};--pl-card:${bg[2]}" data-export-card="playlist">
       <header class="pl-top">
         <div class="pl-logo-area">
           <span class="pl-logo-label">playlist</span>
           <div class="pl-title-row"><span>${e(data.name || "My Playlist")}</span></div>
         </div>
       </header>
-      <div class="pl-cover ${data.coverImage ? "has-img" : ""}" style="${backgroundStyle(data.coverImage)}">${data.coverImage ? "" : `<div class="pl-cover-placeholder"><div>${lineIcon('<path d="M12 21s-7-4.5-9.5-9C.5 8 2.5 3 7 3c2 0 3.5 1 5 3 1.5-2 3-3 5-3 4.5 0 6.5 5 4.5 9-2.5 4.5-9.5 9-9.5 9z"/>')}</div><h3>사진 넣기</h3><p>클릭하여 업로드</p></div>`}</div>
+      ${data.coverImage ? panSurface(data, "coverImage", "pl-cover has-img", "COVER", { scale: "coverImageScale", x: "coverImagePanX", y: "coverImagePanY" }) : `<div class="pl-cover"><div class="pl-cover-placeholder"><div>${lineIcon('<path d="M12 21s-7-4.5-9.5-9C.5 8 2.5 3 7 3c2 0 3.5 1 5 3 1.5-2 3-3 5-3 4.5 0 6.5 5 4.5 9-2.5 4.5-9.5 9-9.5 9z"/>')}</div><h3>사진 넣기</h3><p>클릭하여 업로드</p></div></div>`}
       <div class="pl-meta"><span>♥</span><b>${(data.tracks || []).length} TRACKS</b></div>
       <div class="pl-divider"><i></i><span>♥ Tracks</span><i></i></div>
       <section class="pl-list">${tracks || `<div class="pl-empty"><div class="pl-empty-icon">${lineIcon('<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>')}</div><h3>아직 비어 있어요</h3><p>추가 버튼으로 트랙을 넣어보세요</p></div>`}</section>
@@ -807,37 +825,48 @@ function renderRenaiTvShow(data) {
     <article class="card-frame renai-stage${data.singleMode ? " single" : ""}" style="--rn-theme:${e(data.themeColor)};--rn-deep:${e(data.themeDeep)};--rn-bg1:${e(data.bg1)};--rn-bg2:${e(data.bg2)}" data-export-card="renaitvshow">
       <div class="renai-pattern"></div>
       <span class="renai-corner tl">✦</span><span class="renai-corner br">✦</span><span class="renai-tag">CHARACTER PROFILE</span>
-      ${renaiSilhouette(data.leftFullImage, "i.")}
+      ${renaiSilhouette(data, "leftFullImage", "i.")}
       <div class="renai-center">
-        ${renaiProfileCard(cardA)}
+        ${renaiProfileCard(data, 0)}
         <div class="renai-relation">
-          ${renaiAvatar(cardA.faceImage, "A")}
+          ${renaiAvatar(data, "cards.0.faceImage", "A")}
           <div><span>→</span><p>${e(data.relationA || "캐릭터 관계 서술")}</p><span>←</span><p>${e(data.relationB || "캐릭터 관계 서술")}</p></div>
-          ${renaiAvatar(cardB.faceImage, "B")}
+          ${renaiAvatar(data, "cards.1.faceImage", "B")}
         </div>
-        ${renaiProfileCard(cardB)}
+        ${renaiProfileCard(data, 1)}
       </div>
-      ${renaiSilhouette(data.rightFullImage, "ii.")}
+      ${renaiSilhouette(data, "rightFullImage", "ii.")}
     </article>
   `;
 }
 
-function renaiProfileCard(card) {
+function renaiProfileCard(data, index) {
+  const card = data.cards?.[index] || {};
   const attrs = (card.attrs || []).map((row) => `<div class="renai-attr"><b>${e(row.label || "")}</b><p>${nl2br(row.value || "")}</p></div>`).join("");
   return `
     <section class="renai-card">
       <header><h2>${e(card.title || "ORIGINAL CHARACTER : NAME")}</h2><span></span><span></span><span></span></header>
-      <div class="renai-card-body"><div class="renai-attrs">${attrs}</div><div class="renai-face">${card.faceImage ? `<img src="${e(card.faceImage)}" alt="">` : `<span>얼굴 이미지</span>`}<div class="renai-colors"><i></i><i></i></div></div></div>
+      <div class="renai-card-body"><div class="renai-attrs">${attrs}</div><div class="renai-face">${renaiFace(data, index)}<div class="renai-colors"><i></i><i></i></div></div></div>
     </section>
   `;
 }
 
-function renaiSilhouette(src, label) {
-  return `<aside class="renai-sil"><b>${label}</b><div>${src ? `<img src="${e(src)}" alt="">` : `<span>전신 PNG</span>`}</div></aside>`;
+function renaiFace(data, index) {
+  const path = `cards.${index}.faceImage`;
+  return getByPath(data, path)
+    ? panSurface(data, path, "renai-face-img", "FACE", { scale: `cards.${index}.faceImageScale`, x: `cards.${index}.faceImagePanX`, y: `cards.${index}.faceImagePanY` })
+    : `<span>얼굴 이미지</span>`;
 }
 
-function renaiAvatar(src, label) {
-  return `<div class="renai-avatar">${src ? `<img src="${e(src)}" alt="">` : `<span>${e(label)}</span>`}</div>`;
+function renaiSilhouette(data, srcPath, label) {
+  const src = getByPath(data, srcPath);
+  return `<aside class="renai-sil"><b>${label}</b>${src ? panSurface(data, srcPath, "renai-sil-img", "FULL", { scale: `${srcPath}Scale`, x: `${srcPath}PanX`, y: `${srcPath}PanY` }, { fit: "contain" }) : `<div><span>전신 PNG</span></div>`}</aside>`;
+}
+
+function renaiAvatar(data, srcPath, label) {
+  return getByPath(data, srcPath)
+    ? panSurface(data, srcPath, "renai-avatar", label, { scale: `${srcPath}Scale`, x: `${srcPath}PanX`, y: `${srcPath}PanY` })
+    : `<div class="renai-avatar"><span>${e(label)}</span></div>`;
 }
 
 function renderLifeFourCut(data) {
@@ -881,9 +910,9 @@ function renderNetflixScreenshot(data) {
     ? `<p style="bottom:92px">${e(data.line1)}</p><p style="bottom:52px">${e(data.line2)}</p>`
     : `<p style="bottom:${data.letterbox ? "52px" : "40px"}">${e(data.line1 || data.line2 || "")}</p>`;
   return `
-    <article class="card-frame ns-card ${data.vignette ? "has-vignette" : ""} ${data.letterbox ? "has-letterbox" : ""} ns-${e(data.subtitleStyle || "netflix")}" style="--ns-filter:${netflixFilter(data)};--ns-x:${e(data.imageX)}%;--ns-y:${e(data.imageY)}%;--ns-z:${(Number(data.imageZoom) || 100) / 100};--ns-bright:${Number(data.brightness) || 1};--ns-sub-y:${y}" data-export-card="netflixscreenshot">
-      ${data.image ? `<img src="${e(data.image)}" alt="">` : `<div class="ns-empty">UPLOAD FRAME</div>`}
-      ${data.blur ? `<div class="ns-blur">${data.image ? `<img src="${e(data.image)}" alt="">` : ""}</div>` : ""}
+    <article class="card-frame ns-card pan-frame ${data.vignette ? "has-vignette" : ""} ${data.letterbox ? "has-letterbox" : ""} ns-${e(data.subtitleStyle || "netflix")}" style="${panStyle(data, { scale: "imageScale", x: "imagePanX", y: "imagePanY" })};--ns-filter:${netflixFilter(data)};--ns-bright:${Number(data.brightness) || 1};--ns-sub-y:${y}" data-export-card="netflixscreenshot" data-bg-pan-surface data-pan-x-field="imagePanX" data-pan-y-field="imagePanY" data-pan-scale-field="imageScale">
+      ${data.image ? `<img class="pan-img" src="${e(data.image)}" alt="" style="filter:var(--ns-filter)">` : `<div class="ns-empty">UPLOAD FRAME</div>`}
+      ${data.blur ? `<div class="ns-blur">${data.image ? `<img class="pan-img" src="${e(data.image)}" alt="" style="filter:var(--ns-filter) blur(6px)">` : ""}</div>` : ""}
       <div class="ns-subs">${subtitle}</div>
     </article>
   `;
@@ -898,7 +927,7 @@ function renderMovieTicket(data) {
 function renderCinemaTicket(data) {
   return `
     <section class="tk-movie" data-export-card="movieticket">
-      <div class="tk-movie-main"><div class="tk-movie-head">ADMIT ONE ✦ CINEMA</div>${ticketImage(data.image, "tk-movie-img")}<h1>${e(data.title || "MOVIE TITLE")}</h1><h2>${e(data.subtitle || "")}</h2><p>${e(data.cast || "")}</p>
+      <div class="tk-movie-main"><div class="tk-movie-head">ADMIT ONE ✦ CINEMA</div>${ticketImage(data, "tk-movie-img")}<h1>${e(data.title || "MOVIE TITLE")}</h1><h2>${e(data.subtitle || "")}</h2><p>${e(data.cast || "")}</p>
       <div class="tk-info">${ticketInfo("DATE", data.date)}${ticketInfo("TIME", data.time)}${ticketInfo("SEAT", data.seat)}${ticketInfo("INFO", data.info)}</div></div>
       <footer><div>${barcodeBars(data.title || "MOVIE")}</div><span>${e(data.stubText || "THANK YOU FOR COMING")}</span></footer>
     </section>
@@ -908,7 +937,7 @@ function renderCinemaTicket(data) {
 function renderBoardingPass(data) {
   return `
     <section class="tk-boarding" data-export-card="movieticket">
-      <main><header><b>${e(data.airline || "AIRLINE NAME")}</b><span>${e(data.classBadge || "FIRST CLASS")}</span></header><div class="tk-bp-body">${ticketImage(data.image, "tk-bp-img")}<div><div class="tk-route"><section><b>${e(data.fromCode || "ICN")}</b><span>${e(data.fromCity || "SEOUL")}</span></section><i>✈</i><section><b>${e(data.toCode || "JFK")}</b><span>${e(data.toCity || "NEW YORK")}</span></section></div><div class="tk-grid">${ticketInfo("PASSENGER", data.passenger, true)}${ticketInfo("FLIGHT", data.flight)}${ticketInfo("DATE", data.date)}${ticketInfo("TIME", data.time)}${ticketInfo("GATE", data.gate)}${ticketInfo("SEAT", data.seat)}${ticketInfo("REMARKS", data.info)}</div></div></div></main>
+      <main><header><b>${e(data.airline || "AIRLINE NAME")}</b><span>${e(data.classBadge || "FIRST CLASS")}</span></header><div class="tk-bp-body">${ticketImage(data, "tk-bp-img")}<div><div class="tk-route"><section><b>${e(data.fromCode || "ICN")}</b><span>${e(data.fromCity || "SEOUL")}</span></section><i>✈</i><section><b>${e(data.toCode || "JFK")}</b><span>${e(data.toCity || "NEW YORK")}</span></section></div><div class="tk-grid">${ticketInfo("PASSENGER", data.passenger, true)}${ticketInfo("FLIGHT", data.flight)}${ticketInfo("DATE", data.date)}${ticketInfo("TIME", data.time)}${ticketInfo("GATE", data.gate)}${ticketInfo("SEAT", data.seat)}${ticketInfo("REMARKS", data.info)}</div></div></div></main>
       <aside><small>BOARDING PASS</small><h2>${e(data.fromCode || "ICN")} <span>➔</span> ${e(data.toCode || "JFK")}</h2><div><small>SEAT</small><b>${e(data.seat || "01A")}</b></div>${barcodeBars(data.flight || "FL000")}</aside>
     </section>
   `;
@@ -920,7 +949,7 @@ function renderReceipt(data) {
     <section class="tk-receipt" data-export-card="movieticket">
       <header><h1>${e(data.receiptStore || "STORE NAME")}</h1><small>RECEIPT OF TRANSACTION</small></header>
       <div class="tk-rc-meta">${idRow("Date:", data.date)}${idRow("Order:", data.order)}${idRow("Client:", data.client)}${idRow("Server:", data.server)}</div>
-      ${ticketImage(data.image, "tk-rc-img")}
+      ${ticketImage(data, "tk-rc-img")}
       <table><thead><tr><th>ITEM</th><th>PRICE</th></tr></thead><tbody>${rows}</tbody></table>
       <div class="tk-total"><span>TOTAL</span><b>${e(data.total || "30,000")}</b></div>
       <footer>${barcodeBars(data.order || "#00142")}<span>${e(data.receiptMessage || "HAVE A NICE DAY")}</span></footer>
@@ -959,7 +988,7 @@ function renderPosterBook(data) {
         </div>
         <div class="book-pages"></div>
         <div class="${coverClass}">
-          <div class="cover-bg" style="${posterCoverBg(data)}"></div>
+          ${posterCoverLayer(data)}
           <div class="sheen-overlay"></div>
           <div class="deco-group${data.showText !== false ? " visible" : ""} book-deco-frame"></div>
           ${posterPlaceholder("📖")}
@@ -980,7 +1009,7 @@ function renderPosterMagazine(data) {
   return `
     <div class="mockup-magazine">
       <div class="${coverClass}">
-        <div class="cover-bg" style="${posterCoverBg(data)}"></div>
+        ${posterCoverLayer(data)}
         <div class="sheen-overlay"></div>
         <div class="deco-group${data.showText !== false ? " visible" : ""} mag-masthead text-drag center-x">${e(data.magazineMasthead || "MAGAZINE")}</div>
         <div class="deco-group${data.showText !== false ? " visible" : ""} mag-side-text text-drag">${e(data.magazineSideText || "ISSUE NO. 01 / SPRING 2026")}</div>
@@ -1010,7 +1039,7 @@ function renderPosterMovie(data) {
   return `
     <div class="mockup-movie">
       <div class="${coverClass}">
-        <div class="cover-bg" style="${posterCoverBg(data)}"></div>
+        ${posterCoverLayer(data)}
         <div class="sheen-overlay"></div>
         <div class="deco-group${creditsVisible ? " visible" : ""} movie-laurel text-drag center-x">
           <svg viewBox="0 0 100 40" style="pointer-events:none; width:45px; height:18px; fill:currentColor;">
@@ -1042,7 +1071,7 @@ function renderPosterDevice(data) {
       <div class="device-frame">
         <div class="device-notch"></div>
         <div class="${coverClass}">
-          <div class="cover-bg" style="${posterCoverBg(data)}"></div>
+          ${posterCoverLayer(data)}
           <div class="deco-group${data.showText !== false ? " visible" : ""} app-ui-top">
             <div class="app-status-bar">
               <span class="text-drag">${e(data.webStatusLeft || "12:26")}</span>
@@ -1070,6 +1099,13 @@ function renderPosterDevice(data) {
 
 function posterCoverClass(data, baseClass) {
   return `${baseClass} draggable-cover${data.image ? " has-image" : ""}${data.showSheen !== false ? " has-sheen" : ""}`;
+}
+
+function posterCoverLayer(data) {
+  const brightness = Math.max(0.3, (Number(data.brightness) || 100) / 100);
+  return data.image
+    ? panSurface(data, "image", "cover-bg", "", { scale: "imageScale", x: "imagePanX", y: "imagePanY" }, { filter: `brightness(${brightness})` })
+    : `<div class="cover-bg"></div>`;
 }
 
 function posterCoverBg(data, spine = false) {
@@ -1746,7 +1782,7 @@ function renderRpgMaker(data) {
   const json = JSON.stringify(state).replaceAll("<", "\\u003c").replaceAll(">", "\\u003e");
   return `
     <article class="card-frame rpgmaker-card" data-export-card="rpgmaker" data-rpgmaker-card>
-      <canvas class="rpgmaker-canvas" width="${size[0]}" height="${size[1]}"></canvas>
+      <canvas class="rpgmaker-canvas" width="${size[0]}" height="${size[1]}" data-bg-pan-surface data-pan-x-field="panX" data-pan-y-field="panY" data-pan-scale-field="bgScale" data-pan-live-render="rpgmaker"></canvas>
       <div class="rpgmaker-empty">
         <div class="big">사진을 넣어줘</div>
         <div>왼쪽에서 배경 이미지를 올리면<br>바로 픽셀풍 + 메시지 창이 합성돼</div>
@@ -1764,7 +1800,7 @@ function normalizeRpgMakerState(data) {
   };
   return {
     bgImage: data.bgImage || "",
-    bgScale: number(data.bgScale, 1),
+    bgScale: normalizeRpgMakerScale(number(data.bgScale, 100)),
     panX: number(data.panX, 0),
     panY: number(data.panY, 0),
     pixelSize: number(data.pixelSize, 6),
@@ -1861,7 +1897,7 @@ function installRpgMakerHydrator() {
     const opacity = num(data.boxOpacity, 86);
     return {
       bgImage: data.bgImage || "",
-      bgScale: Math.max(1, Math.min(4, num(data.bgScale, 1))),
+      bgScale: Math.max(1, Math.min(4, num(data.bgScale, 1) > 10 ? num(data.bgScale, 100) / 100 : num(data.bgScale, 1))),
       panX: num(data.panX, 0),
       panY: num(data.panY, 0),
       pixelSize: Math.max(1, num(data.pixelSize, 6) | 0),
@@ -2283,8 +2319,16 @@ function anonBookmarkIcon() {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="#ffb300"><path d="M5 2h14a1 1 0 0 1 1 1v19.143a.5.5 0 0 1-.766.424L12 18.03l-7.234 4.536A.5.5 0 0 1 4 22.143V3a1 1 0 0 1 1-1z"/></svg>`;
 }
 
-function ticketImage(src, className) {
-  return `<div class="${className} tk-img">${src ? `<img src="${e(src)}" alt="">` : `<span>+<small>Photo</small></span>`}</div>`;
+function ticketImage(data, className) {
+  return data.image
+    ? panSurface(data, "image", `${className} tk-img`, "Photo", { scale: "imageScale", x: "imagePanX", y: "imagePanY" })
+    : `<div class="${className} tk-img"><span>+<small>Photo</small></span></div>`;
+}
+
+function normalizeRpgMakerScale(value) {
+  const scale = Number(value);
+  if (!Number.isFinite(scale)) return 1;
+  return scale > 10 ? scale / 100 : scale;
 }
 
 function ticketInfo(label, value, full = false) {

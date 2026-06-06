@@ -8,6 +8,7 @@ const { copyStandaloneHtml, downloadStandaloneHtml, exportCardImage } = window.C
 
 let state = mergeState(createDefaultState(), loadStoredState());
 let saveTimer = null;
+let activePanDrag = null;
 
 const elements = {
   styleRail: document.querySelector("#styleRail"),
@@ -62,6 +63,10 @@ function bindEvents() {
   elements.previewRoot.addEventListener("click", handlePreviewAction);
   elements.previewRoot.addEventListener("keydown", handlePreviewKeydown);
   elements.previewRoot.addEventListener("linestamp:update", handleLineStampUpdate);
+  elements.previewRoot.addEventListener("pointerdown", handlePanPointerDown);
+  window.addEventListener("pointermove", handlePanPointerMove);
+  window.addEventListener("pointerup", finishPanDrag);
+  window.addEventListener("pointercancel", finishPanDrag);
 
   elements.collapseGroupsButton.addEventListener("click", () => {
     STYLE_GROUPS.forEach((group) => {
@@ -154,6 +159,7 @@ async function handleFieldChange(event) {
     const dataUrl = await fileToDataUrl(file);
     const activeData = getActiveData();
     setByPath(activeData, imageInput.dataset.imageField, dataUrl);
+    resetPanForImageField(activeData, imageInput.dataset.imageField);
     if (getActiveConfig().baseStyle === "linestamp" && imageInput.dataset.imageField === "backgroundImage") {
       activeData.bgPanX = "";
       activeData.bgPanY = "";
@@ -186,6 +192,20 @@ function handleEditorAction(event) {
   const activeData = getActiveData();
   const action = button.dataset.action;
 
+  if (action === "reset-pan") {
+    resetPanFields(
+      activeData,
+      button.dataset.panScaleField,
+      button.dataset.panXField,
+      button.dataset.panYField,
+      Number(button.dataset.panScaleDefault) || 100,
+    );
+    renderEditorPanel();
+    renderPreview();
+    persistSoon("이미지 위치를 초기화했습니다.");
+    return;
+  }
+
   if (action.startsWith("linestamp-")) {
     handleLineStampEditorAction(action, button, activeData);
     renderEditorPanel();
@@ -210,6 +230,7 @@ function handleEditorAction(event) {
 
   if (action === "clear-image") {
     setByPath(activeData, button.dataset.path, "");
+    resetPanForImageField(activeData, button.dataset.path);
   }
 
   renderEditorPanel();
@@ -257,6 +278,53 @@ function handleLineStampUpdate(event) {
     syncLineStampEditorValues(data);
   }
   persistSoon("라인스탬프 위치를 저장했습니다.");
+}
+
+function handlePanPointerDown(event) {
+  const surface = event.target.closest("[data-bg-pan-surface]");
+  if (!surface || event.button !== 0) return;
+
+  const xPath = surface.dataset.panXField;
+  const yPath = surface.dataset.panYField;
+  if (!xPath || !yPath) return;
+
+  event.preventDefault();
+  const data = getActiveData();
+  activePanDrag = {
+    surface,
+    pointerId: event.pointerId,
+    startClientX: event.clientX,
+    startClientY: event.clientY,
+    startX: Number(getByPath(data, xPath)) || 0,
+    startY: Number(getByPath(data, yPath)) || 0,
+    xPath,
+    yPath,
+  };
+  surface.classList.add("is-pan-dragging");
+  surface.setPointerCapture?.(event.pointerId);
+}
+
+function handlePanPointerMove(event) {
+  if (!activePanDrag) return;
+  const dx = event.clientX - activePanDrag.startClientX;
+  const dy = event.clientY - activePanDrag.startClientY;
+  const nextX = Math.round(activePanDrag.startX + dx);
+  const nextY = Math.round(activePanDrag.startY + dy);
+  const data = getActiveData();
+  setByPath(data, activePanDrag.xPath, nextX);
+  setByPath(data, activePanDrag.yPath, nextY);
+  activePanDrag.surface.style.setProperty("--pan-x", `${nextX}px`);
+  activePanDrag.surface.style.setProperty("--pan-y", `${nextY}px`);
+  syncEditorFieldValue(activePanDrag.xPath, nextX);
+  syncEditorFieldValue(activePanDrag.yPath, nextY);
+  persistSoon("이미지 위치를 저장했습니다.");
+}
+
+function finishPanDrag() {
+  if (!activePanDrag) return;
+  activePanDrag.surface.classList.remove("is-pan-dragging");
+  activePanDrag = null;
+  renderPreview();
 }
 
 function sendNextMessengerItem(card) {
@@ -436,6 +504,38 @@ function syncLineStampEditorValues(data) {
   });
 }
 
+function syncEditorFieldValue(path, value) {
+  const field = Array.from(elements.editorFields.querySelectorAll("[data-field]"))
+    .find((item) => item.dataset.field === path);
+  if (field) field.value = value;
+}
+
+function resetPanFields(data, scalePath, xPath, yPath, scaleDefault = 100) {
+  if (scalePath) setByPath(data, scalePath, scaleDefault);
+  if (xPath) setByPath(data, xPath, 0);
+  if (yPath) setByPath(data, yPath, 0);
+}
+
+function resetPanForImageField(data, imagePath) {
+  const scalePath = `${imagePath}Scale`;
+  const xPath = `${imagePath}PanX`;
+  const yPath = `${imagePath}PanY`;
+  if (getByPath(data, scalePath) != null || getByPath(data, xPath) != null || getByPath(data, yPath) != null) {
+    resetPanFields(data, scalePath, xPath, yPath);
+    return;
+  }
+
+  const aliases = {
+    coverImage: ["imageScale", "imagePanX", "imagePanY"],
+    image: ["imageScale", "imagePanX", "imagePanY"],
+    photo: ["photoScale", "photoPanX", "photoPanY"],
+    mainImage: ["mainImageScale", "mainImagePanX", "mainImagePanY"],
+    bannerImage: ["bannerImageScale", "bannerImagePanX", "bannerImagePanY"],
+    bgImage: ["bgScale", "panX", "panY"],
+  }[imagePath];
+  if (aliases) resetPanFields(data, aliases[0], aliases[1], aliases[2]);
+}
+
 function writeFieldValue(field) {
   const value = field.type === "checkbox" ? field.checked : field.value;
   setByPath(getActiveData(), field.dataset.field, value);
@@ -571,6 +671,7 @@ function normalizeState() {
     timeline: "timeline-profile",
     couple: "couple-type-b",
     messenger: "messenger-html",
+    "playlist-type-b": "playlist-card",
   };
 
   if (legacyMap[state.activeStyle]) {
@@ -583,6 +684,7 @@ function normalizeState() {
 
   normalizeMessengerData();
   normalizeInstagramData();
+  normalizePanData();
   normalizeLineStampData();
   applyActiveVariant();
 }
@@ -604,6 +706,39 @@ function normalizeMessengerData() {
     image2: message.image2 || (Array.isArray(message.images) ? message.images[1] : "") || "",
     text: message.text || "",
   }));
+}
+
+function normalizePanData() {
+  const s = state.styles || {};
+  ensurePan(s.musicplayer, "imageScale", "imagePanX", "imagePanY");
+  ensurePan(s.timeline, "mainImageScale", "mainImagePanX", "mainImagePanY");
+  ensurePan(s.couple, "bannerImageScale", "bannerImagePanX", "bannerImagePanY");
+  ensurePan(s.couple?.personA, "imageScale", "imagePanX", "imagePanY");
+  ensurePan(s.couple?.personB, "imageScale", "imagePanX", "imagePanY");
+  ensurePan(s.catchphrase, "imageScale", "imagePanX", "imagePanY", Number(s.catchphrase?.imageZoom) || 100);
+  ensurePan(s.tamagotchi, "imageScale", "imagePanX", "imagePanY", Number(s.tamagotchi?.imageZoom) || 100);
+  ensurePan(s.idcard, "photoScale", "photoPanX", "photoPanY");
+  ensurePan(s.toypack, "imageScale", "imagePanX", "imagePanY", Number(s.toypack?.imageZoom) || 100);
+  ensurePan(s.playlist, "coverImageScale", "coverImagePanX", "coverImagePanY");
+  ensurePan(s.renaitvshow, "leftFullImageScale", "leftFullImagePanX", "leftFullImagePanY");
+  ensurePan(s.renaitvshow, "rightFullImageScale", "rightFullImagePanX", "rightFullImagePanY");
+  (s.renaitvshow?.cards || []).forEach((card) => ensurePan(card, "faceImageScale", "faceImagePanX", "faceImagePanY"));
+  ensurePan(s.netflixscreenshot, "imageScale", "imagePanX", "imagePanY", Number(s.netflixscreenshot?.imageZoom) || 100);
+  ensurePan(s.movieticket, "imageScale", "imagePanX", "imagePanY");
+  ensurePan(s.poster, "imageScale", "imagePanX", "imagePanY", Number(s.poster?.zoom) || 100);
+  if (s.rpgmaker) {
+    const scale = Number(s.rpgmaker.bgScale);
+    s.rpgmaker.bgScale = scale > 10 ? Math.max(100, Math.min(400, scale)) : Math.max(100, Math.min(400, (scale || 1) * 100));
+    s.rpgmaker.panX = Number.isFinite(Number(s.rpgmaker.panX)) ? Number(s.rpgmaker.panX) : 0;
+    s.rpgmaker.panY = Number.isFinite(Number(s.rpgmaker.panY)) ? Number(s.rpgmaker.panY) : 0;
+  }
+}
+
+function ensurePan(data, scaleKey, xKey, yKey, fallbackScale = 100) {
+  if (!data) return;
+  data[scaleKey] = Number.isFinite(Number(data[scaleKey])) ? Number(data[scaleKey]) : fallbackScale;
+  data[xKey] = Number.isFinite(Number(data[xKey])) ? Number(data[xKey]) : 0;
+  data[yKey] = Number.isFinite(Number(data[yKey])) ? Number(data[yKey]) : 0;
 }
 
 function normalizeLineStampData() {

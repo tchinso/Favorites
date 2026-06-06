@@ -11,6 +11,10 @@ async function exportCardImage(styleId) {
     const exported = await window.CardStudioLineStampExport(makeFilename(styleId, "png"));
     if (exported) return;
   }
+  if (config.baseStyle === "musicplayer2") {
+    const exported = await exportMusicPlayer2(makeFilename(styleId, "png"));
+    if (exported) return;
+  }
   const target = document.querySelector("[data-export-card]");
   if (!target) throw new Error("내보낼 미리보기를 찾을 수 없습니다.");
   if (!window.html2canvas) throw new Error("이미지 내보내기 라이브러리가 아직 로드되지 않았습니다.");
@@ -37,6 +41,15 @@ async function exportCardImage(styleId) {
 }
 
 async function buildStandaloneHtml(styleId, label, cardHtml) {
+  const config = STYLE_CONFIGS.find((item) => item.id === styleId);
+  if (config?.baseStyle === "musicplayer2") {
+    try {
+      const response = await fetch("musicplayer2.html");
+      if (response.ok) return await response.text();
+    } catch {
+      // Fall through to the regular iframe wrapper when the source file cannot be fetched.
+    }
+  }
   const css = await collectCssText();
   const portableCardHtml = await inlineLocalImageSources(cardHtml);
   const title = `${label} Card`;
@@ -62,6 +75,38 @@ body {
   place-items: center;
   background: #f3f4f6;
   padding: 24px;
+}
+
+async function exportMusicPlayer2(filename) {
+  const frame = document.querySelector(".musicplayer2-frame");
+  const doc = frame?.contentDocument;
+  const win = frame?.contentWindow;
+  const target = doc?.querySelector("#editor-body");
+  const capture = win?.html2canvas || window.html2canvas;
+  if (!target || !capture) return false;
+
+  const canvas = await capture(target, {
+    backgroundColor: null,
+    scale: 2,
+    useCORS: true,
+    logging: false,
+    onclone: (clonedDoc) => {
+      const clonedTarget = clonedDoc.querySelector("#editor-body");
+      if (!clonedTarget) return;
+      clonedTarget.style.width = "1150px";
+      clonedTarget.style.maxWidth = "1150px";
+      clonedTarget.style.padding = "50px 60px";
+      clonedTarget.style.boxShadow = "none";
+    },
+  });
+
+  const link = document.createElement("a");
+  link.download = filename;
+  link.href = canvas.toDataURL("image/png", 1.0);
+  document.body.append(link);
+  link.click();
+  link.remove();
+  return true;
 }
 .app-shell, .editor-panel, .preview-toolbar, .style-rail, .toast { display: none !important; }
 .preview-stage { all: unset; display: block; }

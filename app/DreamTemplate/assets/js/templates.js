@@ -11,6 +11,7 @@ function renderEditor(styleId, data) {
     wiki: wikiEditor,
     netflix: netflixEditor,
     musicplayer: musicEditor,
+    musicplayer2: musicPlayer2Editor,
     timeline: timelineEditor,
     couple: coupleEditor,
     messenger: messengerEditor,
@@ -98,6 +99,21 @@ function imageField(data, path, label) {
         </div>
       </div>
     </div>
+  `;
+}
+
+function panFields(data, scalePath, xPath, yPath, options = {}) {
+  const min = options.min ?? 10;
+  const max = options.max ?? 300;
+  const step = options.step ?? 1;
+  const scaleLabel = options.scaleLabel || "배경 크기";
+  return `
+    <div class="grid-3">
+      ${field(data, scalePath, scaleLabel, { type: "range", min, max, step })}
+      ${field(data, xPath, "배경 X", { type: "number", step: 1 })}
+      ${field(data, yPath, "배경 Y", { type: "number", step: 1 })}
+    </div>
+    <button type="button" class="ghost-button" data-action="reset-pan" data-pan-scale-field="${a(scalePath)}" data-pan-x-field="${a(xPath)}" data-pan-y-field="${a(yPath)}" data-pan-scale-default="${a(options.defaultScale ?? 100)}">배경 위치 초기화</button>
   `;
 }
 
@@ -306,6 +322,7 @@ function netflixEditor(data) {
 function musicEditor(data) {
   return section("음악 카드", `
     ${imageField(data, "coverImage", "커버 이미지")}
+    ${panFields(data, "imageScale", "imagePanX", "imagePanY")}
     ${field(data, "title", "제목")}
     ${field(data, "artist", "아티스트")}
     ${field(data, "copyright", "출처")}
@@ -314,10 +331,17 @@ function musicEditor(data) {
   `);
 }
 
+function musicPlayer2Editor() {
+  return section("Music Player B", `
+    <p class="editor-note">musicplayer2.html 원본 편집기를 그대로 불러옵니다.</p>
+  `);
+}
+
 function timelineEditor(data) {
   return section("프로필", `
     ${field(data, "themeColor", "포인트색", { type: "color" })}
     ${imageField(data, "mainImage", "메인 이미지")}
+    ${panFields(data, "mainImageScale", "mainImagePanX", "mainImagePanY")}
     ${imageField(data, "stickerImage", "스티커 이미지")}
     ${field(data, "copyright", "출처")}
     ${field(data, "catchphrase", "캐치프레이즈")}
@@ -338,6 +362,7 @@ function timelineEditor(data) {
 function coupleEditor(data) {
   const person = (prefix, title) => section(title, `
     ${imageField(data, `${prefix}.image`, "프로필 이미지")}
+    ${panFields(data, `${prefix}.imageScale`, `${prefix}.imagePanX`, `${prefix}.imagePanY`)}
     ${field(data, `${prefix}.copyright`, "출처")}
     ${field(data, `${prefix}.catchphrase`, "캐치프레이즈")}
     ${field(data, `${prefix}.name`, "이름")}
@@ -351,6 +376,7 @@ function coupleEditor(data) {
     ])}
     ${field(data, "pairName", "페어명")}
     ${imageField(data, "bannerImage", "공통 배너")}
+    ${panFields(data, "bannerImageScale", "bannerImagePanX", "bannerImagePanY")}
     <div class="grid-3">${field(data, "colorA", "A 색", { type: "color" })}${field(data, "colorB", "B 색", { type: "color" })}${field(data, "colorCommon", "공통 색", { type: "color" })}</div>
   `) + person("personA", "A 프로필") + person("personB", "B 프로필") + section("관계 타임라인", `
     ${field(data, "timelineTitle", "타임라인 제목")}
@@ -391,11 +417,7 @@ function messengerEditor(data) {
 function catchphraseEditor(data) {
   return section("이미지", `
     ${imageField(data, "image", "메인 이미지")}
-    <div class="grid-3">
-      ${field(data, "imageX", "이미지 X", { type: "range", min: 0, max: 100 })}
-      ${field(data, "imageY", "이미지 Y", { type: "range", min: 0, max: 100 })}
-      ${field(data, "imageZoom", "이미지 크기", { type: "range", min: 60, max: 200 })}
-    </div>
+    ${panFields(data, "imageScale", "imagePanX", "imagePanY", { min: 60, max: 220 })}
   `) + section("텍스트", `
     ${field(data, "name", "이름")}
     ${field(data, "keyTop", "상단 키워드")}
@@ -430,11 +452,7 @@ function tamagotchiEditor(data) {
       { value: "lemon", label: "Lemon" },
     ])}
     ${imageField(data, "image", "캐릭터 이미지")}
-    <div class="grid-3">
-      ${field(data, "imageX", "이미지 X", { type: "range", min: -120, max: 120 })}
-      ${field(data, "imageY", "이미지 Y", { type: "range", min: -120, max: 120 })}
-      ${field(data, "imageZoom", "이미지 크기", { type: "range", min: 40, max: 220 })}
-    </div>
+    ${panFields(data, "imageScale", "imagePanX", "imagePanY", { min: 40, max: 220 })}
     ${field(data, "name", "이름", { placeholder: "최대 8자" })}
     <div class="grid-3">${field(data, "days", "DAYS")}${field(data, "hearts", "하트")}${field(data, "stars", "별")}</div>
   `);
@@ -458,6 +476,7 @@ function idCardEditor(data) {
       { value: "light", label: "Light" },
     ])}
     <div class="grid-2">${field(data, "accentColor", "포인트색", { type: "color" })}${imageField(data, "photo", "증명사진")}</div>
+    ${panFields(data, "photoScale", "photoPanX", "photoPanY")}
   `);
   const type = data.type || "company";
   const fields = {
@@ -506,11 +525,7 @@ function idCardEditor(data) {
 function toypackEditor(data) {
   return section("이미지/이름", `
     ${imageField(data, "image", "패키지 이미지")}
-    <div class="grid-3">
-      ${field(data, "imageX", "이미지 X", { type: "range", min: -140, max: 140 })}
-      ${field(data, "imageY", "이미지 Y", { type: "range", min: -140, max: 140 })}
-      ${field(data, "imageZoom", "이미지 크기", { type: "range", min: 20, max: 300 })}
-    </div>
+    ${panFields(data, "imageScale", "imagePanX", "imagePanY", { min: 20, max: 300 })}
     ${field(data, "mainName", "캐릭터 이름")}
     ${field(data, "subName", "서브 타이틀")}
     ${field(data, "series", "시리즈")}
@@ -529,6 +544,7 @@ function playlistEditor(data) {
   return section("플레이리스트", `
     ${field(data, "name", "플레이리스트 이름")}
     ${imageField(data, "coverImage", "커버 이미지")}
+    ${panFields(data, "coverImageScale", "coverImagePanX", "coverImagePanY")}
     ${field(data, "accentColor", "포인트색", { type: "color" })}
     ${select(data, "bgTone", "배경", [
       { value: "white", label: "화이트" },
@@ -550,6 +566,7 @@ function renaiTvShowEditor(data) {
   const cardEditor = (cardIndex, title) => section(title, `
     ${field(data, `cards.${cardIndex}.title`, "카드 제목")}
     ${imageField(data, `cards.${cardIndex}.faceImage`, "얼굴 이미지")}
+    ${panFields(data, `cards.${cardIndex}.faceImageScale`, `cards.${cardIndex}.faceImagePanX`, `cards.${cardIndex}.faceImagePanY`)}
     ${listHeader("속성", `cards.${cardIndex}.attrs`, "항목 추가")}
     ${(data.cards?.[cardIndex]?.attrs || []).map((_, index) => listItem(`항목 ${index + 1}`, `cards.${cardIndex}.attrs`, index, `
       ${field(data, `cards.${cardIndex}.attrs.${index}.label`, "라벨")}
@@ -560,6 +577,8 @@ function renaiTvShowEditor(data) {
     <div class="grid-3">${field(data, "themeColor", "테마", { type: "color" })}${field(data, "themeDeep", "딥 컬러", { type: "color" })}${checkbox(data, "singleMode", "싱글 모드")}</div>
     <div class="grid-2">${field(data, "bg1", "배경 1", { type: "color" })}${field(data, "bg2", "배경 2", { type: "color" })}</div>
     <div class="grid-2">${imageField(data, "leftFullImage", "왼쪽 전신")}${imageField(data, "rightFullImage", "오른쪽 전신")}</div>
+    ${panFields(data, "leftFullImageScale", "leftFullImagePanX", "leftFullImagePanY")}
+    ${panFields(data, "rightFullImageScale", "rightFullImagePanX", "rightFullImagePanY")}
     ${field(data, "relationA", "관계 화살표 A→B")}
     ${field(data, "relationB", "관계 화살표 B→A")}
   `) + cardEditor(0, "카드 1") + cardEditor(1, "카드 2");
@@ -602,7 +621,7 @@ function photoAlbumEditor(data) {
 function netflixScreenshotEditor(data) {
   return section("프레임", `
     ${imageField(data, "image", "영상 이미지")}
-    <div class="grid-3">${field(data, "imageX", "이미지 X", { type: "range", min: 0, max: 100 })}${field(data, "imageY", "이미지 Y", { type: "range", min: 0, max: 100 })}${field(data, "imageZoom", "이미지 크기", { type: "range", min: 10, max: 300 })}</div>
+    ${panFields(data, "imageScale", "imagePanX", "imagePanY", { min: 10, max: 300 })}
     <div class="grid-2">${field(data, "line1", "상단 자막")}${field(data, "line2", "하단 자막")}</div>
     ${select(data, "subtitleStyle", "자막 스타일", [
       { value: "netflix", label: "Netflix" },
@@ -633,6 +652,7 @@ function movieTicketEditor(data) {
     ])}
     <div class="grid-2">${field(data, "color1", "컬러 1", { type: "color" })}${field(data, "color2", "컬러 2", { type: "color" })}</div>
     ${imageField(data, "image", "사진")}
+    ${panFields(data, "imageScale", "imagePanX", "imagePanY")}
   `);
   const type = data.ticketType || "movie";
   const fields = {
@@ -690,11 +710,7 @@ function internetBoardEditor(data) {
 function rpgMakerEditor(data) {
   return section("배경", `
     ${imageField(data, "bgImage", "배경 사진")}
-    <div class="grid-3">
-      ${field(data, "bgScale", "이미지 확대", { type: "range", min: 1, max: 4, step: 0.01 })}
-      ${field(data, "panX", "이미지 X", { type: "range", min: -400, max: 400 })}
-      ${field(data, "panY", "이미지 Y", { type: "range", min: -400, max: 400 })}
-    </div>
+    ${panFields(data, "bgScale", "panX", "panY", { min: 100, max: 400, defaultScale: 100 })}
     <div class="grid-2">
       ${field(data, "pixelSize", "픽셀 크기", { type: "range", min: 1, max: 20 })}
       ${field(data, "levels", "색 단계", { type: "range", min: 2, max: 32 })}
@@ -875,8 +891,8 @@ function posterEditor(data) {
       { value: "device", label: "웹소설" },
     ])}
     ${imageField(data, "image", "표지 이미지")}
-    <div class="grid-2">${field(data, "imageX", "이미지 X", { type: "range", min: 0, max: 100 })}${field(data, "imageY", "이미지 Y", { type: "range", min: 0, max: 100 })}</div>
-    <div class="grid-2">${field(data, "zoom", "이미지 확대", { type: "range", min: 100, max: 250 })}${field(data, "brightness", "이미지 밝기", { type: "range", min: 30, max: 150 })}</div>
+    ${panFields(data, "imageScale", "imagePanX", "imagePanY", { min: 100, max: 250 })}
+    ${field(data, "brightness", "이미지 밝기", { type: "range", min: 30, max: 150 })}
   `);
 
   const style = section("스타일", `
