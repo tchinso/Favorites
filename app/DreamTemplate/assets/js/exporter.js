@@ -115,7 +115,7 @@ async function exportMusicPlayer2(filename) {
 
 async function captureElementAsRenderedCanvas(target) {
   if (!navigator.mediaDevices?.getDisplayMedia) {
-    throw new Error("모바일이거나 브라우저가 캡쳐API를 지원하지 않아, 직접 캡쳐해야 합니다. 안드로이드는 브라우저에서 데스크탑 모드를 켜서 캡쳐하는 것을 권장합니다.");
+    throw new Error("모바일이거나 브라우저가 캡쳐API를 지원하지 않아, 직접 캡쳐해야 합니다. 모바일은 브라우저에서 데스크탑 모드를 켜서 캡쳐하는 것을 권장합니다.");
   }
 
   const rect = target.getBoundingClientRect();
