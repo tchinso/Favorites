@@ -115,7 +115,7 @@ async function exportMusicPlayer2(filename) {
 
 async function captureElementAsRenderedCanvas(target) {
   if (!navigator.mediaDevices?.getDisplayMedia) {
-    throw new Error("브라우저 화면 캡처를 지원하지 않아 PNG로 내보낼 수 없습니다.");
+    throw new Error("모바일 환경이거나 브라우저가 화면캡쳐를 지원하지 않습니다. HTML로 내보낸 후 캡쳐해야 합니다.");
   }
 
   const rect = target.getBoundingClientRect();
