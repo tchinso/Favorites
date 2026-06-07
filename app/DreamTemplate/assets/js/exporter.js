@@ -1,11 +1,11 @@
-(() => {
+﻿(() => {
 const { STYLE_CONFIGS } = window.CardStudioDefaults;
 const { downloadText, makeFilename } = window.CardStudioUtils;
 
 async function exportCardImage(styleId) {
   const config = STYLE_CONFIGS.find((item) => item.id === styleId);
   if (!config?.canExportImage) {
-    throw new Error("이 스타일은 HTML 내보내기만 지원합니다.");
+    throw new Error("???ㅽ??쇱? HTML ?대낫?닿린留?吏?먰빀?덈떎.");
   }
   if (config.baseStyle === "linestamp" && window.CardStudioLineStampExport) {
     const exported = await window.CardStudioLineStampExport(makeFilename(styleId, "png"));
@@ -16,19 +16,12 @@ async function exportCardImage(styleId) {
     if (exported) return;
   }
   const target = document.querySelector("[data-export-card]");
-  if (!target) throw new Error("내보낼 미리보기를 찾을 수 없습니다.");
-  if (!window.html2canvas) throw new Error("이미지 내보내기 라이브러리가 아직 로드되지 않았습니다.");
+  if (!target) throw new Error("?대낫??誘몃━蹂닿린瑜?李얠쓣 ???놁뒿?덈떎.");
 
   target.classList.add("is-exporting");
   let canvas;
   try {
-    canvas = await window.html2canvas(target, {
-      backgroundColor: null,
-      scale: Math.max(2, Math.min(3, window.devicePixelRatio || 2)),
-      useCORS: true,
-      logging: false,
-      onclone: normalizePanImagesForCanvas,
-    });
+    canvas = await captureElementAsRenderedCanvas(target);
   } finally {
     target.classList.remove("is-exporting");
   }
@@ -120,32 +113,72 @@ async function exportMusicPlayer2(filename) {
   return true;
 }
 
-function normalizePanImagesForCanvas(clonedDoc) {
-  clonedDoc.querySelectorAll(".pan-frame").forEach((frame) => {
-    const computed = clonedDoc.defaultView?.getComputedStyle(frame);
-    const panX = readCssValue(frame, computed, "--pan-x", "0px");
-    const panY = readCssValue(frame, computed, "--pan-y", "0px");
-    const scale = Math.max(0.1, Number(readCssValue(frame, computed, "--pan-scale", "1")) || 1);
+async function captureElementAsRenderedCanvas(target) {
+  if (!navigator.mediaDevices?.getDisplayMedia) {
+    throw new Error("브라우저 화면 캡처를 지원하지 않아 PNG로 내보낼 수 없습니다.");
+  }
 
-    Array.from(frame.querySelectorAll(".pan-img"))
-      .filter((img) => img.closest(".pan-frame") === frame)
-      .forEach((img) => {
-        img.style.setProperty("inset", "auto", "important");
-        img.style.setProperty("left", `calc(50% + ${panX})`, "important");
-        img.style.setProperty("top", `calc(50% + ${panY})`, "important");
-        img.style.setProperty("width", `${scale * 100}%`, "important");
-        img.style.setProperty("height", `${scale * 100}%`, "important");
-        img.style.setProperty("transform", "translate(-50%, -50%)", "important");
-        img.style.setProperty("transform-origin", "center center", "important");
-      });
+  const rect = target.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) {
+    throw new Error("PNG로 내보낼 미리보기 영역을 찾을 수 없습니다.");
+  }
+  if (rect.right <= 0 || rect.bottom <= 0 || rect.left >= window.innerWidth || rect.top >= window.innerHeight) {
+    throw new Error("미리보기 카드가 화면 안에 보이도록 스크롤한 뒤 다시 내보내 주세요.");
+  }
+
+  const stream = await navigator.mediaDevices.getDisplayMedia({
+    video: {
+      displaySurface: "browser",
+    },
+    preferCurrentTab: true,
+    audio: false,
   });
+
+  let video;
+  try {
+    video = await streamToVideo(stream);
+    const scaleX = video.videoWidth / window.innerWidth;
+    const scaleY = video.videoHeight / window.innerHeight;
+    const sourceX = Math.max(0, Math.round(rect.left * scaleX));
+    const sourceY = Math.max(0, Math.round(rect.top * scaleY));
+    const sourceWidth = Math.min(video.videoWidth - sourceX, Math.round(rect.width * scaleX));
+    const sourceHeight = Math.min(video.videoHeight - sourceY, Math.round(rect.height * scaleY));
+    if (sourceWidth <= 0 || sourceHeight <= 0) {
+      throw new Error("미리보기 카드가 화면 안에 보이도록 스크롤한 뒤 다시 내보내 주세요.");
+    }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = sourceWidth;
+    canvas.height = sourceHeight;
+    const context = canvas.getContext("2d");
+    context.drawImage(video, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, sourceWidth, sourceHeight);
+    return canvas;
+  } finally {
+    stream.getTracks().forEach((track) => track.stop());
+    video?.remove();
+  }
 }
 
-function readCssValue(element, computed, name, fallback) {
-  const inlineValue = element.style.getPropertyValue(name).trim();
-  if (inlineValue) return inlineValue;
-  const computedValue = computed?.getPropertyValue(name).trim();
-  return computedValue || fallback;
+function streamToVideo(stream) {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement("video");
+    video.muted = true;
+    video.playsInline = true;
+    video.srcObject = stream;
+    video.onloadedmetadata = async () => {
+      try {
+        await video.play();
+        if (video.videoWidth && video.videoHeight) {
+          resolve(video);
+        } else {
+          reject(new Error("화면 캡처 영상을 읽지 못했습니다."));
+        }
+      } catch (error) {
+        reject(error);
+      }
+    };
+    video.onerror = () => reject(new Error("화면 캡처 영상을 읽지 못했습니다."));
+  });
 }
 
 async function downloadStandaloneHtml(styleId, label, cardHtml) {
