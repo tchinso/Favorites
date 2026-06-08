@@ -308,8 +308,9 @@ function handlePanPointerMove(event) {
   if (!activePanDrag) return;
   const dx = event.clientX - activePanDrag.startClientX;
   const dy = event.clientY - activePanDrag.startClientY;
-  const nextX = Math.round(activePanDrag.startX + dx);
-  const nextY = Math.round(activePanDrag.startY + dy);
+  const next = clampPanSurface(activePanDrag.surface, activePanDrag.startX + dx, activePanDrag.startY + dy);
+  const nextX = Math.round(next.x);
+  const nextY = Math.round(next.y);
   const data = getActiveData();
   setByPath(data, activePanDrag.xPath, nextX);
   setByPath(data, activePanDrag.yPath, nextY);
@@ -325,6 +326,101 @@ function finishPanDrag() {
   activePanDrag.surface.classList.remove("is-pan-dragging");
   activePanDrag = null;
   renderPreview();
+}
+
+function hydratePanSurfaces(root = document) {
+  getPanSurfaces(root).forEach((surface) => updatePanSurfaceMetrics(surface, true));
+}
+
+function getPanSurfaces(root = document) {
+  const surfaces = [];
+  if (root?.matches?.(".pan-frame[data-bg-pan-surface]")) surfaces.push(root);
+  surfaces.push(...Array.from(root?.querySelectorAll?.(".pan-frame[data-bg-pan-surface]") || []));
+  return surfaces;
+}
+
+function updatePanSurfaceMetrics(surface, syncState = false) {
+  if (!surface?.isConnected) return null;
+  const image = getPrimaryPanImage(surface);
+  if (!image) return null;
+  if (!image.complete || !image.naturalWidth || !image.naturalHeight) {
+    image.addEventListener("load", () => {
+      if (surface.isConnected) updatePanSurfaceMetrics(surface, syncState);
+    }, { once: true });
+    return null;
+  }
+
+  const metrics = measurePanSurface(surface, image);
+  if (!metrics) return null;
+  surface.style.setProperty("--pan-render-width", `${metrics.baseWidth}px`);
+  surface.style.setProperty("--pan-render-height", `${metrics.baseHeight}px`);
+
+  const currentX = parseCssNumber(getComputedStyle(surface).getPropertyValue("--pan-x"));
+  const currentY = parseCssNumber(getComputedStyle(surface).getPropertyValue("--pan-y"));
+  const next = clampPanValues(metrics, currentX, currentY);
+  surface.style.setProperty("--pan-x", `${next.x}px`);
+  surface.style.setProperty("--pan-y", `${next.y}px`);
+
+  if (syncState && (next.x !== currentX || next.y !== currentY) && surface.dataset.panXField && surface.dataset.panYField) {
+    const roundedX = Math.round(next.x);
+    const roundedY = Math.round(next.y);
+    const data = getActiveData();
+    setByPath(data, surface.dataset.panXField, roundedX);
+    setByPath(data, surface.dataset.panYField, roundedY);
+    syncEditorFieldValue(surface.dataset.panXField, roundedX);
+    syncEditorFieldValue(surface.dataset.panYField, roundedY);
+  }
+  return metrics;
+}
+
+function getPrimaryPanImage(surface) {
+  return surface.querySelector(".pan-img");
+}
+
+function measurePanSurface(surface, image = getPrimaryPanImage(surface)) {
+  if (!surface || !image?.naturalWidth || !image?.naturalHeight) return null;
+  const rect = surface.getBoundingClientRect();
+  const frameWidth = rect.width;
+  const frameHeight = rect.height;
+  if (frameWidth <= 0 || frameHeight <= 0) return null;
+
+  const fit = image.classList.contains("contain") ? "contain" : "cover";
+  const baseScale = fit === "contain"
+    ? Math.min(frameWidth / image.naturalWidth, frameHeight / image.naturalHeight)
+    : Math.max(frameWidth / image.naturalWidth, frameHeight / image.naturalHeight);
+  const baseWidth = image.naturalWidth * baseScale;
+  const baseHeight = image.naturalHeight * baseScale;
+  const panScale = Math.max(0.01, parseCssNumber(getComputedStyle(surface).getPropertyValue("--pan-scale"), 1));
+  return {
+    fit,
+    frameWidth,
+    frameHeight,
+    baseWidth,
+    baseHeight,
+    panScale,
+    maxX: Math.max(0, (baseWidth * panScale - frameWidth) / 2),
+    maxY: Math.max(0, (baseHeight * panScale - frameHeight) / 2),
+  };
+}
+
+function clampPanSurface(surface, x, y) {
+  const metrics = updatePanSurfaceMetrics(surface, false);
+  return clampPanValues(metrics, x, y);
+}
+
+function clampPanValues(metrics, x, y) {
+  if (!metrics || metrics.fit === "contain") {
+    return { x, y };
+  }
+  return {
+    x: Math.max(-metrics.maxX, Math.min(metrics.maxX, x)),
+    y: Math.max(-metrics.maxY, Math.min(metrics.maxY, y)),
+  };
+}
+
+function parseCssNumber(value, fallback = 0) {
+  const parsed = Number.parseFloat(String(value || "").trim());
+  return Number.isFinite(parsed) ? parsed : fallback;
 }
 
 function sendNextMessengerItem(card) {
@@ -587,6 +683,7 @@ function renderEditorPanel() {
 function renderPreview() {
   elements.previewRoot.innerHTML = renderCurrentCard();
   window.CardStudioRenderers.hydrateCard?.(elements.previewRoot);
+  hydratePanSurfaces(elements.previewRoot);
 }
 
 function renderCurrentCard() {

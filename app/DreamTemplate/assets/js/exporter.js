@@ -110,14 +110,23 @@ async function renderElementToCanvas(target, options = {}) {
   }
 
   await waitForRenderableAssets(target);
-  return capture(target, {
-    backgroundColor: null,
-    scale: getExportScale(),
-    useCORS: true,
-    logging: false,
-    imageTimeout: 15000,
-    ...options,
-  });
+  const restorePanSurfaces = preparePanSurfacesForCapture(target);
+  const { onclone, ...captureOptions } = options;
+  try {
+    return await capture(target, {
+      backgroundColor: null,
+      scale: getExportScale(),
+      useCORS: true,
+      logging: false,
+      imageTimeout: 15000,
+      ...captureOptions,
+      onclone: (clonedDoc, clonedElement) => {
+        onclone?.(clonedDoc, clonedElement);
+      },
+    });
+  } finally {
+    restorePanSurfaces();
+  }
 }
 
 function getHtml2Canvas(doc = document) {
@@ -141,6 +150,122 @@ function waitForImage(img) {
     img.addEventListener("load", resolve, { once: true });
     img.addEventListener("error", resolve, { once: true });
   });
+}
+
+function preparePanSurfacesForCapture(root) {
+  const cleanup = [];
+  const frames = getPanFrames(root);
+  frames.forEach((frame) => {
+    frame.querySelectorAll(".pan-img").forEach((image) => {
+      const canvas = renderPanImageToCanvas(frame, image);
+      if (!canvas) return;
+      const previousVisibility = image.style.visibility;
+      image.style.visibility = "hidden";
+      image.before(canvas);
+      cleanup.push(() => {
+        image.style.visibility = previousVisibility;
+        canvas.remove();
+      });
+    });
+  });
+  return () => cleanup.reverse().forEach((fn) => fn());
+}
+
+function getPanFrames(root) {
+  const frames = [];
+  if (root?.matches?.(".pan-frame")) frames.push(root);
+  frames.push(...Array.from(root?.querySelectorAll?.(".pan-frame") || []));
+  return frames;
+}
+
+function renderPanImageToCanvas(frame, image) {
+  if (!image?.naturalWidth || !image?.naturalHeight) return null;
+  const parent = image.parentElement;
+  if (!parent) return null;
+
+  const frameRect = frame.getBoundingClientRect();
+  const parentRect = parent.getBoundingClientRect();
+  if (frameRect.width <= 0 || frameRect.height <= 0 || parentRect.width <= 0 || parentRect.height <= 0) {
+    return null;
+  }
+
+  const metrics = measurePanImage(frame, image, frameRect);
+  if (!metrics) return null;
+
+  const canvas = frame.ownerDocument.createElement("canvas");
+  const view = frame.ownerDocument.defaultView || window;
+  const pixelRatio = Math.max(1, Math.min(2, view.devicePixelRatio || window.devicePixelRatio || 1));
+  canvas.width = Math.max(1, Math.round(parentRect.width * pixelRatio));
+  canvas.height = Math.max(1, Math.round(parentRect.height * pixelRatio));
+  canvas.className = "pan-export-canvas";
+  Object.assign(canvas.style, {
+    position: "absolute",
+    inset: "0",
+    width: "100%",
+    height: "100%",
+    maxWidth: "none",
+    maxHeight: "none",
+    pointerEvents: "none",
+  });
+
+  const imageStyle = view.getComputedStyle(image);
+  canvas.style.opacity = imageStyle.opacity;
+  canvas.style.mixBlendMode = imageStyle.mixBlendMode;
+  const context = canvas.getContext("2d");
+  context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+  context.clearRect(0, 0, parentRect.width, parentRect.height);
+  context.save();
+  const offsetX = frameRect.left - parentRect.left;
+  const offsetY = frameRect.top - parentRect.top;
+  context.beginPath();
+  context.rect(offsetX, offsetY, frameRect.width, frameRect.height);
+  context.clip();
+  if (imageStyle.filter && imageStyle.filter !== "none") {
+    context.filter = imageStyle.filter;
+  }
+  context.imageSmoothingEnabled = imageStyle.imageRendering !== "pixelated";
+  let didDraw = false;
+  try {
+    context.drawImage(
+      image,
+      offsetX + (frameRect.width - metrics.drawWidth) / 2 + metrics.panX,
+      offsetY + (frameRect.height - metrics.drawHeight) / 2 + metrics.panY,
+      metrics.drawWidth,
+      metrics.drawHeight,
+    );
+    didDraw = true;
+  } catch {
+    // Leave the original image in place when a source cannot be drawn to canvas.
+  }
+  context.restore();
+  return didDraw ? canvas : null;
+}
+
+function measurePanImage(frame, image, frameRect) {
+  const fit = image.classList.contains("contain") ? "contain" : "cover";
+  const baseScale = fit === "contain"
+    ? Math.min(frameRect.width / image.naturalWidth, frameRect.height / image.naturalHeight)
+    : Math.max(frameRect.width / image.naturalWidth, frameRect.height / image.naturalHeight);
+  const view = frame.ownerDocument.defaultView || window;
+  const frameStyle = view.getComputedStyle(frame);
+  const panScale = Math.max(0.01, parseCssNumber(frameStyle.getPropertyValue("--pan-scale"), 1));
+  const baseWidth = image.naturalWidth * baseScale;
+  const baseHeight = image.naturalHeight * baseScale;
+  const maxX = Math.max(0, (baseWidth * panScale - frameRect.width) / 2);
+  const maxY = Math.max(0, (baseHeight * panScale - frameRect.height) / 2);
+  const rawPanX = parseCssNumber(frameStyle.getPropertyValue("--pan-x"));
+  const rawPanY = parseCssNumber(frameStyle.getPropertyValue("--pan-y"));
+  return {
+    drawWidth: baseWidth * panScale,
+    drawHeight: baseHeight * panScale,
+    panX: fit === "contain" ? rawPanX : Math.max(-maxX, Math.min(maxX, rawPanX)),
+    panY: fit === "contain" ? rawPanY : Math.max(-maxY, Math.min(maxY, rawPanY)),
+  };
+}
+
+function parseCssNumber(value, fallback = 0) {
+  const parsed = Number.parseFloat(String(value || "").trim());
+  return Number.isFinite(parsed) ? parsed : fallback;
 }
 
 function downloadCanvas(canvas, filename) {

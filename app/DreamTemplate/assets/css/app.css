@@ -6469,14 +6469,15 @@ button {
 
 .pan-frame .pan-img {
   position: absolute;
-  inset: 0;
-  width: 100% !important;
-  height: 100% !important;
+  left: 50%;
+  top: 50%;
+  width: var(--pan-render-width, 100%) !important;
+  height: var(--pan-render-height, 100%) !important;
   max-width: none !important;
   max-height: none !important;
-  object-fit: cover !important;
+  object-fit: fill !important;
   object-position: center !important;
-  transform: translate(var(--pan-x, 0px), var(--pan-y, 0px)) scale(var(--pan-scale, 1)) !important;
+  transform: translate(calc(-50% + var(--pan-x, 0px)), calc(-50% + var(--pan-y, 0px))) scale(var(--pan-scale, 1)) !important;
   transform-origin: center center !important;
   pointer-events: none;
   user-select: none;
@@ -6484,7 +6485,17 @@ button {
 }
 
 .pan-frame .pan-img.contain {
-  object-fit: contain !important;
+  object-fit: fill !important;
+}
+
+.pan-export-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
+  pointer-events: none;
 }
 
 .pan-frame > span {
