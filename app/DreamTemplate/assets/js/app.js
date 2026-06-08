@@ -85,7 +85,7 @@ function bindEvents() {
   });
 
   elements.imageButton.addEventListener("click", async () => {
-    await runExport(() => exportCardImage(state.activeStyle), "이미지 파일을 저장했습니다. 이미지가 잘린 경우 카드 전체가 화면 안에 들어오도록 조정 후 다시 시도하세요.");
+    await runExport(() => exportCardImage(state.activeStyle), "이미지 파일을 저장했습니다.");
   });
 
   elements.htmlButton.addEventListener("click", async () => {

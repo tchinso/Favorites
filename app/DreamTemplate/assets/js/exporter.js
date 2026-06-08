@@ -5,33 +5,29 @@ const { downloadText, makeFilename } = window.CardStudioUtils;
 async function exportCardImage(styleId) {
   const config = STYLE_CONFIGS.find((item) => item.id === styleId);
   if (!config?.canExportImage) {
-    throw new Error("???ㅽ??쇱? HTML ?대낫?닿린留?吏?먰빀?덈떎.");
+    throw new Error("이 스타일은 HTML 내보내기만 지원합니다.");
   }
+  const filename = makeFilename(styleId, "png");
   if (config.baseStyle === "linestamp" && window.CardStudioLineStampExport) {
-    const exported = await window.CardStudioLineStampExport(makeFilename(styleId, "png"));
+    const exported = await window.CardStudioLineStampExport(filename);
     if (exported) return;
   }
   if (config.baseStyle === "musicplayer2") {
-    const exported = await exportMusicPlayer2(makeFilename(styleId, "png"));
+    const exported = await exportMusicPlayer2(filename);
     if (exported) return;
   }
   const target = document.querySelector("[data-export-card]");
-  if (!target) throw new Error("?대낫??誘몃━蹂닿린瑜?李얠쓣 ???놁뒿?덈떎.");
+  if (!target) throw new Error("내보낼 미리보기를 찾을 수 없습니다.");
 
   target.classList.add("is-exporting");
   let canvas;
   try {
-    canvas = await captureElementAsRenderedCanvas(target);
+    canvas = await renderElementToCanvas(target);
   } finally {
     target.classList.remove("is-exporting");
   }
 
-  const link = document.createElement("a");
-  link.download = makeFilename(styleId, "png");
-  link.href = canvas.toDataURL("image/png", 1.0);
-  document.body.append(link);
-  link.click();
-  link.remove();
+  downloadCanvas(canvas, filename);
 }
 
 async function buildStandaloneHtml(styleId, label, cardHtml) {
@@ -84,16 +80,10 @@ ${styleId === "messenger" || styleId === "messenger-html" ? messengerToggleScrip
 async function exportMusicPlayer2(filename) {
   const frame = document.querySelector(".musicplayer2-frame");
   const doc = frame?.contentDocument;
-  const win = frame?.contentWindow;
   const target = doc?.querySelector("#editor-body");
-  const capture = win?.html2canvas || window.html2canvas;
-  if (!target || !capture) return false;
+  if (!target) return false;
 
-  const canvas = await capture(target, {
-    backgroundColor: null,
-    scale: 2,
-    useCORS: true,
-    logging: false,
+  const canvas = await renderElementToCanvas(target, {
     onclone: (clonedDoc) => {
       const clonedTarget = clonedDoc.querySelector("#editor-body");
       if (!clonedTarget) return;
@@ -104,81 +94,62 @@ async function exportMusicPlayer2(filename) {
     },
   });
 
+  downloadCanvas(canvas, filename);
+  return true;
+}
+
+async function renderElementToCanvas(target, options = {}) {
+  const rect = target.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) {
+    throw new Error("PNG로 내보낼 미리보기 영역을 찾을 수 없습니다.");
+  }
+
+  const capture = getHtml2Canvas(target.ownerDocument);
+  if (!capture) {
+    throw new Error("이미지 내보내기 엔진을 불러오지 못했습니다. 페이지를 새로고침한 뒤 다시 시도해 주세요.");
+  }
+
+  await waitForRenderableAssets(target);
+  return capture(target, {
+    backgroundColor: null,
+    scale: getExportScale(),
+    useCORS: true,
+    logging: false,
+    imageTimeout: 15000,
+    ...options,
+  });
+}
+
+function getHtml2Canvas(doc = document) {
+  return doc?.defaultView?.html2canvas || window.html2canvas;
+}
+
+function getExportScale() {
+  return Math.min(2, Math.max(1, window.devicePixelRatio || 1));
+}
+
+async function waitForRenderableAssets(target) {
+  const doc = target.ownerDocument || document;
+  const fontReady = doc.fonts?.ready || Promise.resolve();
+  const imageReady = Promise.all(Array.from(target.querySelectorAll("img")).map(waitForImage));
+  await Promise.all([fontReady, imageReady]);
+}
+
+function waitForImage(img) {
+  if (!img || img.complete) return Promise.resolve();
+  return new Promise((resolve) => {
+    img.addEventListener("load", resolve, { once: true });
+    img.addEventListener("error", resolve, { once: true });
+  });
+}
+
+function downloadCanvas(canvas, filename) {
   const link = document.createElement("a");
   link.download = filename;
   link.href = canvas.toDataURL("image/png", 1.0);
   document.body.append(link);
   link.click();
   link.remove();
-  return true;
-}
-
-async function captureElementAsRenderedCanvas(target) {
-  if (!navigator.mediaDevices?.getDisplayMedia) {
-    throw new Error("모바일이거나 브라우저가 캡쳐API를 지원하지 않아, 직접 캡쳐해야 합니다. 모바일은 브라우저에서 데스크탑 모드를 켜서 캡쳐하는 것을 권장합니다.");
-  }
-
-  const rect = target.getBoundingClientRect();
-  if (rect.width <= 0 || rect.height <= 0) {
-    throw new Error("PNG로 내보낼 미리보기 영역을 찾을 수 없습니다.");
-  }
-  if (rect.right <= 0 || rect.bottom <= 0 || rect.left >= window.innerWidth || rect.top >= window.innerHeight) {
-    throw new Error("미리보기 카드가 화면 안에 보이도록 스크롤한 뒤 다시 내보내 주세요.");
-  }
-
-  const stream = await navigator.mediaDevices.getDisplayMedia({
-    video: {
-      displaySurface: "browser",
-    },
-    preferCurrentTab: true,
-    audio: false,
-  });
-
-  let video;
-  try {
-    video = await streamToVideo(stream);
-    const scaleX = video.videoWidth / window.innerWidth;
-    const scaleY = video.videoHeight / window.innerHeight;
-    const sourceX = Math.max(0, Math.round(rect.left * scaleX));
-    const sourceY = Math.max(0, Math.round(rect.top * scaleY));
-    const sourceWidth = Math.min(video.videoWidth - sourceX, Math.round(rect.width * scaleX));
-    const sourceHeight = Math.min(video.videoHeight - sourceY, Math.round(rect.height * scaleY));
-    if (sourceWidth <= 0 || sourceHeight <= 0) {
-      throw new Error("미리보기 카드가 화면 안에 보이도록 스크롤한 뒤 다시 내보내 주세요.");
-    }
-
-    const canvas = document.createElement("canvas");
-    canvas.width = sourceWidth;
-    canvas.height = sourceHeight;
-    const context = canvas.getContext("2d");
-    context.drawImage(video, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, sourceWidth, sourceHeight);
-    return canvas;
-  } finally {
-    stream.getTracks().forEach((track) => track.stop());
-    video?.remove();
-  }
-}
-
-function streamToVideo(stream) {
-  return new Promise((resolve, reject) => {
-    const video = document.createElement("video");
-    video.muted = true;
-    video.playsInline = true;
-    video.srcObject = stream;
-    video.onloadedmetadata = async () => {
-      try {
-        await video.play();
-        if (video.videoWidth && video.videoHeight) {
-          resolve(video);
-        } else {
-          reject(new Error("화면 캡처 영상을 읽지 못했습니다."));
-        }
-      } catch (error) {
-        reject(error);
-      }
-    };
-    video.onerror = () => reject(new Error("화면 캡처 영상을 읽지 못했습니다."));
-  });
 }
 
 async function downloadStandaloneHtml(styleId, label, cardHtml) {
