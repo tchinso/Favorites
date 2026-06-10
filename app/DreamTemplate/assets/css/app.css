@@ -1749,6 +1749,11 @@ button {
   background-position: center 50%;
 }
 
+.flix-hero-img > span,
+.flix-ep-thumb > span {
+  display: none !important;
+}
+
 .flix-gradient {
   position: absolute;
   left: 0;
