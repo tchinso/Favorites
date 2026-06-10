@@ -1670,11 +1670,14 @@ button {
   color: #ffffff;
   background: #141414;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  font-family: Pretendard, -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  letter-spacing: -0.3px;
+  -webkit-font-smoothing: antialiased;
 }
 
 .flix-nav {
   position: absolute;
-  z-index: 2;
+  z-index: 10;
   top: 0;
   left: 0;
   width: 100%;
@@ -1683,9 +1686,10 @@ button {
   align-items: center;
   justify-content: space-between;
   padding: 0 16px;
-  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.76), transparent);
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.8) 0%, rgba(0, 0, 0, 0.4) 40%, rgba(0, 0, 0, 0) 100%);
   font-size: 11px;
   box-sizing: border-box;
+  pointer-events: none;
 }
 
 .flix-nav b {
@@ -1699,6 +1703,7 @@ button {
   color: #ffffff;
   font-size: 11px;
   font-weight: 500;
+  opacity: 0.8;
 }
 
 .flix-nav-icons {
@@ -1739,13 +1744,19 @@ button {
   position: absolute;
   inset: 0;
   background-color: #292929;
+  background-size: cover;
+  background-repeat: no-repeat;
   background-position: center 50%;
 }
 
 .flix-gradient {
   position: absolute;
-  inset: 0;
-  background: linear-gradient(to top, #141414 0%, rgba(20, 20, 20, 0.88) 28%, transparent 70%);
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 70%;
+  background: linear-gradient(to top, #141414 0%, rgba(20, 20, 20, 0.8) 30%, rgba(20, 20, 20, 0) 100%);
+  pointer-events: none;
 }
 
 .flix-hero-content {
@@ -1754,6 +1765,7 @@ button {
   right: 20px;
   bottom: 0;
   padding-bottom: 20px;
+  pointer-events: none;
 }
 
 .flix-series-label {
@@ -1803,6 +1815,7 @@ button {
   margin-bottom: 16px;
   font-size: 11.5px;
   font-weight: 500;
+  text-shadow: 1px 1px 4px rgba(0, 0, 0, 0.5);
 }
 
 .flix-meta {
@@ -1827,15 +1840,30 @@ button {
   font-size: 10px;
 }
 
+.flix-meta span:nth-child(4) {
+  font-size: 9px;
+  letter-spacing: 1px;
+}
+
 .flix-hero-content p {
   margin: 0 0 18px;
+  color: #ffffff;
   line-height: 1.45;
   font-size: 13.5px;
+  text-align: justify;
+  word-break: keep-all;
+  white-space: normal;
+  letter-spacing: -0.8px;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .flix-buttons {
   display: flex;
   gap: 12px;
+  pointer-events: auto;
 }
 
 .flix-card.mode-home .flix-buttons {
@@ -1846,10 +1874,25 @@ button {
 .flix-buttons button {
   flex: 1;
   min-height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   padding: 8px 0;
   border-radius: 4px;
   font-size: 14px;
   font-weight: 700;
+  line-height: 1;
+  text-align: center;
+  cursor: default;
+}
+
+.flix-button-icon {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  display: block;
+  fill: currentColor;
 }
 
 .flix-buttons button:first-child {
@@ -1858,7 +1901,7 @@ button {
 }
 
 .flix-buttons button:last-child {
-  background: rgba(109, 109, 110, 0.8);
+  background: rgba(109, 109, 110, 0.7);
   color: #ffffff;
 }
 
@@ -1931,6 +1974,10 @@ button {
   height: 73px;
   border-radius: 4px;
   background-color: #2b2b2b;
+  background-size: cover;
+  background-repeat: no-repeat;
+  background-position: center 50%;
+  overflow: hidden;
 }
 
 .flix-ep-play {
@@ -1939,15 +1986,30 @@ button {
   left: 50%;
   width: 28px;
   height: 28px;
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   transform: translate(-50%, -50%);
   border: 1px solid #ffffff;
   border-radius: 50%;
   color: #ffffff;
   background: rgba(0, 0, 0, 0.5);
-  font-size: 14px;
-  line-height: 1;
+  pointer-events: none;
+}
+
+.flix-ep-play-icon {
+  width: 14px;
+  height: 14px;
+  display: block;
+  fill: #ffffff;
+  transform: translateX(1px);
+}
+
+.flix-ep-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .flix-episode strong,
@@ -1973,6 +2035,10 @@ button {
   color: #d2d2d2;
   line-height: 1.4;
   font-size: 12.5px;
+  text-align: justify;
+  word-break: keep-all;
+  white-space: normal;
+  letter-spacing: -0.6px;
 }
 
 /* Music */

@@ -357,6 +357,9 @@ function renderWiki(data) {
 }
 
 function renderNetflix(data) {
+  const playIcon = '<svg class="flix-button-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"></path></svg>';
+  const plusIcon = '<svg class="flix-button-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"></path></svg>';
+  const episodePlayIcon = '<svg class="flix-ep-play-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"></path></svg>';
   const hero = mediaBox(data.heroImage, "flix-hero-img", "POSTER");
   const homeThumbs = (data.thumbs || []).map((src) => mediaBox(src, "flix-thumb", "TITLE")).join("");
   const episodes = (data.episodes || []).map((episode, index) => `
@@ -364,7 +367,7 @@ function renderNetflix(data) {
       <div class="flix-ep-top">
         <div class="flix-ep-thumb-wrap">
           ${mediaBox(episode.thumb, "flix-ep-thumb", "EP")}
-          <span class="flix-ep-play">▶</span>
+          <span class="flix-ep-play">${episodePlayIcon}</span>
         </div>
         <div class="flix-ep-info"><strong>${index + 1}. ${e(episode.title || "에피소드")}</strong><span>${e(episode.duration || "")}</span></div>
       </div>
@@ -391,7 +394,7 @@ function renderNetflix(data) {
         <small class="flix-series-label"><b>N</b> SERIES</small>
         <h1>${e(data.title || "작품 제목")}</h1>
         <div class="flix-tags">${e(data.tags || "")}</div>
-        <div class="flix-buttons"><button>▶ 재생</button><button>＋ 내가 찜한 콘텐츠</button></div>
+        <div class="flix-buttons"><button type="button">${playIcon}<span>재생</span></button><button type="button">${plusIcon}<span>내가 찜한 콘텐츠</span></button></div>
       </div>
     </section>
     <div class="flix-source">${e(data.imageSource || "")}</div>
@@ -405,7 +408,7 @@ function renderNetflix(data) {
         <h1>${e(data.title || "작품 제목")}</h1>
         <div class="flix-meta"><b>${e(data.match || "")}</b><span>${e(data.year || "")}</span><span>${e(data.age || "")}</span><span>${e(data.quality || "")}</span></div>
         <p>${nl2br(data.description || "")}</p>
-        <div class="flix-buttons"><button>▶ 재생</button><button>＋ 내가 찜한 콘텐츠</button></div>
+        <div class="flix-buttons"><button type="button">${playIcon}<span>재생</span></button><button type="button">${plusIcon}<span>찜하기</span></button></div>
       </div>
     </section>
     <div class="flix-source detail-source">${e(data.imageSource || "")}</div>
