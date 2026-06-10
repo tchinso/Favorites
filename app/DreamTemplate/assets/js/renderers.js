@@ -56,6 +56,16 @@ function panStyle(data, fields = {}, options = {}) {
   return `--pan-x:${panX}px;--pan-y:${panY}px;--pan-scale:${scale}`;
 }
 
+function netflixPanBox(data, srcPath, className, fields = {}) {
+  const src = getByPath(data, srcPath) || "";
+  const scalePath = fields.scale || `${srcPath}Scale`;
+  const xPath = fields.x || `${srcPath}PanX`;
+  const yPath = fields.y || `${srcPath}PanY`;
+  const style = panStyle(data, { scale: scalePath, x: xPath, y: yPath });
+  const attrs = `data-bg-pan-surface data-pan-x-field="${e(xPath)}" data-pan-y-field="${e(yPath)}" data-pan-scale-field="${e(scalePath)}"`;
+  return `<div class="${className} media-box pan-frame${src ? " has-pan-image" : ""}" style="${style}" ${attrs}>${src ? `<img class="pan-img" src="${e(src)}" alt="">` : ""}</div>`;
+}
+
 function avatar(src, className = "") {
   return `<div class="avatar ${className}" style="${backgroundStyle(src)}">${src ? "" : "<span></span>"}</div>`;
 }
@@ -357,33 +367,38 @@ function renderWiki(data) {
 }
 
 function renderNetflix(data) {
-  const playIcon = '<svg class="flix-button-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"></path></svg>';
-  const plusIcon = '<svg class="flix-button-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"></path></svg>';
-  const episodePlayIcon = '<svg class="flix-ep-play-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"></path></svg>';
-  const hero = mediaBox(data.heroImage, "flix-hero-img", "POSTER");
-  const homeThumbs = (data.thumbs || []).map((src) => mediaBox(src, "flix-thumb", "TITLE")).join("");
+  const playIcon = '<svg class="flix-button-icon" viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"></path></svg>';
+  const plusIcon = '<svg class="flix-button-icon" viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"></path></svg>';
+  const episodePlayIcon = '<svg viewBox="0 0 24 24" width="14" height="14" fill="white" aria-hidden="true"><path d="M8 5v14l11-7z"></path></svg>';
+  const hero = netflixPanBox(data, "heroImage", "flix-hero-img");
+  const homeThumbs = (data.thumbs || []).map((_, index) => netflixPanBox(data, `thumbs.${index}`, "flix-thumb")).join("");
   const episodes = (data.episodes || []).map((episode, index) => `
     <div class="flix-episode">
       <div class="flix-ep-top">
         <div class="flix-ep-thumb-wrap">
-          ${mediaBox(episode.thumb, "flix-ep-thumb", "EP")}
-          <span class="flix-ep-play">${episodePlayIcon}</span>
+          ${netflixPanBox(data, `episodes.${index}.thumb`, "flix-ep-thumb")}
+          <div class="flix-ep-play">${episodePlayIcon}</div>
         </div>
-        <div class="flix-ep-info"><strong>${index + 1}. ${e(episode.title || "에피소드")}</strong><span>${e(episode.duration || "")}</span></div>
+        <div class="flix-ep-info">
+          <div class="flix-ep-title">${index + 1}. ${e(episode.title || "에피소드")}</div>
+          <div class="flix-ep-duration">${e(episode.duration || "")}</div>
+        </div>
       </div>
-      <p>${nl2br(episode.desc || "")}</p>
+      <div class="flix-ep-desc">${nl2br(episode.desc || "")}</div>
     </div>
   `).join("");
   const mode = data.mode || "detail";
   const netflixNav = `
     <nav class="flix-nav">
-      <b>N</b>
-      <span class="flix-nav-menu"><span>시리즈</span><span>영화</span><span>내가 찜한 콘텐츠</span></span>
-      <span class="flix-nav-icons">
+      <div class="flix-nav-left">
+        <span class="flix-n-logo">N</span>
+        <div class="flix-nav-menu"><span>시리즈</span><span>영화</span><span>내가 찜한 콘텐츠</span></div>
+      </div>
+      <div class="flix-nav-icons">
         ${lineIcon('<circle cx="11" cy="11" r="8"></circle><path d="M21 21l-4.35-4.35"></path>')}
         ${lineIcon('<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path>')}
         ${lineIcon('<path d="M2 16.1A5 5 0 0 1 5.9 20M2 12.05A9 9 0 0 1 9.95 20M2 8V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6"></path><line x1="2" y1="20" x2="2.01" y2="20"></line>')}
-      </span>
+      </div>
     </nav>
   `;
   const homeHero = `
@@ -394,7 +409,7 @@ function renderNetflix(data) {
         <small class="flix-series-label"><b>N</b> SERIES</small>
         <h1>${e(data.title || "작품 제목")}</h1>
         <div class="flix-tags">${e(data.tags || "")}</div>
-        <div class="flix-buttons"><button type="button">${playIcon}<span>재생</span></button><button type="button">${plusIcon}<span>내가 찜한 콘텐츠</span></button></div>
+        <div class="flix-buttons"><div class="flix-btn flix-btn-play">${playIcon} 재생</div><div class="flix-btn flix-btn-add">${plusIcon} 내가 찜한 콘텐츠</div></div>
       </div>
     </section>
     <div class="flix-source">${e(data.imageSource || "")}</div>
@@ -406,9 +421,14 @@ function renderNetflix(data) {
       <div class="flix-hero-content">
         <small class="flix-series-label"><b>N</b> ${e(data.subtitle || "ORIGINAL SERIES")}</small>
         <h1>${e(data.title || "작품 제목")}</h1>
-        <div class="flix-meta"><b>${e(data.match || "")}</b><span>${e(data.year || "")}</span><span>${e(data.age || "")}</span><span>${e(data.quality || "")}</span></div>
-        <p>${nl2br(data.description || "")}</p>
-        <div class="flix-buttons"><button type="button">${playIcon}<span>재생</span></button><button type="button">${plusIcon}<span>찜하기</span></button></div>
+        <div class="flix-meta">
+          <span class="flix-match-score">${e(data.match || "98% 일치")}</span>
+          <span>${e(data.year || "2026 | 시즌 1")}</span>
+          <span class="flix-age-badge">${e(data.age || "15+")}</span>
+          <span class="flix-hd-badge">${e(data.quality || "HD")}</span>
+        </div>
+        <div class="flix-hero-desc">${nl2br(data.description || "")}</div>
+        <div class="flix-buttons"><div class="flix-btn flix-btn-play">${playIcon} 재생</div><div class="flix-btn flix-btn-add">${plusIcon} 찜하기</div></div>
       </div>
     </section>
     <div class="flix-source detail-source">${e(data.imageSource || "")}</div>
@@ -419,7 +439,7 @@ function renderNetflix(data) {
       ${mode === "home" ? homeHero : ""}
       ${mode === "detail" ? detailHero : ""}
       ${mode === "home" ? `<section class="flix-row"><h2>${e(data.rowTitle || "콘텐츠")}</h2><div>${homeThumbs}</div></section>` : ""}
-      ${mode !== "home" ? `<section class="flix-episodes"><h2>${mode === "episodes" ? "에피소드" : "회차"}</h2>${episodes}</section>` : ""}
+      ${mode !== "home" ? `<section class="flix-episodes"><div class="flix-episodes-title">${mode === "episodes" ? "에피소드" : "회차"}</div>${episodes}</section>` : ""}
     </article>
   `;
 }

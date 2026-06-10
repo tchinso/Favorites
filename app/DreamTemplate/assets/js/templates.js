@@ -299,11 +299,12 @@ function netflixEditor(data) {
       { value: "episodes", label: "에피소드만" },
     ])}
     ${imageField(data, "heroImage", "메인 이미지")}
+    ${panFields(data, "heroImageScale", "heroImagePanX", "heroImagePanY")}
     ${field(data, "imageSource", "이미지 출처")}
     ${field(data, "subtitle", "상단 라벨")}
     ${field(data, "title", "작품 제목")}
     ${field(data, "tags", "태그")}
-    <div class="grid-4">${field(data, "year", "연도")}${field(data, "match", "일치율")}${field(data, "age", "등급")}${field(data, "quality", "화질")}</div>
+    <div class="grid-4">${field(data, "year", "연도/시즌")}${field(data, "match", "일치율")}${field(data, "age", "등급")}${field(data, "quality", "화질")}</div>
     ${textarea(data, "description", "설명")}
   `) + section("메인 포스터 행", `
     ${field(data, "rowTitle", "행 제목")}
@@ -312,6 +313,7 @@ function netflixEditor(data) {
     ${listHeader("에피소드", "episodes", "에피소드 추가")}
     ${(data.episodes || []).map((_, index) => listItem(`에피소드 ${index + 1}`, "episodes", index, `
       ${imageField(data, `episodes.${index}.thumb`, "썸네일")}
+      ${panFields(data, `episodes.${index}.thumbScale`, `episodes.${index}.thumbPanX`, `episodes.${index}.thumbPanY`)}
       ${field(data, `episodes.${index}.title`, "제목")}
       ${field(data, `episodes.${index}.duration`, "길이")}
       ${textarea(data, `episodes.${index}.desc`, "설명")}

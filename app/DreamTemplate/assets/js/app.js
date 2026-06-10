@@ -781,6 +781,7 @@ function normalizeState() {
 
   normalizeMessengerData();
   normalizeInstagramData();
+  normalizeNetflixData();
   normalizePanData();
   normalizeLineStampData();
   applyActiveVariant();
@@ -805,9 +806,23 @@ function normalizeMessengerData() {
   }));
 }
 
+function normalizeNetflixData() {
+  const data = state.styles?.netflix;
+  if (!data) return;
+  if (data.year === "2026") data.year = "2026 | 시즌 1";
+  if (!Array.isArray(data.episodes)) data.episodes = [];
+  data.episodes.forEach((episode) => {
+    episode.thumbScale = Number.isFinite(Number(episode.thumbScale)) ? Number(episode.thumbScale) : 100;
+    episode.thumbPanX = Number.isFinite(Number(episode.thumbPanX)) ? Number(episode.thumbPanX) : 0;
+    episode.thumbPanY = Number.isFinite(Number(episode.thumbPanY)) ? Number(episode.thumbPanY) : 0;
+  });
+}
+
 function normalizePanData() {
   const s = state.styles || {};
   ensurePan(s.musicplayer, "imageScale", "imagePanX", "imagePanY");
+  ensurePan(s.netflix, "heroImageScale", "heroImagePanX", "heroImagePanY");
+  (s.netflix?.episodes || []).forEach((episode) => ensurePan(episode, "thumbScale", "thumbPanX", "thumbPanY"));
   ensurePan(s.timeline, "mainImageScale", "mainImagePanX", "mainImagePanY");
   ensurePan(s.couple, "bannerImageScale", "bannerImagePanX", "bannerImagePanY");
   ensurePan(s.couple?.personA, "imageScale", "imagePanX", "imagePanY");

@@ -249,10 +249,13 @@ const DEFAULT_STYLE_DATA = {
   netflix: {
     mode: "detail",
     heroImage: "",
+    heroImageScale: 100,
+    heroImagePanX: 0,
+    heroImagePanY: 0,
     title: "작품 제목",
     subtitle: "ORIGINAL SERIES",
     tags: "감성 · 관계 · 성장",
-    year: "2026",
+    year: "2026 | 시즌 1",
     match: "98% 일치",
     age: "15+",
     quality: "HD",
@@ -261,8 +264,8 @@ const DEFAULT_STYLE_DATA = {
     rowTitle: "지금 뜨는 콘텐츠",
     thumbs: ["", "", ""],
     episodes: [
-      { title: "1화. 시작", duration: "42분", desc: "첫 번째 에피소드 설명입니다.", thumb: "" },
-      { title: "2화. 전환", duration: "45분", desc: "두 번째 에피소드 설명입니다.", thumb: "" },
+      { title: "1화. 시작", duration: "42분", desc: "첫 번째 에피소드 설명입니다.", thumb: "", thumbScale: 100, thumbPanX: 0, thumbPanY: 0 },
+      { title: "2화. 전환", duration: "45분", desc: "두 번째 에피소드 설명입니다.", thumb: "", thumbScale: 100, thumbPanX: 0, thumbPanY: 0 },
     ],
   },
   musicplayer: {
@@ -722,7 +725,7 @@ const LIST_FACTORIES = {
     sections: () => ({ title: "새 문단", body: "내용을 입력하세요." }),
   },
   netflix: {
-    episodes: () => ({ title: "새 에피소드", duration: "00분", desc: "에피소드 설명", thumb: "" }),
+    episodes: () => ({ title: "새 에피소드", duration: "00분", desc: "에피소드 설명", thumb: "", thumbScale: 100, thumbPanX: 0, thumbPanY: 0 }),
   },
   timeline: {
     entries: () => ({ date: "연도", title: "제목", desc: "내용" }),
