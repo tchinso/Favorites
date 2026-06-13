@@ -16,6 +16,7 @@
             this.collision = null;
             this.world = null;
             this.player = null;
+            this.monsters = null;
             this.viewportW = window.innerWidth;
             this.viewportH = window.innerHeight;
             this.baseDpr = Math.min(window.devicePixelRatio || 1, Perf.maxDpr);
@@ -30,13 +31,16 @@
             this.dragLook = false;
             this.lookYaw = 0;
             this.lookPitch = 0;
+            this.lastMouseX = null;
+            this.lastMouseY = null;
+            this.touchLook = { x: 0, y: 0, active: false };
         }
 
         init() {
             this.ui = new ns.UIEngine();
             this.scene = new THREE.Scene();
             this.scene.background = P.sky;
-            this.scene.fog = new THREE.Fog(P.sky, 120, C.viewDistance);
+            this.scene.fog = new THREE.Fog(0xbfd9ff, 145, C.viewDistance * 0.94);
 
             this.camera = new THREE.PerspectiveCamera(64, this.viewportW / this.viewportH, 0.1, 1500);
 
@@ -51,11 +55,11 @@
             });
             this.renderer.setPixelRatio(this.renderDpr);
             this.renderer.setSize(this.viewportW, this.viewportH);
-            this.renderer.shadowMap.enabled = true;
+            this.renderer.shadowMap.enabled = false;
             this.renderer.shadowMap.type = Perf.shadowType;
             this.renderer.outputEncoding = THREE.sRGBEncoding;
             this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-            this.renderer.toneMappingExposure = 1.08;
+            this.renderer.toneMappingExposure = 1.2;
             this.renderer.autoClear = false;
             document.body.appendChild(this.renderer.domElement);
 
@@ -66,9 +70,11 @@
             this.collision = new ns.CollisionEngine(C);
             this.world = new ns.MapEngine(this.scene, this.collision).build();
             this.player = new ns.PlayerEngine(this.camera, this.controls, this.world, this.collision, this.ui);
+            this.monsters = new ns.MonsterEngine(this.scene, this.world, this.player, this.ui);
             this.applyInitialSpawn();
             this.syncLookFromCamera();
             this.setupDragLook();
+            this.setupCombatInput();
 
             this.updateMinimapViewportCache();
             window.addEventListener("resize", () => this.onResize());
@@ -151,21 +157,45 @@
         setupDragLook() {
             const canvas = this.renderer.domElement;
             canvas.addEventListener("pointerdown", (event) => {
+                if (event.pointerType !== "touch") return;
                 if (!this.gameActive || this.ui.dialogVisible || this.controls.isLocked) return;
                 this.dragLook = true;
                 if (canvas.setPointerCapture) canvas.setPointerCapture(event.pointerId);
             });
 
-            window.addEventListener("pointerup", () => {
-                this.dragLook = false;
+            window.addEventListener("pointerup", (event) => {
+                if (event.pointerType === "touch") this.dragLook = false;
             });
 
             window.addEventListener("pointermove", (event) => {
-                if (!this.dragLook || this.controls.isLocked) return;
-                this.lookYaw -= event.movementX * 0.003;
-                this.lookPitch -= event.movementY * 0.003;
+                if (!this.gameActive || this.ui.dialogVisible || this.controls.isLocked) return;
+                if (event.pointerType === "touch" && !this.dragLook) return;
+
+                let dx = event.movementX || 0;
+                let dy = event.movementY || 0;
+                if (event.pointerType === "mouse") {
+                    if (this.lastMouseX === null || this.lastMouseY === null) {
+                        this.lastMouseX = event.clientX;
+                        this.lastMouseY = event.clientY;
+                        return;
+                    }
+                    dx = event.clientX - this.lastMouseX;
+                    dy = event.clientY - this.lastMouseY;
+                    this.lastMouseX = event.clientX;
+                    this.lastMouseY = event.clientY;
+                }
+
+                this.lookYaw -= dx * 0.003;
+                this.lookPitch -= dy * 0.003;
                 this.lookPitch = ns.clamp(this.lookPitch, -1.05, 0.72);
                 this.camera.rotation.set(this.lookPitch, this.lookYaw, 0, "YXZ");
+            });
+
+            window.addEventListener("pointerleave", (event) => {
+                if (event.pointerType === "mouse") {
+                    this.lastMouseX = null;
+                    this.lastMouseY = null;
+                }
             });
 
             window.addEventListener("keydown", (event) => {
@@ -179,16 +209,130 @@
             });
         }
 
+        setupCombatInput() {
+            const canvas = this.renderer.domElement;
+            canvas.addEventListener("pointerdown", (event) => {
+                if (event.button !== 0) return;
+                if (event.pointerType === "touch") return;
+                if (!this.gameActive || this.ui.dialogVisible) return;
+                this.player.shoot(this.monsters);
+            });
+
+            window.addEventListener("keydown", (event) => {
+                if (event.code !== "KeyF") return;
+                if (!this.gameActive || this.ui.dialogVisible) return;
+                event.preventDefault();
+                this.player.shoot(this.monsters);
+            });
+
+            const fireBtn = document.getElementById("touch-fire");
+            if (fireBtn) {
+                fireBtn.addEventListener("pointerdown", (event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    if (!this.gameActive || this.ui.dialogVisible) return;
+                    this.player.shoot(this.monsters);
+                });
+            }
+
+            this.setupTouchJoysticks();
+        }
+
+        setupTouchJoysticks() {
+            const moveJoy = document.getElementById("move-joystick");
+            const lookJoy = document.getElementById("look-joystick");
+            if (!moveJoy || !lookJoy) return;
+
+            this.bindJoystick(moveJoy, (x, y) => {
+                this.player.setVirtualMove(x, y);
+            }, () => {
+                this.player.setVirtualMove(0, 0);
+            });
+
+            this.bindJoystick(lookJoy, (x, y) => {
+                this.touchLook.x = x;
+                this.touchLook.y = y;
+                this.touchLook.active = Math.abs(x) > 0.04 || Math.abs(y) > 0.04;
+            }, () => {
+                this.touchLook.x = 0;
+                this.touchLook.y = 0;
+                this.touchLook.active = false;
+            });
+        }
+
+        bindJoystick(root, onMove, onEnd) {
+            const knob = root.querySelector(".joystick-knob");
+            const state = { pointerId: null };
+            const radius = 42;
+
+            const reset = () => {
+                state.pointerId = null;
+                if (knob) knob.style.transform = "translate(-50%, -50%)";
+                onEnd();
+            };
+
+            const update = (event) => {
+                const rect = root.getBoundingClientRect();
+                const cx = rect.left + rect.width / 2;
+                const cy = rect.top + rect.height / 2;
+                const rawX = event.clientX - cx;
+                const rawY = event.clientY - cy;
+                const len = Math.max(1, Math.sqrt(rawX * rawX + rawY * rawY));
+                const limited = Math.min(radius, len);
+                const knobX = rawX / len * limited;
+                const knobY = rawY / len * limited;
+                if (knob) knob.style.transform = `translate(calc(-50% + ${knobX}px), calc(-50% + ${knobY}px))`;
+                onMove(knobX / radius, -knobY / radius);
+            };
+
+            root.addEventListener("pointerdown", (event) => {
+                if (!this.gameActive || this.ui.dialogVisible) return;
+                event.preventDefault();
+                event.stopPropagation();
+                state.pointerId = event.pointerId;
+                if (root.setPointerCapture) root.setPointerCapture(event.pointerId);
+                update(event);
+            });
+
+            root.addEventListener("pointermove", (event) => {
+                if (state.pointerId !== event.pointerId) return;
+                event.preventDefault();
+                event.stopPropagation();
+                update(event);
+            });
+
+            root.addEventListener("pointerup", (event) => {
+                if (state.pointerId !== event.pointerId) return;
+                event.preventDefault();
+                event.stopPropagation();
+                reset();
+            });
+
+            root.addEventListener("pointercancel", (event) => {
+                if (state.pointerId !== event.pointerId) return;
+                reset();
+            });
+        }
+
+        updateTouchLook(dt) {
+            if (!this.touchLook.active || this.controls.isLocked) return;
+            const turnSpeed = 2.35;
+            this.lookYaw -= this.touchLook.x * turnSpeed * dt;
+            this.lookPitch += this.touchLook.y * turnSpeed * dt;
+            this.lookPitch = ns.clamp(this.lookPitch, -1.05, 0.72);
+            this.camera.rotation.set(this.lookPitch, this.lookYaw, 0, "YXZ");
+        }
+
         setupLights() {
-            const ambient = new THREE.AmbientLight(0xffffff, 0.72);
+            const ambient = new THREE.AmbientLight(0xfff4df, 0.38);
             this.scene.add(ambient);
 
-            const hemi = new THREE.HemisphereLight(0xffffff, 0x7ab6c6, 0.52);
+            const hemi = new THREE.HemisphereLight(0xcfeaff, 0x6c4f7b, 0.82);
             hemi.position.set(0, 260, 0);
             this.scene.add(hemi);
 
-            const sun = new THREE.DirectionalLight(0xffffff, 1.18);
-            sun.position.set(-180, 330, 210);
+            const sun = new THREE.DirectionalLight(0xffedc5, 1.55);
+            sun.position.set(-210, 360, 250);
             sun.castShadow = true;
             sun.shadow.mapSize.width = Perf.shadowMapSize;
             sun.shadow.mapSize.height = Perf.shadowMapSize;
@@ -201,6 +345,18 @@
             sun.shadow.camera.far = 900;
             sun.shadow.bias = -0.00008;
             this.scene.add(sun);
+
+            const moon = new THREE.DirectionalLight(0x8db7ff, 0.48);
+            moon.position.set(280, 220, -260);
+            this.scene.add(moon);
+
+            const roseFill = new THREE.PointLight(0xff8bd6, 0.42, 460, 2);
+            roseFill.position.set(-120, 80, 40);
+            this.scene.add(roseFill);
+
+            const aquaFill = new THREE.PointLight(0x6eefff, 0.36, 520, 2);
+            aquaFill.position.set(210, 70, 130);
+            this.scene.add(aquaFill);
         }
 
         updateMinimapViewportCache() {
@@ -236,9 +392,15 @@
             this.ui.update(dt);
 
             if (this.gameActive) {
+                this.updateTouchLook(dt);
                 this.player.update(dt);
+                this.monsters.update(dt);
             } else {
                 this.player.updateHud();
+            }
+
+            if (this.monsters) {
+                this.ui.setMonsterMarkers(this.monsters.monsters, this.camera.position, C.minimapCamSize);
             }
 
             this.world.updateAnimated(time, this.camera, this.player.state);
@@ -298,5 +460,6 @@
     }
 
     const game = new GameEngine();
+    ns.game = game;
     game.init();
 })();
