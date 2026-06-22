@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="한국어·일본어 레거시 인코딩을 정밀 감지하고 안전하게 변환하는 브라우저 도구">
+  <meta name="theme-color" content="#08111f">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>Text Encoding Lab — 로컬 인코딩 감지·변환기</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="hero">
+      <div>
+        <p class="eyebrow">TEXT ENCODING LAB</p>
+        <h1>깨진 문자를 추측하지 않고<br><span>바이트부터 진단합니다.</span></h1>
+        <p class="hero-copy">BOM, 엄격 바이트 검증, 언어 분포와 파일 구조를 함께 분석합니다. 파일은 브라우저 밖으로 나가지 않습니다.</p>
+      </div>
+      <div class="hero-badges" aria-label="주요 특징">
+        <span>100% 로컬 처리</span><span>한국·일본 레거시 강화</span><span>왕복 손실 검사</span>
+      </div>
+    </header>
+
+    <section class="panel upload-panel" aria-labelledby="uploadTitle">
+      <div id="dropZone" class="drop-zone" role="group" aria-describedby="uploadHint">
+        <div class="drop-icon" aria-hidden="true">↥</div>
+        <div>
+          <h2 id="uploadTitle">텍스트 파일을 놓으세요</h2>
+          <p id="uploadHint">확장자와 관계없이 검사합니다 · 여러 파일 중 첫 번째 파일을 처리합니다</p>
+        </div>
+        <div class="upload-actions">
+          <button id="browseButton" class="button secondary" type="button">파일 선택</button>
+          <button id="sampleKoreanButton" class="sample-button" type="button">CP949 샘플</button>
+          <button id="sampleJapaneseButton" class="sample-button" type="button">CP932 샘플</button>
+        </div>
+        <input id="fileInput" type="file" hidden>
+      </div>
+      <div id="fileMeta" class="file-meta" hidden></div>
+    </section>
+
+    <section class="panel detection-panel" aria-labelledby="detectionTitle">
+      <div class="section-head">
+        <div><p class="section-kicker">DETECTION</p><h2 id="detectionTitle">자동 감지</h2></div>
+        <div id="confidenceBadge" class="confidence-badge idle">대기 중</div>
+      </div>
+      <div id="detectSummary" class="summary">파일을 올리면 바이트 구조를 먼저 검사합니다.</div>
+      <div class="confidence-track" aria-hidden="true"><div id="confidenceBar"></div></div>
+      <div id="candidateCards" class="candidate-grid"><div class="empty">감지 후보가 여기에 표시됩니다.</div></div>
+    </section>
+
+    <section class="panel converter-panel" aria-labelledby="converterTitle">
+      <div class="section-head"><div><p class="section-kicker">CONVERSION</p><h2 id="converterTitle">안전 변환</h2></div></div>
+      <div class="control-grid">
+        <label class="field"><span>원본 인코딩</span><select id="sourceEncodingSelect" disabled></select></label>
+        <div class="arrow" aria-hidden="true">→</div>
+        <label class="field"><span>목표 인코딩</span><select id="targetEncodingSelect" disabled></select></label>
+      </div>
+      <label class="loss-toggle"><input id="allowLossCheckbox" type="checkbox"><span>표현 불가 문자가 있어도 대체 문자로 변환 허용</span></label>
+      <div class="actions">
+        <button id="convertButton" class="button primary" type="button" disabled>엄격 검증 후 변환</button>
+        <button id="downloadButton" class="button secondary" type="button" disabled>결과 다운로드</button>
+      </div>
+      <div id="conversionMeta" class="conversion-meta" aria-live="polite"></div>
+    </section>
+
+    <section class="panel preview-panel" aria-labelledby="previewTitle">
+      <div class="section-head preview-head">
+        <div><p class="section-kicker">PREVIEW</p><h2 id="previewTitle">디코드 미리보기</h2></div>
+        <div id="previewMeta" class="preview-meta">미리보기 없음</div>
+      </div>
+      <pre id="mainPreview" tabindex="0"></pre>
+    </section>
+
+    <details class="panel diagnostics">
+      <summary>런타임 지원 현황과 진단 로그</summary>
+      <p id="apiIntro" class="diagnostic-intro"></p>
+      <div class="table-wrap"><table><thead><tr><th>인코딩</th><th>그룹</th><th>디코드</th><th>인코드</th></tr></thead><tbody id="apiSupportBody"></tbody></table></div>
+      <div id="logArea" class="log-area" aria-live="polite"></div>
+    </details>
+
+    <footer>Text Encoding Lab · 모든 분석과 변환은 이 탭 안에서만 수행됩니다.</footer>
+  </main>
+  <script src="vendor/iconv-lite-umd.js"></script>
+  <script src="encoding-engine.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
