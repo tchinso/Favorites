@@ -1,21 +1,22 @@
 <!doctype html>
-<html lang="en">
+<html lang="ko">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no" />
-  <title>Image Overlayer</title>
+  <title>C-1 - 이미지 오버레이</title>
   <style>
     :root {
-      --bg: #0b0c10;
-      --panel: rgba(22, 24, 28, 0.72);
-      --panel-solid: #16181c;
-      --text: #e5e7eb;
-      --muted: #9aa3af;
-      --accent: #4f46e5;
-      --accent-2: #22c55e;
-      --danger: #ef4444;
-      --stroke: #2a2f37;
-      --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+      --bg: #f5f8ff;
+      --panel: #ffffff;
+      --panel-solid: #ffffff;
+      --text: #1c1c1e;
+      --muted: #555a6a;
+      --accent: #5b76fe;
+      --accent-2: #00b473;
+      --danger: #d54343;
+      --stroke: #c7cad5;
+      --ring: rgb(224, 226, 232);
+      --shadow: 0 18px 34px rgba(34, 48, 79, 0.07);
     }
 
     html, body {
@@ -25,8 +26,11 @@
     body {
       margin: 0;
       color: var(--text);
-      background: var(--bg);
-      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Noto Sans, Helvetica, Arial, sans-serif;
+      background:
+        radial-gradient(circle at 7% 8%, #eaf0ff 0%, transparent 35%),
+        radial-gradient(circle at 94% 0%, #fde8ef 0%, transparent 26%),
+        linear-gradient(180deg, var(--bg), #eef2ff);
+      font: 16px/1.5 "Noto Sans KR", "Segoe UI", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
     }
@@ -43,19 +47,18 @@
       flex: 1;
       overflow: hidden;
       touch-action: none;
-      background: #0e1014;
+      background: #f6f9ff;
     }
 
     .checker {
       position: absolute;
       inset: 0;
       background:
-        linear-gradient(45deg, #111 25%, transparent 25%) -10px 0/20px 20px,
-        linear-gradient(-45deg, #111 25%, transparent 25%) -10px 0/20px 20px,
-        linear-gradient(45deg, transparent 75%, #111 75%) -10px 0/20px 20px,
-        linear-gradient(-45deg, transparent 75%, #111 75%) -10px 0/20px 20px,
-        #0e1014;
-      filter: saturate(0.9) brightness(0.9);
+        linear-gradient(45deg, #eaf0ff 25%, transparent 25%) -10px 0/20px 20px,
+        linear-gradient(-45deg, #eaf0ff 25%, transparent 25%) -10px 0/20px 20px,
+        linear-gradient(45deg, transparent 75%, #eaf0ff 75%) -10px 0/20px 20px,
+        linear-gradient(-45deg, transparent 75%, #eaf0ff 75%) -10px 0/20px 20px,
+        #f9fbff;
       pointer-events: none;
     }
 
@@ -82,10 +85,11 @@
 
     .chip {
       pointer-events: auto;
-      background: var(--panel);
+      background: rgba(255, 255, 255, 0.92);
+      border: 1px solid var(--stroke);
       border-radius: 12px;
       padding: 6px 10px;
-      box-shadow: var(--shadow);
+      box-shadow: 0 0 0 1px var(--ring);
       font-size: 12px;
       line-height: 1.4;
     }
@@ -94,7 +98,7 @@
       position: relative;
       z-index: 11;
       padding: env(safe-area-inset-bottom, 0);
-      background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.35) 40%, rgba(0, 0, 0, 0.6));
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.35), #eff4ff);
     }
 
     .bar {
@@ -102,8 +106,6 @@
       gap: 10px;
       grid-template-columns: repeat(6, 1fr);
       padding: 12px 12px calc(12px + env(safe-area-inset-bottom));
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
     }
 
     .btn,
@@ -111,12 +113,12 @@
     .mini {
       -webkit-tap-highlight-color: transparent;
       appearance: none;
-      border: none;
+      border: 1px solid var(--stroke);
       outline: none;
-      border-radius: 14px;
-      background: var(--panel);
+      border-radius: 12px;
+      background: #fff;
       color: var(--text);
-      box-shadow: var(--shadow);
+      box-shadow: 0 0 0 1px var(--ring);
       font-size: 12px;
       font-weight: 600;
       text-align: center;
@@ -133,19 +135,25 @@
       transform: translateY(1px);
     }
 
-    .btn.success {
-      background: linear-gradient(180deg, #34d399, #22c55e);
+    .btn.primary {
+      color: #fff;
+      background: linear-gradient(180deg, #5b76fe, #2a41b6);
+      border-color: #4f66df;
+      box-shadow: 0 6px 14px rgba(91, 118, 254, 0.25);
     }
 
     .btn.danger,
     .mini.danger {
-      background: linear-gradient(180deg, #f87171, #ef4444);
+      color: #d54343;
+      border-color: #ef9f98;
+      background: #fdebe9;
     }
 
     .btn.locked,
     .mini.locked {
-      filter: saturate(0.65);
-      background: linear-gradient(180deg, #6b7280, #4b5563);
+      color: #fff;
+      background: linear-gradient(180deg, #7f8aa0, #667184);
+      border-color: #667184;
     }
 
     .btn:disabled {
@@ -174,8 +182,9 @@
       gap: 10px;
       padding: 8px 10px;
       border-radius: 14px;
-      background: var(--panel);
-      box-shadow: var(--shadow);
+      background: #fff;
+      border: 1px solid var(--stroke);
+      box-shadow: 0 0 0 1px var(--ring);
     }
 
     .slider-wrap label {
@@ -193,7 +202,7 @@
 
     input[type="range"]::-webkit-slider-runnable-track {
       height: 6px;
-      background: #2a2f37;
+      background: #dfe4f2;
       border-radius: 999px;
     }
 
@@ -202,7 +211,7 @@
       width: 22px;
       height: 22px;
       border-radius: 50%;
-      background: #a5b4fc;
+      background: #5b76fe;
       margin-top: -8px;
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
     }
@@ -211,7 +220,8 @@
       font-size: 11px;
       padding: 6px 10px;
       border-radius: 999px;
-      background: rgba(17, 24, 39, 0.6);
+      background: #fff;
+      border: 1px solid var(--stroke);
       color: var(--muted);
       white-space: nowrap;
     }
@@ -219,8 +229,9 @@
     .layer-wrap {
       grid-column: span 6;
       border-radius: 14px;
-      background: var(--panel);
-      box-shadow: var(--shadow);
+      background: #fff;
+      border: 1px solid var(--stroke);
+      box-shadow: 0 0 0 1px var(--ring);
       overflow: hidden;
     }
 
@@ -230,7 +241,7 @@
       align-items: center;
       gap: 8px;
       padding: 10px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+      border-bottom: 1px solid #e7ebf5;
       font-size: 12px;
       color: var(--muted);
     }
@@ -256,7 +267,7 @@
       gap: 8px;
       border-radius: 12px;
       border: 1px solid var(--stroke);
-      background: rgba(20, 22, 27, 0.8);
+      background: #fff;
       padding: 8px;
       cursor: pointer;
     }
@@ -273,14 +284,14 @@
       display: grid;
       place-items: center;
       font-size: 11px;
-      background: rgba(79, 70, 229, 0.24);
-      color: #c9d0ff;
+      background: #edf1ff;
+      color: #42528f;
       font-weight: 700;
     }
 
     .layer-name {
       font-size: 12px;
-      color: #dde3ec;
+      color: var(--text);
       min-width: 0;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -290,8 +301,8 @@
     .layer-item .mini {
       font-size: 11px;
       padding: 7px 8px;
-      background: rgba(34, 40, 48, 0.92);
-      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: #fff;
+      border: 1px solid var(--stroke);
     }
 
     .layer-item .mini.danger {
@@ -304,7 +315,8 @@
       text-align: center;
       padding: 14px 8px;
       border-radius: 10px;
-      border: 1px dashed rgba(255, 255, 255, 0.14);
+      border: 1px dashed #d6dceb;
+      background: #f9fbff;
     }
 
     .toast {
@@ -312,8 +324,8 @@
       left: 50%;
       bottom: 120px;
       transform: translateX(-50%);
-      background: rgba(15, 18, 25, 0.9);
-      color: #e5e7eb;
+      background: rgba(28, 28, 30, 0.9);
+      color: #fff;
       padding: 10px 14px;
       border-radius: 999px;
       box-shadow: var(--shadow);
@@ -337,44 +349,44 @@
 <body>
   <div class="app">
     <div class="topbar">
-      <div class="chip" id="status">Load a base image.</div>
-      <div class="chip" id="mode-pill">Idle</div>
+      <div class="chip" id="status">원본 이미지를 불러오세요.</div>
+      <div class="chip" id="mode-pill">대기</div>
     </div>
 
     <div class="stage" id="stage">
       <div class="checker"></div>
-      <canvas id="canvas" aria-label="Image overlayer canvas"></canvas>
+      <canvas id="canvas" aria-label="이미지 오버레이 캔버스"></canvas>
       <div class="toast" id="toast"></div>
     </div>
 
     <div class="toolbar">
       <div class="bar">
-        <label class="file-btn" title="Load base image">
-          Base
+        <label class="file-btn" title="원본 이미지 불러오기">
+          원본
           <input id="baseInput" type="file" accept="image/*" />
         </label>
-        <label class="file-btn" title="Add overlay image">
-          Add Overlay
+        <label class="file-btn" title="오버레이 이미지 추가">
+          오버레이 추가
           <input id="overlayInput" type="file" accept="image/*" multiple />
         </label>
-        <button class="btn" id="resetView" title="Reset camera">Reset View</button>
-        <button class="btn" id="lockBase" title="Lock base pan/zoom">Base Lock: OFF</button>
-        <button class="btn danger" id="removeOverlay" title="Delete selected layer">Delete Selected</button>
-        <button class="btn success" id="exportBtn" title="Save PNG">Save PNG</button>
+        <button class="btn ghost" id="resetView" title="화면 위치 초기화">화면 초기화</button>
+        <button class="btn ghost" id="lockBase" title="원본 이동/확대 잠금">원본 잠금: 해제</button>
+        <button class="btn" id="removeOverlay" title="선택 레이어 삭제">선택 삭제</button>
+        <button class="btn primary" id="exportBtn" title="PNG 저장">PNG 저장</button>
 
         <div class="slider-wrap">
-          <label for="opacity">Selected layer opacity</label>
+          <label for="opacity">선택 레이어 불투명도</label>
           <input id="opacity" type="range" min="0" max="1" step="0.01" value="1" />
           <span class="pill" id="opacityVal">100%</span>
         </div>
 
         <div class="layer-wrap">
           <div class="layer-head">
-            <span>Overlay Layers (max 3)</span>
-            <button class="mini danger" id="clearOverlays">Delete All</button>
+            <span>오버레이 레이어 (최대 3개)</span>
+            <button class="mini" id="clearOverlays">전체 삭제</button>
           </div>
           <div class="layer-list" id="layerList">
-            <div class="empty">No overlays yet.</div>
+            <div class="empty">아직 오버레이가 없습니다.</div>
           </div>
         </div>
       </div>

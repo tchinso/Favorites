@@ -55,7 +55,7 @@
 
   window.onunhandledrejection = (event) => {
     console.error(event.reason);
-    showToast("Error: " + (event.reason?.message || event.reason));
+    showToast("오류: " + (event.reason?.message || event.reason));
   };
 
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -148,24 +148,24 @@
 
   function updateBaseLockButton() {
     if (!els.lockBaseBtn) return;
-    els.lockBaseBtn.textContent = `Base Lock: ${state.view.locked ? "ON" : "OFF"}`;
+    els.lockBaseBtn.textContent = `원본 잠금: ${state.view.locked ? "설정" : "해제"}`;
     els.lockBaseBtn.classList.toggle("locked", state.view.locked);
   }
 
   function updateStatus() {
     if (!els.status) return;
     if (!state.base.loaded) {
-      els.status.textContent = "Load a base image.";
+      els.status.textContent = "원본 이미지를 불러오세요.";
       return;
     }
 
     const active = getActiveOverlay();
     const overlayCount = state.overlays.length;
     const activeLabel = active
-      ? `Selected #${getOverlayIndexById(active.id) + 1}${active.locked ? " (locked)" : ""}`
-      : "No layer selected";
+      ? `선택됨 #${getOverlayIndexById(active.id) + 1}${active.locked ? " (잠김)" : ""}`
+      : "선택된 레이어 없음";
 
-    els.status.textContent = `Base: ${state.base.name} (${state.base.w}x${state.base.h}) | Overlays: ${overlayCount} | ${activeLabel}`;
+    els.status.textContent = `원본: ${state.base.name} (${state.base.w}x${state.base.h}) | 오버레이: ${overlayCount}개 | ${activeLabel}`;
   }
 
   function updateOpacityUI() {
@@ -222,7 +222,7 @@
     draw();
 
     if (!options.silent && state.activeOverlayId == null) {
-      showToast("No overlay selected.");
+      showToast("선택된 오버레이가 없습니다.");
     }
   }
 
@@ -285,11 +285,11 @@
 
     if (!state.base.loaded) {
       ctx.save();
-      ctx.fillStyle = "rgba(255, 255, 255, 0.09)";
+      ctx.fillStyle = "rgba(85, 90, 106, 0.55)";
       ctx.font = "600 18px system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText("Load a base image.", els.canvas.width / (2 * dpr), els.canvas.height / (2 * dpr));
+      ctx.fillText("원본 이미지를 불러오세요.", els.canvas.width / (2 * dpr), els.canvas.height / (2 * dpr));
       ctx.restore();
       return;
     }
@@ -332,12 +332,12 @@
       const image = await new Promise((resolve, reject) => {
         const img = new Image();
         img.onload = () => resolve(img);
-        img.onerror = () => reject(new Error("Failed to load image."));
+        img.onerror = () => reject(new Error("이미지를 불러오지 못했습니다."));
         img.src = url;
       });
       const w = image.naturalWidth || image.width;
       const h = image.naturalHeight || image.height;
-      if (!w || !h) throw new Error("Invalid image dimensions.");
+      if (!w || !h) throw new Error("유효하지 않은 이미지 크기입니다.");
       return { source: image, w, h };
     } finally {
       window.setTimeout(() => {
@@ -369,7 +369,7 @@
     renderLayerList();
     draw();
     const rowIndex = getOverlayIndexById(id) + 1;
-    showToast(overlay.locked ? `Layer #${rowIndex} locked` : `Layer #${rowIndex} unlocked`);
+    showToast(overlay.locked ? `레이어 #${rowIndex} 잠금` : `레이어 #${rowIndex} 잠금 해제`);
   }
 
   function renderLayerList() {
@@ -379,7 +379,7 @@
     if (!state.overlays.length) {
       const empty = document.createElement("div");
       empty.className = "empty";
-      empty.textContent = "No overlays yet.";
+      empty.textContent = "아직 오버레이가 없습니다.";
       els.layerList.appendChild(empty);
       return;
     }
@@ -403,13 +403,13 @@
       if (overlay.locked) lockBtn.classList.add("locked");
       lockBtn.type = "button";
       lockBtn.dataset.action = "lock";
-      lockBtn.textContent = overlay.locked ? "Locked" : "Lock";
+      lockBtn.textContent = overlay.locked ? "잠김" : "잠금";
 
       const removeBtn = document.createElement("button");
       removeBtn.className = "mini danger";
       removeBtn.type = "button";
       removeBtn.dataset.action = "remove";
-      removeBtn.textContent = "Delete";
+      removeBtn.textContent = "삭제";
 
       row.append(indexTag, name, lockBtn, removeBtn);
 
@@ -424,7 +424,7 @@
           toggleOverlayLock(overlay.id);
         } else if (actionButton.dataset.action === "remove") {
           removeOverlayById(overlay.id);
-          showToast(`Layer #${index + 1} deleted`);
+          showToast(`레이어 #${index + 1} 삭제`);
         }
       });
 
@@ -472,13 +472,13 @@
           y: overlay.y
         }
       };
-      updateModePill(`Drag layer #${getOverlayIndexById(overlay.id) + 1}`);
+      updateModePill(`레이어 #${getOverlayIndexById(overlay.id) + 1} 이동`);
       return;
     }
 
     if (!state.base.loaded || state.view.locked) {
       state.gesture = null;
-      updateModePill("Locked");
+      updateModePill("잠김");
       return;
     }
 
@@ -491,7 +491,7 @@
         pointer: { x: clientX, y: clientY }
       }
     };
-    updateModePill("Move base");
+    updateModePill("원본 이동");
   }
 
   function startPinchGesture() {
@@ -518,13 +518,13 @@
           rot: overlay.rot
         }
       };
-      updateModePill(`Scale/rotate layer #${getOverlayIndexById(overlay.id) + 1}`);
+      updateModePill(`레이어 #${getOverlayIndexById(overlay.id) + 1} 확대/회전`);
       return;
     }
 
     if (!state.base.loaded || state.view.locked) {
       state.gesture = null;
-      updateModePill("Locked");
+      updateModePill("잠김");
       return;
     }
 
@@ -537,7 +537,7 @@
         scale: state.view.scale
       }
     };
-    updateModePill("Zoom base");
+    updateModePill("원본 확대");
   }
 
   function onPointerDown(event) {
@@ -621,7 +621,7 @@
     }
     if (state.pointers.size === 0) {
       state.wasPinching = false;
-      updateModePill("Idle");
+      updateModePill("대기");
     }
   }
 
@@ -696,7 +696,7 @@
     outCanvas.height = height;
 
     const outCtx = outCanvas.getContext("2d", { alpha: true });
-    if (!outCtx) throw new Error("Failed to create export canvas.");
+    if (!outCtx) throw new Error("내보내기 캔버스를 만들지 못했습니다.");
 
     outCtx.clearRect(0, 0, width, height);
     outCtx.save();
@@ -724,13 +724,13 @@
   }
 
   function getExportFileName() {
-    const baseName = (state.base.name || "overlayed").replace(/\.[^/.]+$/, "");
-    return `${baseName}_overlayed.png`;
+    const baseName = (state.base.name || "오버레이").replace(/\.[^/.]+$/, "");
+    return `${baseName}_오버레이.png`;
   }
 
   async function exportPng() {
     if (!state.base.loaded) {
-      showToast("Load a base image first.");
+      showToast("먼저 원본 이미지를 불러오세요.");
       return;
     }
 
@@ -739,7 +739,7 @@
     if ("toBlob" in outCanvas) {
       const blob = await new Promise((resolve) => outCanvas.toBlob(resolve, "image/png"));
       if (!blob) {
-        showToast("PNG export failed.");
+        showToast("PNG 저장에 실패했습니다.");
         return;
       }
       downloadBlob(blob, getExportFileName());
@@ -754,9 +754,9 @@
     }
 
     if (exportScale < 1) {
-      showToast(`Saved ${width}x${height} (long edge limited to 3840px).`, 2200);
+      showToast(`${width}x${height} 저장 완료 (긴 변 3840px 제한 적용).`, 2200);
     } else {
-      showToast(`Saved ${width}x${height} (base native size).`, 2200);
+      showToast(`${width}x${height} 저장 완료 (원본 해상도 유지).`, 2200);
     }
   }
 
@@ -765,7 +765,7 @@
     if (!file) return;
 
     const loaded = await loadImageFromFile(file).catch((error) => {
-      showToast(error.message || "Failed to load base image.");
+      showToast(error.message || "원본 이미지를 불러오지 못했습니다.");
       return null;
     });
     if (!loaded) return;
@@ -785,7 +785,7 @@
     renderLayerList();
     syncControls();
     draw();
-    showToast(`Base loaded: ${file.name}`);
+    showToast(`원본 불러옴: ${file.name}`);
   }
 
   async function onOverlayInputChange(event) {
@@ -794,19 +794,19 @@
     if (!files.length) return;
 
     if (!state.base.loaded) {
-      showToast("Load a base image first.");
+      showToast("먼저 원본 이미지를 불러오세요.");
       return;
     }
 
     let added = 0;
     for (const file of files) {
       if (state.overlays.length >= MAX_OVERLAYS) {
-        showToast(`You can add up to ${MAX_OVERLAYS} overlays.`);
+        showToast(`오버레이는 최대 ${MAX_OVERLAYS}개까지 추가할 수 있습니다.`);
         break;
       }
 
       const loaded = await loadImageFromFile(file).catch((error) => {
-        showToast(error.message || `Failed to load: ${file.name}`);
+        showToast(error.message || `불러오기 실패: ${file.name}`);
         return null;
       });
       if (!loaded) continue;
@@ -824,7 +824,7 @@
     renderLayerList();
     syncControls();
     draw();
-    showToast(`Added ${added} overlay(s).`);
+    showToast(`${added}개 오버레이를 추가했습니다.`);
   }
 
   function wireUiEvents() {
@@ -846,26 +846,26 @@
     els.resetViewBtn?.addEventListener("click", () => {
       fitBaseToStage();
       draw();
-      updateModePill("Idle");
-      showToast("View reset.");
+      updateModePill("대기");
+      showToast("화면을 초기화했습니다.");
     });
 
     els.lockBaseBtn?.addEventListener("click", () => {
       state.view.locked = !state.view.locked;
       updateBaseLockButton();
-      updateModePill(state.view.locked ? "Base locked" : "Idle");
-      showToast(state.view.locked ? "Base pan/zoom locked." : "Base lock released.");
+      updateModePill(state.view.locked ? "원본 잠금" : "대기");
+      showToast(state.view.locked ? "원본 이동/확대를 잠갔습니다." : "원본 잠금을 해제했습니다.");
     });
 
     els.removeOverlayBtn?.addEventListener("click", () => {
       const active = getActiveOverlay();
       if (!active) {
-        showToast("No overlay selected.");
+        showToast("선택된 오버레이가 없습니다.");
         return;
       }
       const rowIndex = getOverlayIndexById(active.id) + 1;
       removeOverlayById(active.id);
-      showToast(`Layer #${rowIndex} deleted.`);
+      showToast(`레이어 #${rowIndex} 삭제`);
     });
 
     els.clearOverlaysBtn?.addEventListener("click", () => {
@@ -876,7 +876,7 @@
       renderLayerList();
       syncControls();
       draw();
-      showToast("All overlays deleted.");
+      showToast("모든 오버레이를 삭제했습니다.");
     });
 
     window.addEventListener("resize", () => {
@@ -897,8 +897,8 @@
     renderLayerList();
     syncControls();
     updateStatus();
-    updateModePill("Idle");
-    showToast("Load a base image.");
+    updateModePill("대기");
+    showToast("원본 이미지를 불러오세요.");
   }
 
   init();
