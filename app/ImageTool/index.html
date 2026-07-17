@@ -226,41 +226,6 @@
     .u{color:#2a41b6;border-color:#9fb0ff;background:#edf1ff}
     .e{color:#d54343;border-color:#ef9f98;background:#fdebe9}
 
-    .ov-wrap{position:relative;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:#fff}
-    .ov-stage{position:relative;height:500px;background:#f6f9ff;overflow:hidden}
-    .ov-checker{
-      position:absolute;inset:0;
-      background:
-        linear-gradient(45deg,#eaf0ff 25%,transparent 25%) -10px 0/20px 20px,
-        linear-gradient(-45deg,#eaf0ff 25%,transparent 25%) -10px 0/20px 20px,
-        linear-gradient(45deg,transparent 75%,#eaf0ff 75%) -10px 0/20px 20px,
-        linear-gradient(-45deg,transparent 75%,#eaf0ff 75%) -10px 0/20px 20px,
-        #f9fbff;
-      pointer-events:none;
-    }
-    #ov_canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
-    .ov-topbar{position:absolute;left:10px;right:10px;top:10px;display:flex;justify-content:space-between;gap:8px;z-index:5;pointer-events:none}
-    .ov-chip{pointer-events:auto;background:rgba(255,255,255,.92);border:1px solid var(--line);border-radius:12px;padding:6px 10px;box-shadow:0 0 0 1px var(--ring);font-size:12px}
-    .ov-toolbar{padding:10px;background:linear-gradient(180deg,rgba(255,255,255,.4),#eff4ff)}
-    .ov-bar{display:grid;gap:10px;grid-template-columns:repeat(6,1fr)}
-    .ov-file-btn{position:relative;overflow:hidden;border:1px solid var(--line);border-radius:12px;background:#fff;padding:12px 10px;text-align:center;font-weight:700;cursor:pointer}
-    .ov-file-btn input{position:absolute;inset:0;opacity:0;cursor:pointer}
-    .ov-slider-wrap{grid-column:span 6;display:flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:8px 10px}
-    .ov-slider-wrap label{font-size:12px;color:var(--muted);white-space:nowrap}
-    .ov-layer-wrap{grid-column:span 6;border:1px solid var(--line);border-radius:12px;background:#fff;overflow:hidden}
-    .ov-layer-head{display:flex;justify-content:space-between;align-items:center;padding:10px;border-bottom:1px solid #e7ebf5}
-    .ov-layer-list{padding:10px;display:grid;gap:8px;max-height:170px;overflow-y:auto}
-    .ov-layer-list .layer-item{display:grid;grid-template-columns:auto 1fr auto auto;align-items:center;gap:8px;border:1px solid var(--line);border-radius:10px;background:#fff;padding:8px;cursor:pointer}
-    .ov-layer-list .layer-item.active{border-color:#7c8cff;box-shadow:inset 0 0 0 1px rgba(91,118,254,.32)}
-    .ov-layer-list .layer-index{width:26px;height:26px;border-radius:999px;display:grid;place-items:center;font-size:11px;background:#edf1ff;color:#42528f;font-weight:700}
-    .ov-layer-list .layer-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    .ov-layer-list .mini{font-size:11px;padding:7px 8px;border:1px solid var(--line);border-radius:10px;background:#fff}
-    .ov-layer-list .mini.danger{border-color:#d64545;background:#fff;color:#d64545}
-    .ov-layer-list .mini.locked,#ov_lockBase.locked{background:linear-gradient(180deg,#7f8aa0,#667184);border-color:#667184;color:#fff}
-    .ov-empty{font-size:12px;color:var(--muted);text-align:center;padding:14px 8px;border-radius:10px;border:1px dashed #d6dceb;background:#f9fbff}
-    .ov-toast{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);background:rgba(28,28,30,.9);color:#fff;padding:10px 14px;border-radius:999px;font-size:12px;display:none;pointer-events:none;z-index:12}
-    .ov-toast.show{display:inline-block}
-
     .jd-wrap .jd-drop{
       flex:1 1 320px;min-height:104px;border:1px dashed #b8c5e8;border-radius:14px;
       display:grid;place-items:center;background:#f8fbff;cursor:pointer;
@@ -305,7 +270,7 @@
         <a href="#b2">B-2 회전</a>
         <a href="#b3">B-3 축소</a>
         <a href="#b4">B-4 Blur</a>
-        <a href="#c1">C-1 오버레이</a>
+        <a href="../ImageOverlayer/index.html" target="_blank" rel="noopener">C-1 오버레이 ↗</a>
         <a href="#c2">C-2 주작감별</a>
         <a href="#c3">C-3 도트화</a>
       </nav>
@@ -546,57 +511,6 @@
         </div>
         <div>
           <div class="canvasWrap"><canvas id="b4_canvas"></canvas></div>
-        </div>
-      </div>
-    </section>
-
-    <section id="c1">
-      <h2>도구 C-1 - 이미지 오버레이</h2>
-      <div class="panel">
-        <div class="ov-wrap">
-          <div class="ov-topbar">
-            <div class="ov-chip" id="ov_status">원본 이미지를 불러오세요.</div>
-            <div class="ov-chip" id="ov_mode-pill">대기</div>
-          </div>
-
-          <div class="ov-stage" id="ov_stage">
-            <div class="ov-checker"></div>
-            <canvas id="ov_canvas" aria-label="이미지 오버레이 캔버스"></canvas>
-            <div class="ov-toast" id="ov_toast"></div>
-          </div>
-
-          <div class="ov-toolbar">
-            <div class="ov-bar">
-              <label class="ov-file-btn" title="원본 이미지 불러오기">
-                원본
-                <input id="ov_baseInput" type="file" accept="image/*" />
-              </label>
-              <label class="ov-file-btn" title="오버레이 이미지 추가">
-                오버레이 추가
-                <input id="ov_overlayInput" type="file" accept="image/*" multiple />
-              </label>
-              <button class="btn ghost" id="ov_resetView" title="화면 위치 초기화">화면 초기화</button>
-              <button class="btn ghost" id="ov_lockBase" title="원본 이동/확대 잠금">원본 잠금: 해제</button>
-              <button class="btn" id="ov_removeOverlay" title="선택 레이어 삭제">선택 삭제</button>
-              <button class="btn primary" id="ov_exportBtn" title="PNG 저장">PNG 저장</button>
-
-              <div class="ov-slider-wrap">
-                <label for="ov_opacity">선택 레이어 불투명도</label>
-                <input id="ov_opacity" type="range" min="0" max="1" step="0.01" value="1" />
-                <span class="pill" id="ov_opacityVal">100%</span>
-              </div>
-
-              <div class="ov-layer-wrap">
-                <div class="ov-layer-head">
-                  <span>오버레이 레이어 (최대 3개)</span>
-                  <button class="btn" id="ov_clearOverlays">전체 삭제</button>
-                </div>
-                <div class="ov-layer-list" id="ov_layerList">
-                  <div class="ov-empty">아직 오버레이가 없습니다.</div>
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </section>
@@ -1138,7 +1052,6 @@
     </div>
   </div>
   <script type="module" src="ImageConverter.js"></script>
-  <script src="ImageOverlayer.js" defer></script>
   <script src="Jujakdetector.js" defer></script>
   <script src="DotMaker.js" defer></script>
   <script>

@@ -18,8 +18,6 @@
     #copy{width:100%;margin-top:.5rem;background:var(--success)}
     #copy:hover{background:#3c8e42}
   </style>
-  <!-- ✅ WanaKana UMD build (guaranteed window.wanakana) -->
-  <script src="https://cdn.jsdelivr.net/npm/wanakana@4.0.2/umd/wanakana.min.js"></script>
 </head>
 <body>
   <h1>한글 → 히라가나 / 전각·반각 가타카나 변환기</h1>
@@ -38,75 +36,171 @@
   <button id="copy">출력 결과 복사</button>
 
   <script>
-  /* ----------------- Utility ----------------- */
-  const L = ["g","kk","n","d","tt","r","m","b","pp","s","ss","","j","jj","ch","k","t","p","h"];
-  const V = ["a","ae","ya","yae","eo","e","yeo","ye","o","wa","wae","oe","yo","u","wo","we","wi","yu","u","ui","i"];
-  const T = ["","k","k","ks","n","nj","nh","t","l","lk","lm","lp","ls","lt","lp","lh","m","p","ps","t","t","n","t","t","k","t","p","h"];
+  /* 한글 음절을 분해한 뒤 오십음도 계열 표로 직접 가타카나에 매핑합니다. */
+  const CHO = [
+    "ㄱ", "ㄲ", "ㄴ", "ㄷ", "ㄸ", "ㄹ", "ㅁ", "ㅂ", "ㅃ",
+    "ㅅ", "ㅆ", "ㅇ", "ㅈ", "ㅉ", "ㅊ", "ㅋ", "ㅌ", "ㅍ", "ㅎ"
+  ];
+  const JUNG = [
+    "ㅏ", "ㅐ", "ㅑ", "ㅒ", "ㅓ", "ㅔ", "ㅕ", "ㅖ", "ㅗ", "ㅘ", "ㅙ",
+    "ㅚ", "ㅛ", "ㅜ", "ㅝ", "ㅞ", "ㅟ", "ㅠ", "ㅡ", "ㅢ", "ㅣ"
+  ];
+  const JONG = [
+    "", "ㄱ", "ㄲ", "ㄳ", "ㄴ", "ㄵ", "ㄶ", "ㄷ", "ㄹ", "ㄺ", "ㄻ",
+    "ㄼ", "ㄽ", "ㄾ", "ㄿ", "ㅀ", "ㅁ", "ㅂ", "ㅄ", "ㅅ", "ㅆ", "ㅇ",
+    "ㅈ", "ㅊ", "ㅋ", "ㅌ", "ㅍ", "ㅎ"
+  ];
 
-  function syllableToRoma(code){
-    const SBase=0xAC00,LCount=19,VCount=21,TCount=28,NCount=588;
-    const SIndex=code-SBase;
-    if(SIndex<0||SIndex>=11172) return String.fromCharCode(code);
-    const l=L[Math.floor(SIndex/NCount)];
-    const v=V[Math.floor((SIndex%NCount)/TCount)];
-    const t=T[SIndex%TCount];
-    return l+v+t;
+  const VOWEL_KATA = {
+    ㅏ: "ア", ㅐ: "エ", ㅑ: "ヤ", ㅒ: "イェ", ㅓ: "オ", ㅔ: "エ",
+    ㅕ: "ヨ", ㅖ: "イェ", ㅗ: "オ", ㅘ: "ワ", ㅙ: "ウェ", ㅚ: "ウェ",
+    ㅛ: "ヨ", ㅜ: "ウ", ㅝ: "ウォ", ㅞ: "ウェ", ㅟ: "ウィ", ㅠ: "ユ",
+    ㅡ: "ウ", ㅢ: "ウィ", ㅣ: "イ"
+  };
+
+  const C_HEAD = {
+    ㅇ: "", ㄱ: "G", ㄲ: "KK", ㅋ: "K", ㄴ: "N", ㄷ: "D", ㄸ: "TT",
+    ㅌ: "T", ㄹ: "R", ㅁ: "M", ㅂ: "B", ㅃ: "PP", ㅍ: "P", ㅅ: "S",
+    ㅆ: "SS", ㅈ: "J", ㅉ: "JJ", ㅊ: "CH", ㅎ: "H"
+  };
+
+  const CV_TABLE = {
+    G: { A: "ガ", E: "ゲ", O: "ゴ", U: "グ", OO: "ゴ", I: "ギ" },
+    K: { A: "カ", E: "ケ", O: "コ", U: "ク", OO: "コ", I: "キ" },
+    KK: { A: "ッカ", E: "ッケ", O: "ッコ", U: "ック", OO: "ッコ", I: "ッキ" },
+    N: { A: "ナ", E: "ネ", O: "ノ", U: "ヌ", OO: "ノ", I: "ニ" },
+    D: { A: "ダ", E: "デ", O: "ド", U: "ドゥ", OO: "ド", I: "ディ" },
+    T: { A: "タ", E: "テ", O: "ト", U: "トゥ", OO: "ト", I: "ティ" },
+    TT: { A: "ッタ", E: "ッテ", O: "ット", U: "ットゥ", OO: "ット", I: "ッティ" },
+    R: { A: "ラ", E: "レ", O: "ロ", U: "ル", OO: "ロ", I: "リ" },
+    M: { A: "マ", E: "メ", O: "モ", U: "ム", OO: "モ", I: "ミ" },
+    B: { A: "バ", E: "ベ", O: "ボ", U: "ブ", OO: "ボ", I: "ビ" },
+    P: { A: "パ", E: "ペ", O: "ポ", U: "プ", OO: "ポ", I: "ピ" },
+    PP: { A: "ッパ", E: "ッペ", O: "ッポ", U: "ップ", OO: "ッポ", I: "ッピ" },
+    S: { A: "サ", E: "セ", O: "ソ", U: "ス", OO: "ソ", I: "シ" },
+    SS: { A: "ッサ", E: "ッセ", O: "ッソ", U: "ッス", OO: "ッソ", I: "ッシ" },
+    J: { A: "ジャ", E: "ジェ", O: "ジョ", U: "ジュ", OO: "ジョ", I: "ジ" },
+    JJ: { A: "ッジャ", E: "ッジェ", O: "ッジョ", U: "ッジュ", OO: "ッジョ", I: "ッジ" },
+    CH: { A: "チャ", E: "チェ", O: "チョ", U: "チュ", OO: "チョ", I: "チ" },
+    H: { A: "ハ", E: "ヘ", O: "ホ", U: "フ", OO: "ホ", I: "ヒ" }
+  };
+
+  function decomposeHangulSyllable(ch) {
+    const code = ch.charCodeAt(0);
+    const SBase = 0xac00;
+    const LCount = 19;
+    const VCount = 21;
+    const TCount = 28;
+    const SIndex = code - SBase;
+    if (SIndex < 0 || SIndex >= 11172) return null;
+    const LIndex = Math.floor(SIndex / (VCount * TCount));
+    const VIndex = Math.floor((SIndex % (VCount * TCount)) / TCount);
+    return { cho: CHO[LIndex], jung: JUNG[VIndex], jong: JONG[SIndex % TCount] };
   }
-  function romaizeHangul(txt){
-    let out="";
-    for(const ch of txt){
-      const c=ch.charCodeAt(0);
-      out+=syllableToRoma(c);
+
+  function jongToTail(jong) {
+    if (!jong) return "";
+    if (["ㅇ", "ㄴ"].includes(jong)) return "ン";
+    if (jong === "ㅁ") return "ム";
+    if (["ㄱ", "ㅋ", "ㄲ", "ㄳ", "ㄺ"].includes(jong)) return "ク";
+    if (["ㄷ", "ㅌ", "ㅅ", "ㅆ", "ㅈ", "ㅊ", "ㅎ", "ㅄ", "ㄽ", "ㄾ"].includes(jong)) return "ッ";
+    if (["ㅂ", "ㅍ", "ㄿ"].includes(jong)) return "プ";
+    if (["ㄹ", "ㄻ", "ㄼ", "ㄾ", "ㅀ"].includes(jong)) return "ル";
+    return "";
+  }
+
+  function cvToKana(cTag, vowel) {
+    const baseVowel = VOWEL_KATA[vowel] || "";
+    if (!cTag) return baseVowel;
+
+    const key = ["ㅏ", "ㅑ"].includes(vowel) ? "A"
+      : ["ㅐ", "ㅔ", "ㅒ", "ㅖ"].includes(vowel) ? "E"
+        : ["ㅓ", "ㅕ"].includes(vowel) ? "O"
+          : ["ㅜ", "ㅠ", "ㅡ"].includes(vowel) ? "U"
+            : ["ㅗ", "ㅛ", "ㅘ", "ㅙ", "ㅚ"].includes(vowel) ? "OO"
+              : ["ㅣ", "ㅢ"].includes(vowel) ? "I" : "A";
+    const table = CV_TABLE[cTag];
+    if (!table) return baseVowel;
+
+    if (vowel === "ㅑ") return cTag === "S" ? "シャ" : cTag === "CH" ? "チャ" : table.I + "ャ";
+    if (vowel === "ㅕ" || vowel === "ㅛ") return cTag === "S" ? "ショ" : cTag === "CH" ? "チョ" : table.I + "ョ";
+    if (vowel === "ㅠ") return cTag === "S" ? "シュ" : cTag === "CH" ? "チュ" : table.I + "ュ";
+    if (vowel === "ㅘ") return table.A + "ワ";
+    if (vowel === "ㅙ") return table.E + "ワ";
+    if (vowel === "ㅚ" || vowel === "ㅞ") return table.E;
+    if (vowel === "ㅝ") return table.U + "ォ";
+    if (vowel === "ㅟ" || vowel === "ㅢ") return table.U + "ィ";
+    return table[key] || baseVowel;
+  }
+
+  function hangulToKatakana(input) {
+    let output = "";
+    for (const ch of input) {
+      const decomposed = decomposeHangulSyllable(ch);
+      if (!decomposed) {
+        output += ch;
+        continue;
+      }
+      const cTag = C_HEAD[decomposed.cho] || "";
+      output += cvToKana(cTag, decomposed.jung) + jongToTail(decomposed.jong);
     }
-    return out;
+    return output.replace(/ッッ+/g, "ッ");
   }
 
-  /* -------------- Katakana helpers --------------- */
-  function toHalfwidthKatakana(fullstr){
-    const full="アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲンァィゥェォッャュョー「」、。・ヴガギグゲゴザジズゼゾダヂヅデドバビブベボパピプペポ";
-    const half="ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜｦﾝｧｨｩｪｫｯｬｭｮｰ｢｣､｡･ｳﾞｶﾞｷﾞｸﾞｹﾞｺﾞｻﾞｼﾞｽﾞｾﾞｿﾞﾀﾞﾁﾞﾂﾞﾃﾞﾄﾞﾊﾞﾋﾞﾌﾞﾍﾞﾎﾞﾊﾟﾋﾟﾌﾟﾍﾟﾎﾟ";
-    return fullstr.replace(/./g,ch=>{
-      const i=full.indexOf(ch);
-      return i>-1?half[i]:ch;
-    });
+  function toHiragana(katakana) {
+    return katakana.replace(/[ァ-ヶ]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0x60));
   }
 
-  /* -------------- Converter core ---------------- */
-  function convertHangul(txt,mode){
-    if(!window.wanakana){
-      alert('WanaKana 로딩 실패… 인터넷 연결을 확인해줘');
-      return '';
-    }
-    const romaji=romaizeHangul(txt.toLowerCase());
-    const katakana=wanakana.toKatakana(romaji);
-    switch(mode){
-      case 'tohiragana':
-        return wanakana.toHiragana(romaji);
-      case 'tohalfkatakana':
-        return toHalfwidthKatakana(katakana);
-      default:
-        return katakana;
-    }
+  const FULL_TO_HALF = new Map([
+    ["ア", "ｱ"], ["イ", "ｲ"], ["ウ", "ｳ"], ["エ", "ｴ"], ["オ", "ｵ"],
+    ["カ", "ｶ"], ["キ", "ｷ"], ["ク", "ｸ"], ["ケ", "ｹ"], ["コ", "ｺ"],
+    ["サ", "ｻ"], ["シ", "ｼ"], ["ス", "ｽ"], ["セ", "ｾ"], ["ソ", "ｿ"],
+    ["タ", "ﾀ"], ["チ", "ﾁ"], ["ツ", "ﾂ"], ["テ", "ﾃ"], ["ト", "ﾄ"],
+    ["ナ", "ﾅ"], ["ニ", "ﾆ"], ["ヌ", "ﾇ"], ["ネ", "ﾈ"], ["ノ", "ﾉ"],
+    ["ハ", "ﾊ"], ["ヒ", "ﾋ"], ["フ", "ﾌ"], ["ヘ", "ﾍ"], ["ホ", "ﾎ"],
+    ["マ", "ﾏ"], ["ミ", "ﾐ"], ["ム", "ﾑ"], ["メ", "ﾒ"], ["モ", "ﾓ"],
+    ["ヤ", "ﾔ"], ["ユ", "ﾕ"], ["ヨ", "ﾖ"], ["ラ", "ﾗ"], ["リ", "ﾘ"],
+    ["ル", "ﾙ"], ["レ", "ﾚ"], ["ロ", "ﾛ"], ["ワ", "ﾜ"], ["ヲ", "ｦ"],
+    ["ン", "ﾝ"], ["ァ", "ｧ"], ["ィ", "ｨ"], ["ゥ", "ｩ"], ["ェ", "ｪ"],
+    ["ォ", "ｫ"], ["ッ", "ｯ"], ["ャ", "ｬ"], ["ュ", "ｭ"], ["ョ", "ｮ"],
+    ["ー", "ｰ"], ["「", "｢"], ["」", "｣"], ["、", "､"], ["。", "｡"], ["・", "･"],
+    ["ヴ", "ｳﾞ"], ["ガ", "ｶﾞ"], ["ギ", "ｷﾞ"], ["グ", "ｸﾞ"], ["ゲ", "ｹﾞ"], ["ゴ", "ｺﾞ"],
+    ["ザ", "ｻﾞ"], ["ジ", "ｼﾞ"], ["ズ", "ｽﾞ"], ["ゼ", "ｾﾞ"], ["ゾ", "ｿﾞ"],
+    ["ダ", "ﾀﾞ"], ["ヂ", "ﾁﾞ"], ["ヅ", "ﾂﾞ"], ["デ", "ﾃﾞ"], ["ド", "ﾄﾞ"],
+    ["バ", "ﾊﾞ"], ["ビ", "ﾋﾞ"], ["ブ", "ﾌﾞ"], ["ベ", "ﾍﾞ"], ["ボ", "ﾎﾞ"],
+    ["パ", "ﾊﾟ"], ["ピ", "ﾋﾟ"], ["プ", "ﾌﾟ"], ["ペ", "ﾍﾟ"], ["ポ", "ﾎﾟ"]
+  ]);
+
+  function toHalfwidthKatakana(katakana) {
+    return Array.from(katakana, ch => FULL_TO_HALF.get(ch) || ch).join("");
   }
 
-  /* -------------- UI wiring --------------------- */
-  function init(){
-    document.querySelectorAll('button[data-mode]').forEach(btn=>{
-      btn.addEventListener('click',()=>{
-        const mode=btn.dataset.mode;
-        const input=document.getElementById('input').value;
-        document.getElementById('output').value=convertHangul(input,mode);
+  function convertHangul(text, mode) {
+    const katakana = hangulToKatakana(text);
+    if (mode === "tohiragana") return toHiragana(katakana);
+    if (mode === "tohalfkatakana") return toHalfwidthKatakana(katakana);
+    return katakana;
+  }
+
+  function init() {
+    const input = document.getElementById("input");
+    const output = document.getElementById("output");
+    document.querySelectorAll("button[data-mode]").forEach(button => {
+      button.addEventListener("click", () => {
+        output.value = convertHangul(input.value, button.dataset.mode);
       });
     });
-    document.getElementById('copy').addEventListener('click',()=>{
-      const out=document.getElementById('output');
-      if(!out.value) return;
-      out.select();
-      document.execCommand('copy');
-      alert('복사했어…!');
+    document.getElementById("copy").addEventListener("click", async () => {
+      if (!output.value) return;
+      try {
+        await navigator.clipboard.writeText(output.value);
+      } catch {
+        output.select();
+        document.execCommand("copy");
+      }
     });
   }
-  window.addEventListener('DOMContentLoaded',init);
+  window.addEventListener("DOMContentLoaded", init);
   </script>
 </body>
 </html>

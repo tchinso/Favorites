@@ -9,7 +9,7 @@ const GAME_ORDER = [
   { id: "greatKingdom", label: "그레이트 킹덤" },
   { id: "variantGomoku", label: "변형 오목" },
   { id: "luckChess", label: "운빨 체스" },
-  { id: "kamisado", label: "변형 카미사도" }
+  { id: "kamisado", label: "카미사도" }
 ];
 
 const ui = {
@@ -206,14 +206,24 @@ function createKamisadoGame(ctx) {
   const size = 8;
   const files = ["a", "b", "c", "d", "e", "f", "g", "h"];
   const colors = [
-    { name: "주황", short: "O", hex: "#E69F00", ink: "#111827" },
-    { name: "하늘", short: "S", hex: "#56B4E9", ink: "#111827" },
-    { name: "초록", short: "G", hex: "#009E73", ink: "#ffffff" },
-    { name: "노랑", short: "Y", hex: "#F0E442", ink: "#111827" },
-    { name: "파랑", short: "B", hex: "#0072B2", ink: "#ffffff" },
-    { name: "다홍", short: "V", hex: "#D55E00", ink: "#ffffff" },
-    { name: "보라", short: "P", hex: "#CC79A7", ink: "#111827" },
-    { name: "검정", short: "K", hex: "#1F2937", ink: "#ffffff" }
+    { name: "주황", short: "O", hex: "#FF8C00", ink: "#111827" },
+    { name: "파랑", short: "B", hex: "#0F7CA8", ink: "#ffffff" },
+    { name: "보라", short: "P", hex: "#663399", ink: "#ffffff" },
+    { name: "분홍", short: "M", hex: "#FF69B4", ink: "#111827" },
+    { name: "노랑", short: "Y", hex: "#FFD10D", ink: "#111827" },
+    { name: "빨강", short: "R", hex: "#BF3B3C", ink: "#ffffff" },
+    { name: "초록", short: "G", hex: "#059651", ink: "#ffffff" },
+    { name: "갈색", short: "K", hex: "#5C443B", ink: "#ffffff" }
+  ];
+  const boardRowsTopToBottom = [
+    [0, 1, 2, 3, 4, 5, 6, 7],
+    [5, 0, 3, 6, 1, 4, 7, 2],
+    [6, 3, 0, 5, 2, 7, 4, 1],
+    [3, 2, 1, 0, 7, 6, 5, 4],
+    [4, 5, 6, 7, 0, 1, 2, 3],
+    [1, 4, 7, 2, 5, 0, 3, 6],
+    [2, 7, 4, 1, 6, 3, 0, 5],
+    [7, 6, 5, 4, 3, 2, 1, 0]
   ];
 
   let state;
@@ -228,7 +238,7 @@ function createKamisadoGame(ctx) {
 
   function newGame() {
     clearAiTimer();
-    boardColors = generateLatinBoard();
+    boardColors = createKamisadoBoard();
     const board = Array(size * size).fill(null);
     for (let file = 0; file < size; file += 1) {
       const playerColor = boardColors[indexOf(file, 0)];
@@ -247,7 +257,7 @@ function createKamisadoGame(ctx) {
     };
     selected = null;
     legalForSelection = [];
-    logs = [{ text: "새 변형 카미사도 시작. 플레이어가 선공입니다.", kind: "move" }];
+    logs = [{ text: "새 카미사도 시작. 흑이 선공입니다.", kind: "move" }];
     lastMove = "-";
     lastAiInfo = "대기";
     lastAiMove = null;
@@ -256,8 +266,8 @@ function createKamisadoGame(ctx) {
 
   function render() {
     if (!ctx.isActive(id)) return;
-    ui.title.textContent = "변형 카미사도";
-    ui.subtitle.textContent = "8색 라틴 보드 · 도착 칸의 색이 상대의 다음 말을 강제합니다.";
+    ui.title.textContent = "카미사도";
+    ui.subtitle.textContent = "고정 8×8 색상 보드 · 도착 칸의 색이 다음에 움직일 말의 색을 정합니다.";
     ctx.setBoardSize(size, "kamisado");
     ctx.setCoordinates(files);
     ui.passButton.hidden = true;
@@ -356,7 +366,7 @@ function createKamisadoGame(ctx) {
     const piece = state.board[move.from];
     lastAiMove = null;
     state = applyAction(state, move);
-    lastMove = `플레이어 ${colorName(piece.color)} ${coord(move.from)}→${coord(move.to)}`;
+    lastMove = `흑 ${colorName(piece.color)} ${coord(move.from)}→${coord(move.to)}`;
     addLog(lastMove);
     selected = null;
     legalForSelection = [];
@@ -386,7 +396,7 @@ function createKamisadoGame(ctx) {
     const piece = state.board[choice.action.from];
     state = applyAction(state, choice.action);
     lastAiMove = { from: choice.action.from, to: choice.action.to };
-    lastMove = `AI ${colorName(piece.color)} ${coord(choice.action.from)}→${coord(choice.action.to)}`;
+    lastMove = `백 ${colorName(piece.color)} ${coord(choice.action.from)}→${coord(choice.action.to)}`;
     addLog(lastMove, "ai");
     settleForcedPasses();
     render();
@@ -622,31 +632,20 @@ function createKamisadoGame(ctx) {
     return searchState.board.findIndex(piece => piece && piece.side === side && piece.color === searchState.forcedColor);
   }
 
-  function generateLatinBoard() {
-    const base = shuffle([...Array(size).keys()]);
-    const steps = [1, 3, 5, 7];
-    const step = steps[Math.floor(Math.random() * steps.length)];
+  function createKamisadoBoard() {
     const cells = Array(size * size).fill(0);
-    for (let rank = 0; rank < size; rank += 1) {
+    for (let visualRow = 0; visualRow < size; visualRow += 1) {
+      const rank = size - 1 - visualRow;
       for (let file = 0; file < size; file += 1) {
-        cells[indexOf(file, rank)] = base[(file + rank * step) % size];
+        cells[indexOf(file, rank)] = boardRowsTopToBottom[visualRow][file];
       }
     }
     return cells;
   }
 
-  function shuffle(values) {
-    const copy = [...values];
-    for (let i = copy.length - 1; i > 0; i -= 1) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [copy[i], copy[j]] = [copy[j], copy[i]];
-    }
-    return copy;
-  }
-
   function statusText() {
     if (state.winner) return `${sideName(state.winner)}가 반대편 끝줄에 도달했습니다.`;
-    if (state.turn === "ai") return "AI가 1.2초 안에서 수를 읽고 있습니다.";
+    if (state.turn === "ai") return "백 AI가 1.2초 안에서 수를 읽고 있습니다.";
     if (state.forcedColor === null) return "원하는 말을 선택하세요.";
     return `${colorName(state.forcedColor)} 말을 움직여야 합니다.`;
   }
@@ -660,8 +659,8 @@ function createKamisadoGame(ctx) {
       : required.map(index => `${colorName(state.board[index].color)} ${coord(index)}`).join(", ");
     return `
       <div class="detail-grid">
-        <span class="detail-item">플레이어 말 ${playerPieces}</span>
-        <span class="detail-item">AI 말 ${aiPieces}</span>
+        <span class="detail-item">흑 말 ${playerPieces}</span>
+        <span class="detail-item">백 말 ${aiPieces}</span>
         <span class="detail-item">움직일 말 ${requiredText}</span>
         <span class="detail-item">목표 끝줄 도달</span>
       </div>
@@ -678,7 +677,7 @@ function createKamisadoGame(ctx) {
   }
 
   function sideName(side) {
-    return side === "player" ? "플레이어" : "AI";
+    return side === "player" ? "흑" : "백";
   }
 
   function coord(index) {
