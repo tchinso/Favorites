@@ -3,10 +3,14 @@
 (() => {
   const MAX_OVERLAYS = 3;
   const EXPORT_MAX_EDGE = 3840;
+  const TOOLBAR_COLLAPSED_KEY = "image-overlayer-toolbar-collapsed";
 
   const els = {
     canvas: document.getElementById("canvas"),
     stage: document.getElementById("stage"),
+    toolbar: document.getElementById("toolbar"),
+    toolbarToggle: document.getElementById("toolbarToggle"),
+    toolbarSummary: document.getElementById("toolbarSummary"),
     baseInput: document.getElementById("baseInput"),
     overlayInput: document.getElementById("overlayInput"),
     exportBtn: document.getElementById("exportBtn"),
@@ -184,6 +188,50 @@
     els.opacityVal.textContent = `${Math.round(active.opacity * 100)}%`;
   }
 
+  function updateToolbarSummary() {
+    if (!els.toolbarSummary) return;
+    if (!state.base.loaded) {
+      els.toolbarSummary.textContent = "기본 이미지를 불러오세요";
+      return;
+    }
+
+    const layerCount = state.overlays.length;
+    els.toolbarSummary.textContent = `레이어 ${layerCount}/${MAX_OVERLAYS}`;
+  }
+
+  function setToolbarCollapsed(collapsed, options = {}) {
+    if (!els.toolbar || !els.toolbarToggle) return;
+    const isCollapsed = Boolean(collapsed);
+    els.toolbar.classList.toggle("is-collapsed", isCollapsed);
+    els.toolbarToggle.setAttribute("aria-expanded", String(!isCollapsed));
+    els.toolbarToggle.title = isCollapsed ? "편집 도구 펼치기" : "편집 도구 접기";
+
+    if (options.save !== false) {
+      try {
+        window.localStorage.setItem(TOOLBAR_COLLAPSED_KEY, String(isCollapsed));
+      } catch {
+        // Storage may be unavailable in private browsing contexts.
+      }
+    }
+
+    if (options.resize !== false) {
+      window.requestAnimationFrame(() => resizeCanvas({ centerView: true }));
+    }
+  }
+
+  function initToolbar() {
+    let savedValue = null;
+    try {
+      savedValue = window.localStorage.getItem(TOOLBAR_COLLAPSED_KEY);
+    } catch {
+      // Storage may be unavailable in private browsing contexts.
+    }
+
+    const isMobile = window.matchMedia("(max-width: 680px)").matches;
+    const collapsed = savedValue == null ? isMobile : savedValue === "true";
+    setToolbarCollapsed(collapsed, { save: false, resize: false });
+  }
+
   function syncControls() {
     const hasBase = state.base.loaded;
     const hasActive = Boolean(getActiveOverlay());
@@ -201,6 +249,7 @@
       els.exportBtn.disabled = !hasBase;
     }
     updateOpacityUI();
+    updateToolbarSummary();
     updateBaseLockButton();
   }
 
@@ -308,10 +357,17 @@
     ctx.restore();
   }
 
-  function resizeCanvas() {
+  function resizeCanvas(options = {}) {
     const rect = els.stage.getBoundingClientRect();
+    const previousWidth = els.canvas.width / dpr;
+    const previousHeight = els.canvas.height / dpr;
     els.canvas.width = Math.max(1, Math.floor(rect.width * dpr));
     els.canvas.height = Math.max(1, Math.floor(rect.height * dpr));
+
+    if (options.centerView && state.base.loaded && previousWidth > 0 && previousHeight > 0) {
+      state.view.x += (rect.width - previousWidth) / 2;
+      state.view.y += (rect.height - previousHeight) / 2;
+    }
     draw();
   }
 
@@ -828,6 +884,10 @@
   }
 
   function wireUiEvents() {
+    els.toolbarToggle?.addEventListener("click", () => {
+      setToolbarCollapsed(!els.toolbar?.classList.contains("is-collapsed"));
+    });
+
     els.baseInput?.addEventListener("change", onBaseInputChange);
     els.overlayInput?.addEventListener("change", onOverlayInputChange);
     els.exportBtn?.addEventListener("click", exportPng);
@@ -893,6 +953,7 @@
     els.stage.style.touchAction = "none";
     attachInputEvents();
     wireUiEvents();
+    initToolbar();
     resizeCanvas();
     renderLayerList();
     syncControls();

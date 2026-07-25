@@ -97,15 +97,82 @@
     .toolbar {
       position: relative;
       z-index: 11;
+      flex: 0 0 auto;
       padding: env(safe-area-inset-bottom, 0);
       background: linear-gradient(180deg, rgba(255, 255, 255, 0.35), #eff4ff);
+    }
+
+    .toolbar-toggle {
+      width: 100%;
+      min-height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 14px;
+      border: 0;
+      border-top: 1px solid rgba(199, 202, 213, 0.8);
+      border-bottom: 1px solid rgba(199, 202, 213, 0.8);
+      appearance: none;
+      background: rgba(255, 255, 255, 0.94);
+      color: var(--text);
+      font: inherit;
+      text-align: left;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .toolbar-toggle:active {
+      background: #f5f7ff;
+    }
+
+    .toolbar-toggle-copy {
+      min-width: 0;
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+    }
+
+    .toolbar-toggle-title {
+      font-size: 14px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .toolbar-toggle-summary {
+      overflow: hidden;
+      color: var(--muted);
+      font-size: 12px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .toolbar-chevron {
+      flex: 0 0 auto;
+      color: #52617f;
+      font-size: 20px;
+      line-height: 1;
+      transition: transform 160ms ease;
+    }
+
+    .toolbar.is-collapsed .toolbar-chevron {
+      transform: rotate(180deg);
+    }
+
+    .toolbar-body {
+      max-height: min(60dvh, 520px);
+      overflow: hidden auto;
+      overscroll-behavior: contain;
+    }
+
+    .toolbar.is-collapsed .toolbar-body {
+      display: none;
     }
 
     .bar {
       display: grid;
       gap: 10px;
       grid-template-columns: repeat(6, 1fr);
-      padding: 12px 12px calc(12px + env(safe-area-inset-bottom));
+      padding: 12px;
     }
 
     .btn,
@@ -344,6 +411,38 @@
         height: 100dvh;
       }
     }
+
+    @media (max-width: 680px) {
+      .toolbar-body {
+        max-height: min(64dvh, 580px);
+      }
+
+      .bar {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+        padding: 10px 12px 12px;
+      }
+
+      .btn,
+      .file-btn {
+        padding: 11px 8px;
+      }
+
+      .slider-wrap,
+      .layer-wrap {
+        grid-column: span 2;
+      }
+
+      .layer-list {
+        max-height: 145px;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .toolbar-chevron {
+        transition: none;
+      }
+    }
   </style>
 </head>
 <body>
@@ -359,8 +458,16 @@
       <div class="toast" id="toast"></div>
     </div>
 
-    <div class="toolbar">
-      <div class="bar">
+    <div class="toolbar is-collapsed" id="toolbar">
+      <button class="toolbar-toggle" id="toolbarToggle" type="button" aria-controls="toolbarPanel" aria-expanded="false">
+        <span class="toolbar-toggle-copy">
+          <span class="toolbar-toggle-title">편집 도구</span>
+          <span class="toolbar-toggle-summary" id="toolbarSummary">기본 이미지를 불러오세요</span>
+        </span>
+        <span class="toolbar-chevron" aria-hidden="true">⌄</span>
+      </button>
+      <div class="toolbar-body" id="toolbarPanel">
+        <div class="bar">
         <label class="file-btn" title="원본 이미지 불러오기">
           원본
           <input id="baseInput" type="file" accept="image/*" />
@@ -388,6 +495,7 @@
           <div class="layer-list" id="layerList">
             <div class="empty">아직 오버레이가 없습니다.</div>
           </div>
+        </div>
         </div>
       </div>
     </div>
