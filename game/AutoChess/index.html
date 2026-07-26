@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Arcana Chess — 자동 카드 체스</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark">♜</span>
+          <div>
+            <p class="eyebrow">AUTO BATTLE · ARCANA RULESET</p>
+            <h1>ARCANA CHESS</h1>
+          </div>
+        </div>
+        <div class="match-strip" aria-live="polite">
+          <div><span>TURN</span><strong id="turn-label">대기 중</strong></div>
+          <div><span>PLY</span><strong id="move-count">0</strong></div>
+          <div><span>AI</span><strong>≤ 3.0s</strong></div>
+        </div>
+        <div class="top-actions">
+          <button id="pause-button" class="secondary" disabled>일시정지</button>
+          <button id="start-button" class="primary">새 게임 시작</button>
+        </div>
+      </header>
+
+      <section class="game-layout">
+        <aside class="side-panel white-panel" aria-label="백 카드 선택">
+          <div class="side-heading">
+            <span class="side-dot white-dot"></span>
+            <div><p>WHITE COMMAND</p><h2>백의 비전 카드</h2></div>
+          </div>
+          <p class="side-hint" id="white-card-hint">게임 시작 시 3장의 카드가 제시됩니다.</p>
+          <div id="white-cards" class="card-list"></div>
+          <div class="effect-block">
+            <p class="effect-label">발동 중인 백 효과</p>
+            <div id="white-effects" class="effect-list"><span class="empty-chip">없음</span></div>
+          </div>
+        </aside>
+
+        <section class="arena" aria-label="자동 체스 보드">
+          <div class="arena-meta"><span id="phase-label">READY ROOM</span><span id="ai-note">카드를 배정하면 AI가 대국합니다.</span></div>
+          <div class="board-frame">
+            <div class="rank-labels top-ranks" aria-hidden="true"><span>8</span><span>7</span><span>6</span><span>5</span><span>4</span><span>3</span><span>2</span><span>1</span></div>
+            <div id="board" class="board" role="grid" aria-label="체스 보드"></div>
+            <div class="file-labels" aria-hidden="true"><span>a</span><span>b</span><span>c</span><span>d</span><span>e</span><span>f</span><span>g</span><span>h</span></div>
+          </div>
+          <div class="status-card" id="status-card" aria-live="polite">
+            <span class="status-pip"></span><p id="status-text">새 게임을 시작한 뒤, 양 진영의 카드를 선택하거나 스킵하세요.</p>
+          </div>
+          <div class="legend"><span><i class="selection-swatch"></i>AI 자동 대상 지정</span><span><i class="frozen-swatch"></i>동결된 기물</span><span><i class="last-swatch"></i>직전 수</span></div>
+        </section>
+
+        <aside class="side-panel black-panel" aria-label="흑 카드 선택">
+          <div class="side-heading">
+            <span class="side-dot black-dot"></span>
+            <div><p>BLACK COMMAND</p><h2>흑의 비전 카드</h2></div>
+          </div>
+          <p class="side-hint" id="black-card-hint">흑에게 부여할 카드도 직접 고릅니다.</p>
+          <div id="black-cards" class="card-list"></div>
+          <div class="effect-block">
+            <p class="effect-label">발동 중인 흑 효과</p>
+            <div id="black-effects" class="effect-list"><span class="empty-chip">없음</span></div>
+          </div>
+        </aside>
+      </section>
+
+      <section class="lower-deck">
+        <div class="rules-note">
+          <span>VARIANT RULE</span>
+          <p>체크메이트 대신 킹 포획으로 승부가 납니다. 단, <b>대리청정</b>이 있으면 퀸이 살아 있는 동안 킹 포획 후에도 계속 싸웁니다.</p>
+        </div>
+        <div class="log-wrap">
+          <div class="log-header"><span>BATTLE FEED</span><button id="clear-log" class="text-button">기록 지우기</button></div>
+          <ol id="game-log" class="game-log" aria-live="polite"></ol>
+        </div>
+      </section>
+    </main>
+
+    <template id="card-template">
+      <button class="spell-card" type="button">
+        <span class="card-number"></span>
+        <span class="card-copy"><strong></strong><small></small></span>
+        <span class="card-arrow">↗</span>
+      </button>
+    </template>
+    <script src="game.js"></script>
+  </body>
+</html>
