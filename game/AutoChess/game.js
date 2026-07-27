@@ -623,7 +623,8 @@
       case 6: groups = findRoyal(s, owner) ? own.filter((piece) => piece.type === "pawn").map((piece) => [piece]) : []; break;
       case 8: case 19: groups = own.filter((piece) => !isFrozen(s, piece)).map((piece) => [piece]); break;
       case 14: groups = enemy.filter((piece) => isRemote(piece.type)).map((piece) => [piece]); break;
-      case 15: case 22: groups = enemy.map((piece) => [piece]); break;
+      case 15: groups = enemy.filter((piece) => !piece.royal).map((piece) => [piece]); break;
+      case 22: groups = enemy.map((piece) => [piece]); break;
       case 17: groups = own.filter((piece) => piece.type === "bishop" && !isFrozen(s, piece)).map((piece) => [piece]); break;
       case 18: groups = own.flatMap((piece) => enemy.filter((rival) => rival.type === piece.type).map((rival) => [piece, rival])); break;
       default: break;
@@ -715,7 +716,13 @@
       case 12: addEffect(state, owner, "kingStep", label, { remaining: 2 }); break;
       case 13: addEffect(state, owner, "bishopJump", label); break;
       case 14: addEffect(state, owner, "oneStepRemote", label, { pieceId: one.id, target: enemy, remaining: 2 }); break;
-      case 15: addEffect(state, owner, "curse", label, { pieceId: one.id, target: enemy, remaining: 3 }); break;
+      case 15:
+        if (!one || one.royal) {
+          addLog(`[${label}] 실패: 상대 왕은 저주할 수 없습니다.`);
+          break;
+        }
+        addEffect(state, owner, "curse", label, { pieceId: one.id, target: enemy, remaining: 3 });
+        break;
       case 16: {
         const frozen = randomSample(allPieces(state, enemy).filter((piece) => !piece.royal), 3);
         frozen.forEach((piece) => addEffect(state, owner, "freeze", label, { pieceId: piece.id, target: enemy, remaining: 3 }));
