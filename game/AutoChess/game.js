@@ -8,7 +8,10 @@
   const KOREAN_TYPE = { king: "킹", queen: "퀸", rook: "룩", bishop: "비숍", knight: "나이트", pawn: "폰" };
   const FILES = "abcdefgh";
   const MAX_PLIES = 360;
-  const AI_BUDGET_MS = 1850;
+  // Leave a small margin for rendering and applying the chosen move, while using
+  // essentially all of the advertised three-second thinking window.
+  const AI_BUDGET_MS = 2900;
+  const AI_MAX_DEPTH = 12;
   const TIMEOUT = { timeout: true };
 
   const CARD_DEFS = [
@@ -82,6 +85,7 @@
       targeting: null,
       logs: [],
       aiMilliseconds: null,
+      aiSearch: null,
     };
   }
 
@@ -314,6 +318,22 @@
     return actions.map((action) => ({ action, score: actionHeuristic(s, action) })).sort((a, b) => b.score - a.score).slice(0, limit).map((item) => item.action);
   }
 
+  function actionKey(action) {
+    return action.moves.map((move) => `${move.pieceId}:${move.from.x}${move.from.y}-${move.to.x}${move.to.y}`).join("/");
+  }
+
+  function orderSearchActions(s, actions, limit, preferred, context, ply) {
+    const killer = context?.killers.get(ply);
+    return actions.map((action) => {
+      const key = actionKey(action);
+      let score = actionHeuristic(s, action);
+      if (key === preferred) score += 1000000;
+      else if (key === killer) score += 9000;
+      score += context?.history.get(key) || 0;
+      return { action, key, score };
+    }).sort((a, b) => b.score - a.score).slice(0, limit);
+  }
+
   function rawMove(s, move) {
     const piece = at(s, move.from.x, move.from.y);
     if (!piece) return { invalid: true };
@@ -450,73 +470,221 @@
     }));
   }
 
+  function effectValue(s, effect) {
+    const target = effect.pieceId ? findPiece(s, effect.pieceId) : null;
+    const scale = typeof effect.remaining === "number" ? 0.5 + Math.min(effect.remaining, 3) * 0.18 : 1;
+    const values = {
+      protect: 90, maxRange: 55, noBackward: 70, pawnOnly: 125, oneStepRemote: 90,
+      noCapturePiece: 105, kingStep: 85, bishopQueenQuiet: 90, doubleMove: 135,
+      longPawn: 38, pawnBack: 45, pawnAugment: 75, kingKnight: 80, cornerKnight: 70,
+      bishopJump: 95, antiKnight: 70, kingSurvival: 235, kingAbsorb: 115,
+      morphCapture: 85, delayedQueen: 130, bishopMajority: 160,
+    };
+    if (effect.kind === "freeze") return (target ? typeValue(target.type) * 0.4 : 70) * scale;
+    if (effect.kind === "curse") return (target ? typeValue(target.type) * 0.4 : 100) * scale;
+    if (effect.kind === "bishopMajority") {
+      return Math.max(0, countType(s, effect.owner, "bishop") - countType(s, other(effect.owner), "bishop")) * 260;
+    }
+    if (effect.kind === "delayedQueen") {
+      const turns = Math.max(0, (effect.dueAt || s.moveCount) - s.moveCount);
+      return (target ? 230 : 0) * Math.max(0.25, 1 - turns / 16);
+    }
+    return (values[effect.kind] || 28) * scale;
+  }
+
+  function tacticalScore(s, color) {
+    let mobility = 0;
+    let capturePressure = 0;
+    let kingThreat = 0;
+    for (const piece of allPieces(s, color)) {
+      const moves = generateMoves(s, piece);
+      mobility += moves.length;
+      for (const move of moves) {
+        if (!move.capture) continue;
+        const target = at(s, move.to.x, move.to.y);
+        if (!target) continue;
+        if (target.royal) {
+          const survives = hasEffect(s, "kingSurvival", (effect) => effect.owner === target.color)
+            && countType(s, target.color, "queen") > 0;
+          kingThreat += survives ? 1900 : 240000;
+        } else capturePressure += typeValue(target.type);
+      }
+    }
+    return mobility * 5 + capturePressure * 0.12 + kingThreat;
+  }
+
   function evaluate(s, perspective) {
     if (s.winner) return s.winner === perspective ? 999999 : s.winner === "draw" ? 0 : -999999;
     const scoreFor = (color) => allPieces(s, color).reduce((sum, piece) => {
       const center = 7 - (Math.abs(piece.x - 3.5) + Math.abs(piece.y - 3.5));
-      const pawnProgress = piece.type === "pawn" ? (piece.color === "white" ? 6 - piece.y : piece.y - 1) * 9 : 0;
-      const frozen = isFrozen(s, piece) ? -24 : 0;
-      return sum + typeValue(piece.type) + center * 3 + pawnProgress + frozen;
+      const pawnProgress = piece.type === "pawn" ? (piece.color === "white" ? 6 - piece.y : piece.y - 1) * 10 : 0;
+      const frozen = isFrozen(s, piece) ? -Math.max(32, typeValue(piece.type) * 0.13) : 0;
+      const developed = piece.moved && piece.type !== "pawn" ? 7 : 0;
+      return sum + typeValue(piece.type) + center * 4 + pawnProgress + frozen + developed;
     }, 0);
     let score = scoreFor(perspective) - scoreFor(other(perspective));
-    if (hasEffect(s, "bishopMajority", (effect) => effect.owner === perspective)) score += (countType(s, perspective, "bishop") - countType(s, other(perspective), "bishop")) * 110;
-    if (hasEffect(s, "bishopMajority", (effect) => effect.owner === other(perspective))) score -= (countType(s, other(perspective), "bishop") - countType(s, perspective, "bishop")) * 110;
+    score += tacticalScore(s, perspective) - tacticalScore(s, other(perspective));
+    for (const effect of s.effects) score += (effect.owner === perspective ? 1 : -1) * effectValue(s, effect);
     return score;
   }
 
-  function minimax(s, depth, alpha, beta, perspective, deadline) {
-    if (performance.now() > deadline) throw TIMEOUT;
-    if (depth === 0 || s.winner) return evaluate(s, perspective);
-    let actions = getTurnActions(s, s.turn);
-    if (!actions.length) return s.turn === perspective ? -700000 : 700000;
-    const maxing = s.turn === perspective;
-    actions = orderActions(s, actions, depth >= 3 ? 7 : 11);
+  function positionKey(s) {
+    const board = s.board.map((row) => row.map((piece) => {
+      if (!piece) return ".";
+      return `${piece.id}${piece.type[0]}${piece.color[0]}${piece.moved ? 1 : 0}${(piece.absorbed || []).map((type) => type[0]).join("")}`;
+    }).join(",")).join("/");
+    const effects = s.effects.map((effect) => {
+      const { id, label, ...props } = effect;
+      return Object.keys(props).sort().map((key) => {
+        const value = key === "dueAt" && typeof props[key] === "number" ? props[key] - s.moveCount : props[key];
+        return `${key}:${Array.isArray(value) ? value.join(".") : value}`;
+      }).join(",");
+    }).sort().join("/");
+    return `${s.turn}|${board}|${effects}`;
+  }
+
+  function searchWidth(depth, ply) {
+    if (ply === 0) return 48;
+    if (depth >= 5) return 7;
+    if (depth >= 4) return 9;
+    if (depth >= 3) return 12;
+    if (depth >= 2) return 16;
+    return 20;
+  }
+
+  function touchSearch(context) {
+    context.nodes += 1;
+    if ((context.nodes & 127) === 0 && performance.now() >= context.deadline) throw TIMEOUT;
+  }
+
+  function saveTransposition(context, key, entry) {
+    if (context.table.size >= 80000) context.table.clear();
+    context.table.set(key, entry);
+  }
+
+  function rememberCutoff(context, action, ply, depth) {
+    if (action.moves.some((move) => move.capture)) return;
+    const key = actionKey(action);
+    context.killers.set(ply, key);
+    context.history.set(key, Math.min(8000, (context.history.get(key) || 0) + depth * depth * 22));
+  }
+
+  function quiescence(s, alpha, beta, context, ply, remaining = 3) {
+    touchSearch(context);
+    if (s.winner) return evaluate(s, context.perspective);
+    const maxing = s.turn === context.perspective;
+    const standPat = evaluate(s, context.perspective);
+    let value = standPat;
     if (maxing) {
-      let value = -Infinity;
-      for (const action of actions) {
-        const copy = cloneState(s);
-        executeAction(copy, action);
-        value = Math.max(value, minimax(copy, depth - 1, alpha, beta, perspective, deadline));
-        alpha = Math.max(alpha, value);
-        if (beta <= alpha) break;
-      }
-      return value;
+      if (value >= beta) return value;
+      alpha = Math.max(alpha, value);
+    } else {
+      if (value <= alpha) return value;
+      beta = Math.min(beta, value);
     }
-    let value = Infinity;
-    for (const action of actions) {
+    if (remaining <= 0) return value;
+    const tacticalActions = getTurnActions(s, s.turn).filter((action) => action.moves.some((move) => move.capture));
+    if (!tacticalActions.length) return value;
+    const actions = orderSearchActions(s, tacticalActions, 10, null, context, ply);
+    for (const { action } of actions) {
       const copy = cloneState(s);
       executeAction(copy, action);
-      value = Math.min(value, minimax(copy, depth - 1, alpha, beta, perspective, deadline));
-      beta = Math.min(beta, value);
+      const score = quiescence(copy, alpha, beta, context, ply + 1, remaining - 1);
+      if (maxing) {
+        value = Math.max(value, score);
+        alpha = Math.max(alpha, value);
+      } else {
+        value = Math.min(value, score);
+        beta = Math.min(beta, value);
+      }
       if (beta <= alpha) break;
     }
     return value;
   }
 
+  function minimax(s, depth, alpha, beta, context, ply = 0) {
+    touchSearch(context);
+    if (s.winner) return evaluate(s, context.perspective);
+    if (depth <= 0) return quiescence(s, alpha, beta, context, ply);
+    const alphaStart = alpha;
+    const betaStart = beta;
+    const key = positionKey(s);
+    const cached = context.table.get(key);
+    const preferred = cached?.best || null;
+    if (cached && cached.depth >= depth) {
+      if (cached.flag === "exact") return cached.value;
+      if (cached.flag === "lower") alpha = Math.max(alpha, cached.value);
+      if (cached.flag === "upper") beta = Math.min(beta, cached.value);
+      if (beta <= alpha) return cached.value;
+    }
+    const unranked = getTurnActions(s, s.turn);
+    if (!unranked.length) return s.turn === context.perspective ? -700000 : 700000;
+    const actions = orderSearchActions(s, unranked, searchWidth(depth, ply), preferred, context, ply);
+    const maxing = s.turn === context.perspective;
+    let value = maxing ? -Infinity : Infinity;
+    let best = null;
+    for (const { action, key: currentKey } of actions) {
+      const copy = cloneState(s);
+      executeAction(copy, action);
+      const score = minimax(copy, depth - 1, alpha, beta, context, ply + 1);
+      if ((maxing && score > value) || (!maxing && score < value)) {
+        value = score;
+        best = currentKey;
+      }
+      if (maxing) alpha = Math.max(alpha, value);
+      else beta = Math.min(beta, value);
+      if (beta <= alpha) {
+        rememberCutoff(context, action, ply, depth);
+        break;
+      }
+    }
+    const flag = value <= alphaStart ? "upper" : value >= betaStart ? "lower" : "exact";
+    saveTransposition(context, key, { depth, value, flag, best });
+    return value;
+  }
+
   function chooseBestAction(s, color) {
-    const deadline = performance.now() + AI_BUDGET_MS;
-    let actions = getTurnActions(s, color);
-    if (!actions.length) return null;
-    actions = orderActions(s, actions, 18);
-    let best = actions[0];
-    for (let depth = 1; depth <= 3; depth += 1) {
+    const context = {
+      deadline: performance.now() + AI_BUDGET_MS,
+      perspective: color,
+      table: new Map(),
+      killers: new Map(),
+      history: new Map(),
+      nodes: 0,
+    };
+    let rootActions = getTurnActions(s, color);
+    if (!rootActions.length) return { action: null, stats: { depth: 0, nodes: 0 } };
+    rootActions = orderSearchActions(s, rootActions, 48, null, context, 0).map(({ action }) => action);
+    let best = rootActions[0];
+    let bestScore = -Infinity;
+    let completedDepth = 0;
+    for (let depth = 1; depth <= AI_MAX_DEPTH; depth += 1) {
       try {
-        let bestScore = -Infinity;
+        let alpha = -Infinity;
         let candidate = best;
-        for (const action of actions) {
-          if (performance.now() > deadline) throw TIMEOUT;
+        let candidateScore = -Infinity;
+        for (const action of rootActions) {
+          if (performance.now() >= context.deadline) throw TIMEOUT;
           const copy = cloneState(s);
           executeAction(copy, action);
-          const score = minimax(copy, depth - 1, -Infinity, Infinity, color, deadline);
-          if (score > bestScore) { bestScore = score; candidate = action; }
+          const score = minimax(copy, depth - 1, alpha, Infinity, context, 1);
+          if (score > candidateScore) {
+            candidate = action;
+            candidateScore = score;
+          }
+          alpha = Math.max(alpha, candidateScore);
         }
         best = candidate;
+        bestScore = candidateScore;
+        completedDepth = depth;
+        rootActions = orderSearchActions(s, rootActions, 48, actionKey(best), context, 0).map(({ action }) => action);
+        if (Math.abs(bestScore) >= 900000) break;
       } catch (error) {
         if (error !== TIMEOUT) throw error;
         break;
       }
     }
-    return best;
+    return { action: best, stats: { depth: completedDepth, nodes: context.nodes } };
   }
 
   function drawCards() {
@@ -782,8 +950,10 @@
     setTimeout(() => {
       if (state.phase !== "playing" || state.paused || state.winner) return;
       const started = performance.now();
-      const action = chooseBestAction(state, color);
+      const choice = chooseBestAction(state, color);
+      const action = choice.action;
       state.aiMilliseconds = performance.now() - started;
+      state.aiSearch = choice.stats;
       if (!action) {
         state.winner = "draw";
         state.winReason = "움직일 수 있는 기물이 없어 무승부입니다.";
@@ -937,7 +1107,9 @@
     dom.moveCount.textContent = state.moveCount;
     dom.turn.textContent = state.phase === "ready" ? "대기 중" : state.phase === "finished" ? "종료" : state.turn === "white" ? "백" : "흑";
     dom.phase.textContent = ({ ready: "READY ROOM", cards: "CARD DRAFT", targeting: "TARGET SELECT", playing: "AUTO BATTLE", finished: "MATCH OVER" })[state.phase];
-    dom.aiNote.textContent = state.aiMilliseconds ? `직전 AI 계산 ${(state.aiMilliseconds / 1000).toFixed(2)}s / 최대 3.0s` : state.phase === "cards" || state.phase === "targeting" ? "선택이 끝나면 자동 대국을 시작합니다." : "카드 규칙을 포함해 수를 탐색합니다.";
+    const stats = state.aiSearch;
+    const searchInfo = stats ? ` · ${stats.depth}겹 · ${stats.nodes.toLocaleString()} 노드` : "";
+    dom.aiNote.textContent = state.aiMilliseconds ? `직전 AI 계산 ${(state.aiMilliseconds / 1000).toFixed(2)}s / 최대 3.0s${searchInfo}` : state.phase === "cards" || state.phase === "targeting" ? "선택이 끝나면 자동 대국을 시작합니다." : "카드 규칙을 포함해 수를 탐색합니다.";
     dom.status.textContent = state.status || "준비됨";
     dom.pause.disabled = !["playing"].includes(state.phase);
     dom.pause.textContent = state.paused ? "계속하기" : "일시정지";
