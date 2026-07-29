@@ -14,6 +14,22 @@
   const AI_MAX_DEPTH = 12;
   const TIMEOUT = { timeout: true };
 
+  // These cards leave an ongoing effect behind. Once one is active for a team,
+  // offering the same card again would have no useful effect for that team.
+  const PERSISTENT_CARD_EFFECTS = {
+    4: ["longPawn"],
+    5: ["morphCapture"],
+    10: ["pawnBack"],
+    13: ["bishopJump"],
+    19: ["pawnAugment"],
+    20: ["bishopMajority"],
+    21: ["cornerKnight"],
+    23: ["kingKnight"],
+    25: ["antiKnight"],
+    26: ["kingSurvival"],
+    27: ["kingAbsorb"],
+  };
+
   const CARD_DEFS = [
     [1, "국가총동원령", "아군 폰 하나를 나이트로 변신시킵니다."],
     [2, "불가침 조약", "상대 3수 동안 내 기물을 잡지 못하게 합니다. 내가 잡으면 해제됩니다."],
@@ -687,8 +703,15 @@
     return { action: best, stats: { depth: completedDepth, nodes: context.nodes } };
   }
 
-  function drawCards() {
-    const pool = [...CARD_DEFS];
+  function activePersistentCardIds(owner) {
+    return new Set(Object.entries(PERSISTENT_CARD_EFFECTS)
+      .filter(([, kinds]) => state.effects.some((effect) => effect.owner === owner && kinds.includes(effect.kind)))
+      .map(([id]) => Number(id)));
+  }
+
+  function drawCards(owner) {
+    const activeIds = activePersistentCardIds(owner);
+    const pool = CARD_DEFS.filter((card) => !activeIds.has(card.id));
     for (let i = pool.length - 1; i > 0; i -= 1) {
       const j = Math.floor(Math.random() * (i + 1));
       [pool[i], pool[j]] = [pool[j], pool[i]];
@@ -698,7 +721,7 @@
 
   function offerCards(initial = false) {
     state.phase = "cards";
-    state.cardOptions = { white: drawCards(), black: drawCards() };
+    state.cardOptions = { white: drawCards("white"), black: drawCards("black") };
     state.cardSelections = { white: undefined, black: undefined };
     state.pendingResolutions = [];
     state.targeting = null;
