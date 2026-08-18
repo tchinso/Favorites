@@ -50,22 +50,28 @@ function chekiEditorIntegrated() {
   const file = (id, label, multiple = false) => `
     <label class="form-field cheki-file-field"><span>${label}</span><input id="${id}" type="file" accept="image/*"${multiple ? " multiple" : ""}></label>
   `;
+  const mode = (value, body) => `<div data-cheki-mode="${value}">${body}</div>`;
 
   return section("작업 모드", `
     <label class="form-field"><span>캔버스에서 할 작업</span><select id="chekiTool"><option value="photo">사진 위치 조정</option><option value="draw">싸인 그리기</option><option value="text">글씨 선택·이동</option><option value="sticker">스티커 선택·이동</option><option value="effect">효과 미리보기</option><option value="frame">프레임 편집</option></select></label>
-    <p class="cheki-editor-help">사진과 스티커는 드래그·붙여넣기로도 올릴 수 있습니다. 캔버스에서 선택한 글씨와 스티커는 이 패널의 값으로 바로 수정됩니다.</p>
+    <p class="cheki-editor-help">아래 사진·싸인·글씨·스티커 영역을 누르면 해당 작업으로 자동 전환됩니다. 사진은 ‘사진 위치 조정’일 때만 드래그로 움직입니다.</p>
   `) + section("사진", `
+    ${mode("photo", `
     ${file("file", "일러스트")}
     ${range("zoom", "크기", 10, 400, 100, "%")}
     ${range("rot", "기울기", -180, 180, 0, "°")}
     ${choices("filters", "필터")}
     <div class="cheki-action-row"><button class="ghost-button" type="button" id="fillBtn">가운데로</button><button class="ghost-button" type="button" id="flipBtn">좌우 반전</button><button class="ghost-button" type="button" id="resetPhotoBtn">원래대로</button></div>
+    `)}
   `) + section("싸인", `
+    ${mode("draw", `
     ${choices("brushTypes", "펜")}
     ${swatches("inkSwatches", "색")}
     ${range("brushSize", "굵기", 1, 30, 6)}
     <div class="cheki-action-row"><button class="ghost-button" type="button" id="undoStroke">한 획 지우기</button><button class="ghost-button" type="button" id="clearInk">전체 지우기</button></div>
+    `)}
   `) + section("글씨", `
+    ${mode("text", `
     <label class="form-field"><span>문구</span><textarea id="textInput" placeholder="어서오세요 주인님 ♡&#10;줄바꿈도 됩니다"></textarea></label>
     <label class="form-field"><span>글씨체</span><select id="fontSel"></select></label>
     ${choices("weights", "굵기")}
@@ -74,24 +80,31 @@ function chekiEditorIntegrated() {
     <div class="form-field" id="subColorField"><span id="subColorLabel">테두리색</span><div class="cheki-swatch-list" id="subSwatches"></div></div>
     ${range("textSize", "크기", 12, 140, 46)}
     <div class="cheki-action-row"><button class="ghost-button" type="button" id="addText">글씨 올리기</button><button class="ghost-button" type="button" id="delItem">선택 지우기</button><button class="ghost-button" type="button" id="clearItems">글씨·스티커 전체 지우기</button></div>
+    `)}
   `) + section("스티커", `
+    ${mode("sticker", `
     ${file("stFile", "스티커 이미지", true)}
     <div class="form-field" id="stGridField" style="display:none"><span>불러온 스티커</span><div class="cheki-sticker-list" id="stGrid"></div></div>
     ${range("stSize", "크기", 20, 400, 130)}
     ${range("stOpacity", "투명도", 10, 100, 100, "%")}
     <div class="cheki-action-row"><button class="ghost-button" type="button" id="stFlip">좌우 반전</button><button class="ghost-button" type="button" id="stDel">선택 지우기</button></div>
+    `)}
   `) + section("효과", `
+    ${mode("effect", `
     ${choices("motions", "움직이는 효과")}
     ${swatches("fxSwatches", "효과 색")}
     ${range("fxCount", "개수", 4, 40, 16)}
     ${choices("finishes", "사진 보정")}
+    `)}
   `) + section("프레임", `
+    ${mode("frame", `
     ${swatches("frameSwatches", "프레임 색")}
     ${choices("patterns", "무늬")}
     ${swatches("patSwatches", "무늬 색")}
     ${choices("innerEdge", "사진 테두리")}
     ${choices("orient", "방향")}
     ${choices("quality", "PNG 저장 크기")}
+    `)}
   `) + section("내보내기", `
     <p class="cheki-editor-help">상단의 <b>이미지 저장</b>은 PNG, <b>HTML 저장</b>은 현재 체키를 포함한 정적 HTML을 만듭니다. 움직이는 효과는 아래 버튼으로 GIF로 저장할 수 있습니다.</p>
     <div class="cheki-action-row"><button class="ghost-button" type="button" id="undoBtn">되돌리기</button><button class="ghost-button" type="button" id="gifBtn">GIF로 저장</button></div>
