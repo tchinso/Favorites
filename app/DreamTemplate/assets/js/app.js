@@ -124,6 +124,7 @@ function bindEvents() {
 
   elements.resetStyleButton.addEventListener("click", () => {
     const config = getActiveConfig();
+    if (config.baseStyle === "cheki") window.CardStudioCheki?.reset();
     state.styles[config.baseStyle] = structuredClone(DEFAULT_STYLE_DATA[config.baseStyle]);
     applyActiveVariant();
     renderAll();
@@ -131,6 +132,7 @@ function bindEvents() {
   });
 
   elements.resetAllButton.addEventListener("click", () => {
+    if (getActiveConfig().baseStyle === "cheki") window.CardStudioCheki?.reset();
     clearStoredState();
     state = createDefaultState();
     normalizeState();
