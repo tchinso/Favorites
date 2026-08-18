@@ -930,20 +930,9 @@ function renderPhotoAlbum(data) {
 
 function renderCheki() {
   return `
-    <article class="card-frame cheki-card" data-cheki-card>
-      <div class="cheki-preview-stage">
-        <div class="cheki-card-shell" id="cardShell">
-          <canvas id="cheki" width="1200" height="1912" aria-label="체키 미리보기"></canvas>
-        </div>
-        <p class="cheki-hint" id="hint">사진 탭에서 일러스트를 올려주세요</p>
-        <div class="cheki-stage-actions">
-          <button class="cheki-btn primary" type="button" id="saveBtn">PNG로 저장</button>
-          <button class="cheki-btn gif" type="button" id="gifBtn">GIF로 저장</button>
-        </div>
-        <div class="cheki-stage-sub">
-          <button class="cheki-btn quiet sm" type="button" id="undoBtn">되돌리기</button>
-          <button class="cheki-btn quiet sm" type="button" id="resetBtn">처음부터</button>
-        </div>
+    <article class="card-frame cheki-card" data-cheki-card data-export-card="cheki">
+      <div class="cheki-card-shell" id="cardShell">
+        <canvas id="cheki" width="1200" height="1912" aria-label="체키 미리보기"></canvas>
       </div>
       <div class="cheki-toast" id="chekiToast" aria-live="polite"></div>
     </article>

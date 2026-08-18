@@ -23,7 +23,7 @@ function renderEditor(styleId, data) {
     renaitvshow: renaiTvShowEditor,
     lifefourcut: lifeFourCutEditor,
     photoalbum: photoAlbumEditor,
-    cheki: chekiEditor,
+    cheki: chekiEditorIntegrated,
     netflixscreenshot: netflixScreenshotEditor,
     movieticket: movieTicketEditor,
     internetboard: internetBoardEditor,
@@ -38,74 +38,64 @@ function section(title, body) {
   return `<section class="editor-section"><h3>${e(title)}</h3>${body}</section>`;
 }
 
-function chekiEditor() {
-  return `
-    <div class="cheki-editor" aria-label="체키 편집 도구">
-      <div class="cheki-tabs" role="tablist">
-        <button class="cheki-tab" type="button" role="tab" aria-selected="true" data-tab="photo">사진</button>
-        <button class="cheki-tab" type="button" role="tab" aria-selected="false" data-tab="draw">싸인</button>
-        <button class="cheki-tab" type="button" role="tab" aria-selected="false" data-tab="text">글씨</button>
-        <button class="cheki-tab" type="button" role="tab" aria-selected="false" data-tab="sticker">스티커</button>
-        <button class="cheki-tab" type="button" role="tab" aria-selected="false" data-tab="effect">효과</button>
-        <button class="cheki-tab" type="button" role="tab" aria-selected="false" data-tab="frame">프레임</button>
-      </div>
-
-      <div class="cheki-pane active" id="pane-photo">
-        <div class="cheki-field"><div class="cheki-drop" id="drop"><p class="cheki-drop-title">일러스트 올리기</p><p class="cheki-drop-sub">클릭 · 드래그 · Ctrl+V 붙여넣기<br>PNG · JPG · WEBP · GIF</p></div><input type="file" id="file" accept="image/*" class="cheki-sr-only"></div>
-        <div class="cheki-field"><span class="cheki-label">크기</span><div class="cheki-range-row"><input type="range" id="zoom" min="10" max="400" value="100"><span class="cheki-range-val" id="zoomVal">100%</span></div></div>
-        <div class="cheki-field"><span class="cheki-label">기울기</span><div class="cheki-range-row"><input type="range" id="rot" min="-180" max="180" value="0"><span class="cheki-range-val" id="rotVal">0°</span></div></div>
-        <div class="cheki-field"><span class="cheki-label">필터</span><div class="cheki-chips" id="filters"></div></div>
-        <div class="cheki-field cheki-row"><button class="cheki-btn sm" type="button" id="fillBtn">가운데로</button><button class="cheki-btn sm" type="button" id="flipBtn">좌우 반전</button><button class="cheki-btn sm" type="button" id="resetPhotoBtn">원래대로</button></div>
-        <p class="cheki-note">드래그로 위치를 옮기고, 휠이나 두 손가락으로 크기와 각도를 맞춥니다. 사진은 항상 창을 가득 채우도록 자동으로 맞춰집니다.</p>
-      </div>
-
-      <div class="cheki-pane" id="pane-draw">
-        <div class="cheki-field"><span class="cheki-label">펜</span><div class="cheki-chips" id="brushTypes"></div></div>
-        <div class="cheki-field"><span class="cheki-label">색</span><div class="cheki-swatches" id="inkSwatches"></div></div>
-        <div class="cheki-field"><span class="cheki-label">굵기</span><div class="cheki-range-row"><input type="range" id="brushSize" min="1" max="30" value="6"><span class="cheki-range-val" id="brushSizeVal">6</span></div></div>
-        <div class="cheki-rule"></div><div class="cheki-field cheki-row"><button class="cheki-btn sm" type="button" id="undoStroke">한 획 지우기</button><button class="cheki-btn sm" type="button" id="clearInk">전체 지우기</button></div>
-        <p class="cheki-note">사진 위와 흰 여백 어디에나 쓸 수 있습니다. 지우개는 잉크만 지웁니다.</p>
-      </div>
-
-      <div class="cheki-pane" id="pane-text">
-        <div class="cheki-field"><span class="cheki-label">문구</span><textarea id="textInput" placeholder="어서오세요 주인님 ♡&#10;줄바꿈도 됩니다"></textarea></div>
-        <div class="cheki-field"><span class="cheki-label">글씨체</span><select id="fontSel"></select></div>
-        <div class="cheki-field"><span class="cheki-label">굵기</span><div class="cheki-chips" id="weights"></div></div>
-        <div class="cheki-field"><span class="cheki-label">효과</span><div class="cheki-chips" id="fxChips"></div></div>
-        <div class="cheki-field"><span class="cheki-label" id="colorLabel">글자색</span><div class="cheki-swatches" id="textSwatches"></div></div>
-        <div class="cheki-field" id="subColorField"><span class="cheki-label" id="subColorLabel">테두리색</span><div class="cheki-swatches" id="subSwatches"></div></div>
-        <div class="cheki-field"><span class="cheki-label">크기</span><div class="cheki-range-row"><input type="range" id="textSize" min="12" max="140" value="46"><span class="cheki-range-val" id="textSizeVal">46</span></div></div>
-        <div class="cheki-field cheki-row"><button class="cheki-btn primary sm" type="button" id="addText">글씨 올리기</button><button class="cheki-btn sm" type="button" id="delItem">선택 지우기</button><button class="cheki-btn quiet sm" type="button" id="clearItems">전체 지우기</button></div>
-        <p class="cheki-note">올린 글씨를 눌러 다시 고를 수 있습니다. 모서리 점을 끌면 크기와 각도가 같이 바뀝니다.</p>
-      </div>
-
-      <div class="cheki-pane" id="pane-sticker">
-        <div class="cheki-field"><div class="cheki-drop" id="stDrop"><p class="cheki-drop-title">스티커 이미지 올리기</p><p class="cheki-drop-sub">배경이 없는 PNG를 쓰면 예쁘게 붙어요<br>여러 장 한 번에 고를 수 있습니다</p></div><input type="file" id="stFile" accept="image/*" multiple class="cheki-sr-only"></div>
-        <div class="cheki-field" id="stGridField" style="display:none"><span class="cheki-label">눌러서 붙이기</span><div class="cheki-st-grid" id="stGrid"></div></div>
-        <div class="cheki-field"><span class="cheki-label">크기</span><div class="cheki-range-row"><input type="range" id="stSize" min="20" max="400" value="130"><span class="cheki-range-val" id="stSizeVal">130</span></div></div>
-        <div class="cheki-field"><span class="cheki-label">투명도</span><div class="cheki-range-row"><input type="range" id="stOpacity" min="10" max="100" value="100"><span class="cheki-range-val" id="stOpacityVal">100%</span></div></div>
-        <div class="cheki-field cheki-row"><button class="cheki-btn sm" type="button" id="stFlip">좌우 반전</button><button class="cheki-btn sm" type="button" id="stDel">선택 지우기</button></div>
-        <p class="cheki-note">붙인 스티커를 눌러 옮기고, 모서리 점으로 크기와 각도를 바꿉니다. 이 탭에서는 붙여넣기와 드래그도 스티커로 올라가요.</p>
-      </div>
-
-      <div class="cheki-pane" id="pane-effect">
-        <div class="cheki-field"><span class="cheki-label">움직이는 효과</span><div class="cheki-chips" id="motions"></div></div>
-        <div class="cheki-field"><span class="cheki-label">효과 색</span><div class="cheki-swatches" id="fxSwatches"></div></div>
-        <div class="cheki-field"><span class="cheki-label">개수</span><div class="cheki-range-row"><input type="range" id="fxCount" min="4" max="40" value="16"><span class="cheki-range-val" id="fxCountVal">16</span></div></div>
-        <div class="cheki-rule"></div><div class="cheki-field"><span class="cheki-label">사진 보정</span><div class="cheki-chips" id="finishes"></div></div>
-        <p class="cheki-note">움직이는 효과를 고르면 GIF로 저장할 수 있습니다. PNG는 지금 보이는 순간이 그대로 저장돼요.</p>
-      </div>
-
-      <div class="cheki-pane" id="pane-frame">
-        <div class="cheki-field"><span class="cheki-label">프레임 색</span><div class="cheki-swatches" id="frameSwatches"></div></div>
-        <div class="cheki-field"><span class="cheki-label">무늬</span><div class="cheki-chips" id="patterns"></div></div>
-        <div class="cheki-field"><span class="cheki-label">무늬 색</span><div class="cheki-swatches" id="patSwatches"></div></div>
-        <div class="cheki-field"><span class="cheki-label">사진 테두리</span><div class="cheki-chips" id="innerEdge"></div></div>
-        <div class="cheki-field"><span class="cheki-label">방향</span><div class="cheki-chips" id="orient"></div></div>
-        <div class="cheki-field"><span class="cheki-label">저장 크기</span><div class="cheki-chips" id="quality"></div></div>
-      </div>
-    </div>
+function chekiEditorIntegrated() {
+  const range = (id, label, min, max, value, suffix = "") => `
+    <label class="form-field">
+      <span>${label}</span>
+      <div class="cheki-range-control"><input id="${id}" type="range" min="${min}" max="${max}" value="${value}"><output id="${id}Val">${value}${suffix}</output></div>
+    </label>
   `;
+  const choices = (id, label) => `<div class="form-field"><span>${label}</span><div class="cheki-choice-list" id="${id}"></div></div>`;
+  const swatches = (id, label) => `<div class="form-field"><span>${label}</span><div class="cheki-swatch-list" id="${id}"></div></div>`;
+  const file = (id, label, multiple = false) => `
+    <label class="form-field cheki-file-field"><span>${label}</span><input id="${id}" type="file" accept="image/*"${multiple ? " multiple" : ""}></label>
+  `;
+
+  return section("작업 모드", `
+    <label class="form-field"><span>캔버스에서 할 작업</span><select id="chekiTool"><option value="photo">사진 위치 조정</option><option value="draw">싸인 그리기</option><option value="text">글씨 선택·이동</option><option value="sticker">스티커 선택·이동</option><option value="effect">효과 미리보기</option><option value="frame">프레임 편집</option></select></label>
+    <p class="cheki-editor-help">사진과 스티커는 드래그·붙여넣기로도 올릴 수 있습니다. 캔버스에서 선택한 글씨와 스티커는 이 패널의 값으로 바로 수정됩니다.</p>
+  `) + section("사진", `
+    ${file("file", "일러스트")}
+    ${range("zoom", "크기", 10, 400, 100, "%")}
+    ${range("rot", "기울기", -180, 180, 0, "°")}
+    ${choices("filters", "필터")}
+    <div class="cheki-action-row"><button class="ghost-button" type="button" id="fillBtn">가운데로</button><button class="ghost-button" type="button" id="flipBtn">좌우 반전</button><button class="ghost-button" type="button" id="resetPhotoBtn">원래대로</button></div>
+  `) + section("싸인", `
+    ${choices("brushTypes", "펜")}
+    ${swatches("inkSwatches", "색")}
+    ${range("brushSize", "굵기", 1, 30, 6)}
+    <div class="cheki-action-row"><button class="ghost-button" type="button" id="undoStroke">한 획 지우기</button><button class="ghost-button" type="button" id="clearInk">전체 지우기</button></div>
+  `) + section("글씨", `
+    <label class="form-field"><span>문구</span><textarea id="textInput" placeholder="어서오세요 주인님 ♡&#10;줄바꿈도 됩니다"></textarea></label>
+    <label class="form-field"><span>글씨체</span><select id="fontSel"></select></label>
+    ${choices("weights", "굵기")}
+    ${choices("fxChips", "효과")}
+    ${swatches("textSwatches", "글자색")}
+    <div class="form-field" id="subColorField"><span id="subColorLabel">테두리색</span><div class="cheki-swatch-list" id="subSwatches"></div></div>
+    ${range("textSize", "크기", 12, 140, 46)}
+    <div class="cheki-action-row"><button class="ghost-button" type="button" id="addText">글씨 올리기</button><button class="ghost-button" type="button" id="delItem">선택 지우기</button><button class="ghost-button" type="button" id="clearItems">글씨·스티커 전체 지우기</button></div>
+  `) + section("스티커", `
+    ${file("stFile", "스티커 이미지", true)}
+    <div class="form-field" id="stGridField" style="display:none"><span>불러온 스티커</span><div class="cheki-sticker-list" id="stGrid"></div></div>
+    ${range("stSize", "크기", 20, 400, 130)}
+    ${range("stOpacity", "투명도", 10, 100, 100, "%")}
+    <div class="cheki-action-row"><button class="ghost-button" type="button" id="stFlip">좌우 반전</button><button class="ghost-button" type="button" id="stDel">선택 지우기</button></div>
+  `) + section("효과", `
+    ${choices("motions", "움직이는 효과")}
+    ${swatches("fxSwatches", "효과 색")}
+    ${range("fxCount", "개수", 4, 40, 16)}
+    ${choices("finishes", "사진 보정")}
+  `) + section("프레임", `
+    ${swatches("frameSwatches", "프레임 색")}
+    ${choices("patterns", "무늬")}
+    ${swatches("patSwatches", "무늬 색")}
+    ${choices("innerEdge", "사진 테두리")}
+    ${choices("orient", "방향")}
+    ${choices("quality", "PNG 저장 크기")}
+  `) + section("내보내기", `
+    <p class="cheki-editor-help">상단의 <b>이미지 저장</b>은 PNG, <b>HTML 저장</b>은 현재 체키를 포함한 정적 HTML을 만듭니다. 움직이는 효과는 아래 버튼으로 GIF로 저장할 수 있습니다.</p>
+    <div class="cheki-action-row"><button class="ghost-button" type="button" id="undoBtn">되돌리기</button><button class="ghost-button" type="button" id="gifBtn">GIF로 저장</button></div>
+  `);
 }
 
 function field(data, path, label, options = {}) {

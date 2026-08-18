@@ -6661,31 +6661,6 @@ button {
   background: #f5f5f7;
 }
 
-.cheki-card {
-  --cheki-surface: rgba(255, 255, 255, .74);
-  --cheki-line: rgba(255, 255, 255, .9);
-  --cheki-track: rgba(255, 255, 255, .58);
-  --cheki-ink: #5d4450;
-  --cheki-muted: #b294a4;
-  --cheki-pink: #ff8ab5;
-  --cheki-deep: #f56ba3;
-  width: min(100%, 430px);
-  padding: 26px 22px 20px;
-  color: var(--cheki-ink);
-  border: 1px solid var(--cheki-line);
-  border-radius: 26px;
-  background: var(--cheki-surface);
-  box-shadow: 0 20px 44px -24px rgba(210, 130, 170, .5), inset 0 1px 0 rgba(255, 255, 255, .9);
-  backdrop-filter: blur(16px) saturate(1.25);
-}
-
-.cheki-preview-stage {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 15px;
-}
-
 .cheki-card-shell {
   width: min(100%, 352px);
   border-radius: 10px;
@@ -6704,94 +6679,131 @@ button {
 
 .cheki-card canvas.drawing { cursor: crosshair; }
 .cheki-card canvas:active { cursor: grabbing; }
-.cheki-hint { min-height: 17px; margin: 0; color: var(--cheki-muted); font-size: 12px; text-align: center; }
-.cheki-stage-actions { display: flex; width: 100%; align-items: center; gap: 8px; }
-.cheki-stage-actions .primary { flex: 1; }
-.cheki-stage-sub { display: flex; justify-content: center; gap: 4px; }
-
-.cheki-btn {
-  appearance: none;
-  padding: 11px 18px;
-  border: 0;
-  border-radius: 999px;
-  color: var(--cheki-deep);
-  background: rgba(255, 255, 255, .78);
-  box-shadow: 0 4px 12px -6px rgba(215, 140, 175, .6), inset 0 1px 0 rgba(255, 255, 255, .95);
-  cursor: pointer;
-  font-family: "Pretendard Variable", Pretendard, sans-serif;
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: -.012em;
-  transition: transform .14s, box-shadow .16s, background .16s, color .16s, opacity .12s;
-}
-
-.cheki-btn:hover { background: #fff; transform: translateY(-1px); }
-.cheki-btn:active { opacity: .8; transform: translateY(0); }
-.cheki-btn.primary { color: #fff; background: linear-gradient(180deg, #ffb0d3 0%, #ff85b8 55%, #ff76ae 100%); box-shadow: 0 10px 20px -10px rgba(255, 110, 165, .95), inset 0 1.5px 0 rgba(255, 255, 255, .65); }
-.cheki-btn.gif { color: var(--cheki-deep); background: linear-gradient(180deg, #ffe4f0 0%, #ffcfe3 100%); box-shadow: 0 10px 20px -10px rgba(255, 160, 200, .9), inset 0 1.5px 0 rgba(255, 255, 255, .85); }
-.cheki-btn.quiet { padding: 9px 12px; color: var(--cheki-muted); background: transparent; box-shadow: none; }
-.cheki-btn.quiet:hover { color: var(--cheki-deep); background: rgba(255, 255, 255, .7); transform: none; }
-.cheki-btn.sm { padding: 8px 14px; font-size: 12px; }
-.cheki-btn.busy { pointer-events: none; opacity: .55; }
-
-.cheki-editor {
-  --cheki-track: rgba(255, 225, 238, .72);
-  --cheki-muted: #b294a4;
-  --cheki-pink: #ff8ab5;
-  --cheki-deep: #f56ba3;
-  --cheki-ink: #5d4450;
-  color: var(--cheki-ink);
-  font-family: "Pretendard Variable", Pretendard, sans-serif;
-}
-
-.cheki-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; padding: 4px; margin-bottom: 20px; border-radius: 16px; background: var(--cheki-track); box-shadow: inset 0 1px 3px rgba(220, 160, 190, .16); }
-.cheki-tab { min-width: 0; padding: 9px 1px; border: 0; border-radius: 999px; color: var(--cheki-muted); background: transparent; cursor: pointer; font: 600 11.5px "Pretendard Variable", Pretendard, sans-serif; white-space: nowrap; }
-.cheki-tab:hover { color: var(--cheki-deep); }
-.cheki-tab[aria-selected="true"] { color: var(--cheki-deep); background: linear-gradient(180deg, #fff 0%, #fff4f9 100%); box-shadow: 0 3px 9px -3px rgba(255, 138, 181, .7), inset 0 1px 0 #fff; }
-.cheki-pane { display: none; }
-.cheki-pane.active { display: block; }
-.cheki-field { margin-bottom: 19px; }
-.cheki-field:last-child { margin-bottom: 0; }
-.cheki-label { display: block; margin-bottom: 9px; color: var(--cheki-deep); font-size: 11px; font-weight: 700; letter-spacing: .02em; }
-.cheki-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.cheki-chips { display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 3px; border-radius: 16px; background: var(--cheki-track); box-shadow: inset 0 1px 3px rgba(220, 160, 190, .15); }
-.cheki-chip { padding: 6px 13px; border: 0; border-radius: 999px; color: var(--cheki-muted); background: transparent; cursor: pointer; font: 600 12.5px "Pretendard Variable", Pretendard, sans-serif; }
-.cheki-chip:hover { color: var(--cheki-deep); }
-.cheki-chip[aria-pressed="true"] { color: var(--cheki-deep); background: linear-gradient(180deg, #fff 0%, #fff4f9 100%); box-shadow: 0 3px 8px -3px rgba(255, 138, 181, .75), inset 0 1px 0 #fff; }
-.cheki-swatches { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; }
-.cheki-sw { width: 23px; height: 23px; padding: 0; border: 1px solid rgba(255, 255, 255, .9); border-radius: 50%; cursor: pointer; box-shadow: 0 3px 7px -3px rgba(210, 130, 170, .65), inset 0 1.5px 2px rgba(255, 255, 255, .55); }
-.cheki-sw[aria-pressed="true"] { transform: scale(1.12); box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--cheki-pink), 0 4px 10px -4px rgba(255, 138, 181, .9); }
-.cheki-editor input[type="color"] { width: 23px; height: 23px; padding: 0; border: 1.5px dashed rgba(255, 150, 190, .55); border-radius: 50%; background: rgba(255, 255, 255, .6); cursor: pointer; overflow: hidden; }
-.cheki-editor input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
-.cheki-editor input[type="color"]::-webkit-color-swatch { border: 0; border-radius: 50%; }
-.cheki-editor input[type="range"] { width: 100%; height: 20px; appearance: none; background: none; cursor: pointer; }
-.cheki-editor input[type="range"]::-webkit-slider-runnable-track { height: 7px; border-radius: 99px; background: var(--cheki-track); box-shadow: inset 0 1px 3px rgba(220, 160, 190, .22); }
-.cheki-editor input[type="range"]::-webkit-slider-thumb { width: 17px; height: 17px; margin-top: -5.5px; appearance: none; border: 2.5px solid #fff; border-radius: 50%; background: linear-gradient(180deg, #ffc0dc 0%, #ff86b8 100%); box-shadow: 0 3px 8px -2px rgba(255, 120, 175, .9); }
-.cheki-editor input[type="range"]::-moz-range-track { height: 7px; border-radius: 99px; background: var(--cheki-track); }
-.cheki-editor input[type="range"]::-moz-range-thumb { width: 17px; height: 17px; border: 2.5px solid #fff; border-radius: 50%; background: linear-gradient(180deg, #ffc0dc 0%, #ff86b8 100%); box-shadow: 0 3px 8px -2px rgba(255, 120, 175, .9); }
-.cheki-range-row { display: flex; align-items: center; gap: 12px; }
-.cheki-range-val { min-width: 36px; color: var(--cheki-muted); font-size: 11px; font-variant-numeric: tabular-nums; text-align: right; }
-.cheki-editor textarea, .cheki-editor select { width: 100%; padding: 12px 14px; border: 0; border-radius: 16px; outline: none; color: var(--cheki-ink); background: var(--cheki-track); box-shadow: inset 0 1px 3px rgba(220, 160, 190, .18); font: 13.5px "Pretendard Variable", Pretendard, sans-serif; letter-spacing: -.012em; }
-.cheki-editor textarea { min-height: 64px; resize: vertical; line-height: 1.45; }
-.cheki-editor select { cursor: pointer; }
-.cheki-editor textarea:focus, .cheki-editor select:focus { box-shadow: inset 0 1px 3px rgba(220, 160, 190, .12), 0 0 0 2px var(--cheki-pink); }
-.cheki-drop { padding: 24px 16px; border: 1.5px dashed rgba(255, 150, 190, .5); border-radius: 19px; background: rgba(255, 255, 255, .55); cursor: pointer; text-align: center; transition: border-color .16s, background .16s, transform .14s; }
-.cheki-drop:hover, .cheki-drop.over { border-color: var(--cheki-pink); background: rgba(255, 255, 255, .85); transform: translateY(-1px); }
-.cheki-drop-title { margin: 0; color: var(--cheki-deep); font-size: 13.5px; font-weight: 700; }
-.cheki-drop-sub { margin: 6px 0 0; color: var(--cheki-muted); font-size: 11.5px; line-height: 1.6; }
-.cheki-note { margin: 0; padding: 2px 2px 0; color: var(--cheki-muted); font-size: 11.5px; line-height: 1.7; }
-.cheki-rule { margin: 18px 0; border-top: 1px solid rgba(255, 195, 220, .75); }
-.cheki-sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
-.cheki-st-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 7px; }
-.cheki-st-thumb { position: relative; overflow: hidden; aspect-ratio: 1; border-radius: 13px; background: rgba(255, 255, 255, .72); box-shadow: 0 3px 9px -5px rgba(210, 130, 170, .9), inset 0 1px 0 rgba(255, 255, 255, .9); cursor: pointer; }
-.cheki-st-thumb img { display: block; width: 100%; height: 100%; padding: 4px; object-fit: contain; }
-.cheki-st-thumb .x { position: absolute; top: 2px; right: 2px; width: 15px; height: 15px; padding: 0; border: 0; border-radius: 50%; color: var(--cheki-deep); background: rgba(255, 255, 255, .92); box-shadow: 0 1px 4px -1px rgba(210, 130, 170, .9); cursor: pointer; font-size: 10px; font-weight: 700; line-height: 15px; }
 .cheki-toast { position: fixed; right: 18px; bottom: 18px; z-index: 20; padding: 11px 21px; border-radius: 999px; color: #fff; background: linear-gradient(180deg, #ffa6cd 0%, #ff7cb2 100%); box-shadow: 0 12px 26px -10px rgba(255, 110, 165, .95), inset 0 1.5px 0 rgba(255, 255, 255, .6); font: 600 12.5px "Pretendard Variable", Pretendard, sans-serif; opacity: 0; pointer-events: none; transform: translateY(10px); transition: opacity .2s, transform .2s; }
 .cheki-toast.show { opacity: 1; transform: translateY(0); }
 
-body.is-cheki-maker .export-actions,
-body.is-cheki-maker .preview-toolbar span {
-  display: none;
+.cheki-card {
+  width: max-content;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+  backdrop-filter: none;
+}
+
+.cheki-choice-list,
+.cheki-swatch-list,
+.cheki-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.cheki-option {
+  min-height: 34px;
+  padding: 0 11px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  background: var(--soft);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.cheki-option[aria-pressed="true"] {
+  border-color: var(--strong);
+  color: #ffffff;
+  background: var(--strong);
+}
+
+.cheki-color-swatch,
+.cheki-color-input {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 2px solid #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 0 0 1px var(--line);
+  cursor: pointer;
+}
+
+.cheki-color-swatch[aria-pressed="true"] {
+  box-shadow: 0 0 0 2px var(--strong);
+}
+
+.cheki-color-input::-webkit-color-swatch-wrapper { padding: 0; }
+.cheki-color-input::-webkit-color-swatch { border: 0; border-radius: 6px; }
+
+.cheki-range-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.cheki-range-control output {
+  min-width: 38px;
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.cheki-file-field input[type="file"] {
+  width: 100%;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.cheki-editor-help {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.cheki-sticker-list {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.cheki-sticker-thumb {
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 1;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--soft);
+  cursor: pointer;
+}
+
+.cheki-sticker-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 4px;
+  object-fit: contain;
+}
+
+.cheki-sticker-thumb .x {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  color: var(--danger);
+  background: #ffffff;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1;
 }
 
 @media (max-width: 1100px) {

@@ -8,6 +8,10 @@ async function exportCardImage(styleId) {
     throw new Error("이 스타일은 HTML 내보내기만 지원합니다.");
   }
   const filename = makeFilename(styleId, "png");
+  if (config.baseStyle === "cheki" && window.CardStudioCheki?.exportPng) {
+    window.CardStudioCheki.exportPng(filename);
+    return;
+  }
   if (config.baseStyle === "linestamp" && window.CardStudioLineStampExport) {
     const exported = await window.CardStudioLineStampExport(filename);
     if (exported) return;
@@ -32,6 +36,9 @@ async function exportCardImage(styleId) {
 
 async function buildStandaloneHtml(styleId, label, cardHtml) {
   const config = STYLE_CONFIGS.find((item) => item.id === styleId);
+  if (config?.baseStyle === "cheki" && window.CardStudioCheki?.standaloneHtml) {
+    return window.CardStudioCheki.standaloneHtml(label);
+  }
   if (config?.baseStyle === "musicplayer2") {
     try {
       const response = await fetch("musicplayer2.html");
