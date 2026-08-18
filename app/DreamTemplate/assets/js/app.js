@@ -651,10 +651,11 @@ function renderStyleRail() {
     const activeInGroup = configs.some((config) => config.id === state.activeStyle);
     const tabs = configs.map((config) => {
       const active = config.id === state.activeStyle ? " active" : "";
+      const exportLabel = config.canExportImage ? "IMG · HTML" : config.canExportHtml ? "HTML" : "EDITOR";
       return `
         <button type="button" class="style-tab${active}" data-style-id="${config.id}" style="--accent:${config.accent}">
           <span>${config.label}</span>
-          <small>${config.canExportImage ? "IMG · HTML" : "HTML"}</small>
+          <small>${exportLabel}</small>
         </button>
       `;
     }).join("");
@@ -681,6 +682,7 @@ function renderEditorPanel() {
 }
 
 function renderPreview() {
+  document.body.classList.toggle("is-cheki-maker", getActiveConfig().baseStyle === "cheki");
   elements.previewRoot.innerHTML = renderCurrentCard();
   window.CardStudioRenderers.hydrateCard?.(elements.previewRoot);
   hydratePanSurfaces(elements.previewRoot);
@@ -694,7 +696,9 @@ function renderCurrentCard() {
 function renderExportButtons() {
   const config = getActiveConfig();
   elements.imageButton.disabled = !config.canExportImage;
-  elements.imageButton.textContent = config.canExportImage ? "이미지 저장" : "HTML 전용";
+  elements.imageButton.textContent = config.canExportImage ? "이미지 저장" : config.canExportHtml ? "HTML 전용" : "편집기에서 저장";
+  elements.htmlButton.disabled = !config.canExportHtml;
+  elements.copyButton.disabled = !config.canExportHtml;
 }
 
 function persistSoon(message = "자동 임시저장 완료") {
@@ -720,9 +724,10 @@ async function runExport(task, successMessage) {
 }
 
 function setExportBusy(isBusy) {
-  elements.imageButton.disabled = isBusy || !getActiveConfig().canExportImage;
-  elements.htmlButton.disabled = isBusy;
-  elements.copyButton.disabled = isBusy;
+  const config = getActiveConfig();
+  elements.imageButton.disabled = isBusy || !config.canExportImage;
+  elements.htmlButton.disabled = isBusy || !config.canExportHtml;
+  elements.copyButton.disabled = isBusy || !config.canExportHtml;
   document.body.classList.toggle("is-busy", isBusy);
 }
 

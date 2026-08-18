@@ -22,6 +22,7 @@ function renderCard(styleId, data) {
     renaitvshow: renderRenaiTvShow,
     lifefourcut: renderLifeFourCut,
     photoalbum: renderPhotoAlbum,
+    cheki: renderCheki,
     netflixscreenshot: renderNetflixScreenshot,
     movieticket: renderMovieTicket,
     internetboard: renderInternetBoard,
@@ -923,6 +924,14 @@ function renderPhotoAlbum(data) {
       <blockquote>${e(data.quote || "")}</blockquote>
       <section class="album-grid">${imgs.map((src) => `<div class="album-slot"><div>${src ? `<img src="${e(src)}" alt="">` : `<span><b>+</b><small>photo</small></span>`}</div></div>`).join("")}</section>
       <footer>${e(data.credit || "@YOUR_NAME")}</footer>
+    </article>
+  `;
+}
+
+function renderCheki() {
+  return `
+    <article class="card-frame cheki-maker-card" data-cheki-maker>
+      <iframe class="cheki-maker-frame" src="cheki.html" title="Cheki Maker" allow="clipboard-read; clipboard-write"></iframe>
     </article>
   `;
 }

@@ -92,6 +92,7 @@ const BASE_STYLE_CONFIGS = [
   { id: "renaitvshow", label: "얼굴합 비교표", accent: "#ff95a8", canExportImage: true, canExportHtml: true, description: "얼굴합 비교표 원본 캐릭터 프로필 보드입니다." },
   { id: "lifefourcut", label: "Life Four Cut", accent: "#2b2b2b", canExportImage: true, canExportHtml: true, description: "인생네컷 원본 템플릿의 네 컷 프레임입니다." },
   { id: "photoalbum", label: "Photo Album", accent: "#d6a4a4", canExportImage: true, canExportHtml: true, description: "포토앨범 원본 템플릿의 다이어리 폴라로이드 카드입니다." },
+  { id: "cheki", label: "Cheki Maker", accent: "#ff8ab5", canExportImage: false, canExportHtml: false, description: "사진, 싸인, 글씨, 스티커, 효과, 프레임을 원본 Cheki Maker 편집기에서 그대로 만들고 PNG 또는 GIF로 저장합니다." },
   { id: "netflixscreenshot", label: "Netflix Screenshot", accent: "#b22222", canExportImage: true, canExportHtml: true, description: "영상 캡쳐 원본 템플릿의 시네마 프레임입니다." },
   { id: "movieticket", label: "Movie Ticket", accent: "#f4b3c2", canExportImage: true, canExportHtml: true, description: "영화티켓 원본 템플릿의 티켓 카드입니다." },
   { id: "internetboard", label: "Anonymous Board", accent: "#ffb6c1", canExportImage: true, canExportHtml: true, description: "익명게시판 스타일의 게시글 카드입니다." },
@@ -140,6 +141,7 @@ const STYLE_VARIANTS = [
   { id: "messenger-html", baseStyle: "messenger", groupId: "gallery", label: "메신저", description: "메신저 템플릿 스타일입니다. HTML로만 내보냅니다." },
   { id: "lifefourcut-card", baseStyle: "lifefourcut", groupId: "gallery", label: "인생네컷", description: "인생네컷 원본 템플릿의 네 컷 프레임입니다." },
   { id: "photoalbum-card", baseStyle: "photoalbum", groupId: "gallery", label: "포토앨범", description: "포토앨범 원본 템플릿의 다이어리 폴라로이드 카드입니다." },
+  { id: "cheki-maker", baseStyle: "cheki", groupId: "gallery", label: "체키", description: "Cheki Maker의 원본 캔버스와 모든 편집 수치를 그대로 사용합니다. PNG와 GIF 저장은 오른쪽 편집기 안에서 할 수 있습니다." },
   { id: "movieticket-card", baseStyle: "movieticket", groupId: "others", label: "영화티켓", description: "영화티켓 원본 템플릿의 티켓 카드입니다." },
   { id: "internetboard-card", baseStyle: "internetboard", groupId: "others", label: "익명게시판", description: "익명게시판 스타일의 게시글 카드입니다." },
   { id: "rpgmaker-card", baseStyle: "rpgmaker", groupId: "others", label: "Tsukuru RPG", description: "RPGMaker/index.html의 인게임 스크린샷 메이커 화면입니다." },
@@ -526,6 +528,7 @@ const DEFAULT_STYLE_DATA = {
     slotCount: 6,
     images: ["", "", "", "", "", ""],
   },
+  cheki: {},
   netflixscreenshot: {
     image: "",
     imageX: 50,

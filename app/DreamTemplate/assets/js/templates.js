@@ -23,6 +23,7 @@ function renderEditor(styleId, data) {
     renaitvshow: renaiTvShowEditor,
     lifefourcut: lifeFourCutEditor,
     photoalbum: photoAlbumEditor,
+    cheki: chekiEditor,
     netflixscreenshot: netflixScreenshotEditor,
     movieticket: movieTicketEditor,
     internetboard: internetBoardEditor,
@@ -35,6 +36,13 @@ function renderEditor(styleId, data) {
 
 function section(title, body) {
   return `<section class="editor-section"><h3>${e(title)}</h3>${body}</section>`;
+}
+
+function chekiEditor() {
+  return section("Cheki Maker", `
+    <p class="cheki-editor-note">오른쪽 원본 편집기에서 사진, 싸인, 글씨, 스티커, 효과와 프레임을 편집하세요.</p>
+    <p class="cheki-editor-note">완성본은 편집기 안의 <b>PNG로 저장</b> 또는 <b>GIF로 저장</b> 버튼으로 저장합니다.</p>
+  `);
 }
 
 function field(data, path, label, options = {}) {
