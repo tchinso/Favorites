@@ -381,11 +381,15 @@
             }
         };
 
-        // 25문제 기준: 4초 정답 4점, 즉시 정답 12점, 전체 결과 범위 0~300
+        // 원점수는 속도와 정답률을 반영하고, 최종 IQ는 100을 중심으로 변동폭을 완화합니다.
         const SPEED_BENCHMARK_SECONDS = 4;
         const SCORE_TIME_STEP_SECONDS = 0.1;
         const BASELINE_POINTS_PER_CORRECT = 4;
+        const MAX_POINTS_PER_QUESTION = BASELINE_POINTS_PER_CORRECT * 3;
+        const COMBO_BONUS_PER_EXTRA_CORRECT = 1.5;
+        const MAX_COMBO_BONUS = 20;
         const MAX_IQ = 300;
+        const MAX_RAW_SCORE = (questions.length * MAX_POINTS_PER_QUESTION) + MAX_COMBO_BONUS;
 
         let currentQuestion = 1;
         const totalQuestions = questions.length;
@@ -393,6 +397,8 @@
         let answers = [];
         let questionStartedAt = 0;
         let questionAnswered = false;
+        let correctStreak = 0;
+        let comboBonus = 0;
 
         const questionList = document.getElementById('questionList');
 
@@ -435,6 +441,8 @@
             currentQuestion = 1;
             score = 0;
             answers = [];
+            correctStreak = 0;
+            comboBonus = 0;
             renderQuestions();
             document.getElementById('intro').style.display = 'none';
             document.querySelector('.progress-bar').style.display = 'block';
@@ -477,6 +485,22 @@
             return BASELINE_POINTS_PER_CORRECT * speedMultiplier;
         }
 
+        function convertRawScoreToIQ(rawScore) {
+            const boundedScore = Math.max(0, Math.min(MAX_RAW_SCORE, rawScore));
+
+            // 대부분의 결과는 80~120 주변에 모으고, 양 끝값은 0과 300으로 열어 둡니다.
+            if (boundedScore <= 20) {
+                return (boundedScore / 20) * 80;
+            }
+            if (boundedScore <= 100) {
+                return 80 + ((boundedScore - 20) / 80) * 20;
+            }
+            if (boundedScore <= 160) {
+                return 100 + ((boundedScore - 100) / 60) * 20;
+            }
+            return 120 + ((boundedScore - 160) / (MAX_RAW_SCORE - 160)) * 180;
+        }
+
         // 다음 질문으로 이동
         function goToNextQuestion() {
             const currentQuestionElement = document.querySelector(`.question[data-step="${currentQuestion}"]`);
@@ -506,6 +530,16 @@
                 elapsed,
                 points
             };
+
+            if (isCorrect) {
+                correctStreak++;
+                if (correctStreak >= 2) {
+                    comboBonus = Math.min(MAX_COMBO_BONUS, comboBonus + COMBO_BONUS_PER_EXTRA_CORRECT);
+                }
+            } else {
+                correctStreak = 0;
+            }
+
             score += points;
             goToNextQuestion();
         }
@@ -514,7 +548,7 @@
         function showResult() {
             questionStartedAt = 0;
 
-            const iq = Math.max(0, Math.min(MAX_IQ, score));
+            const iq = Math.max(0, Math.min(MAX_IQ, convertRawScoreToIQ(score + comboBonus)));
 
             let resultCategory;
             if (iq <= 69) {
@@ -548,6 +582,8 @@
             answers = [];
             questionStartedAt = 0;
             questionAnswered = false;
+            correctStreak = 0;
+            comboBonus = 0;
 
             document.getElementById('result').style.display = 'none';
             document.querySelector('.questions-container').style.display = 'none';
