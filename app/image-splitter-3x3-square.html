@@ -1,0 +1,799 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>이미지 1:1 보정 · 3×3 분할 &amp; 복원 도구</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --card: #ffffff;
+    --border: #e2e5ea;
+    --text: #1c1f26;
+    --muted: #6b7280;
+    --accent: #4f46e5;
+    --accent-hover: #4338ca;
+    --warn-bg: #fff7ed;
+    --warn-border: #fdba74;
+    --warn-text: #9a3412;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 32px 16px 80px;
+  }
+  .wrap { max-width: 960px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .subtitle { color: var(--muted); font-size: 14px; margin: 0 0 22px; }
+
+  .tabs {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 18px;
+    border-bottom: 1px solid var(--border);
+  }
+  .tab {
+    appearance: none;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: 10px 6px;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  .panel.hidden { display: none; }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 24px;
+    margin-bottom: 20px;
+  }
+  .dropzone {
+    border: 2px dashed #c7cbd4;
+    border-radius: 12px;
+    padding: 40px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+  }
+  .dropzone.drag { border-color: var(--accent); background: #f0f0fe; }
+  .dropzone p { margin: 6px 0; color: var(--muted); font-size: 14px; }
+  .dropzone .big { font-size: 15px; color: var(--text); font-weight: 600; }
+  input[type=file] { display: none; }
+
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--accent); color: #fff; border: none; border-radius: 8px;
+    padding: 9px 16px; font-size: 14px; font-weight: 600; cursor: pointer;
+    transition: background .15s;
+  }
+  .btn:hover { background: var(--accent-hover); }
+  .btn.secondary { background: #fff; color: var(--text); border: 1px solid var(--border); }
+  .btn.secondary:hover { background: #f3f4f6; }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+
+  .toolbar {
+    display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap; gap: 12px; margin-bottom: 18px;
+  }
+  .meta { font-size: 13px; color: var(--muted); }
+  .toggle { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); user-select: none; cursor: pointer; }
+
+  select, input[type=number] {
+    font-size: 13px;
+    padding: 6px 8px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: #fff;
+    color: var(--text);
+  }
+
+  .stitch-frame {
+    width: min(560px, 100%);
+    margin: 0 auto;
+    background: repeating-conic-gradient(#eceef2 0% 25%, #f6f7f9 0% 50%) 50% / 16px 16px;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .stitch-grid { display: grid; width: 100%; }
+  .stitch-grid.lines > div { outline: 1px solid rgba(79,70,229,.55); outline-offset: -0.5px; }
+  .stitch-grid img { display: block; width: 100%; height: 100%; object-fit: fill; }
+
+  .pieces {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 12px;
+    margin-top: 20px;
+  }
+  .piece { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: #fafafa; }
+  .piece .thumb { background: repeating-conic-gradient(#eceef2 0% 25%, #f6f7f9 0% 50%) 50% / 14px 14px; }
+  .piece img { display: block; width: 100%; height: auto; }
+  .piece .info { padding: 8px 10px; display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+  .piece .label { font-size: 12px; font-weight: 700; }
+  .piece .dims { font-size: 10.5px; color: var(--muted); display: block; margin-top: 1px; }
+  .piece .dl { font-size: 11px; padding: 5px 8px; }
+
+  .footer-actions { display: flex; gap: 10px; justify-content: center; margin-top: 24px; flex-wrap: wrap; }
+
+  .hidden { display: none !important; }
+  .section-title { font-size: 15px; font-weight: 700; margin: 0 0 14px; }
+
+  .note {
+    font-size: 12.5px;
+    color: var(--muted);
+    margin: 6px 0 0;
+  }
+  .warn-banner {
+    background: var(--warn-bg);
+    border: 1px solid var(--warn-border);
+    color: var(--warn-text);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 13px;
+    margin-bottom: 16px;
+  }
+
+  .grid-config {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .grid-config .num-field {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .grid-config input[type=number] { width: 60px; }
+
+  .arrange-grid {
+    display: grid;
+    gap: 6px;
+    width: min(560px, 100%);
+    margin: 0 auto;
+  }
+  .arrange-cell {
+    position: relative;
+    aspect-ratio: 1 / 1;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    cursor: grab;
+    background: repeating-conic-gradient(#eceef2 0% 25%, #f6f7f9 0% 50%) 50% / 12px 12px;
+  }
+  .arrange-cell img { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
+  .arrange-cell.dragover { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .arrange-cell .badge {
+    position: absolute; top: 4px; left: 4px;
+    background: rgba(79,70,229,.9); color: #fff;
+    font-size: 10px; font-weight: 700;
+    border-radius: 4px; padding: 1px 5px;
+  }
+  .arrange-cell .fname {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    background: rgba(0,0,0,.55); color: #fff;
+    font-size: 8.5px; padding: 2px 4px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+
+  .merged-preview {
+    width: min(560px, 100%);
+    margin: 0 auto;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    background: repeating-conic-gradient(#eceef2 0% 25%, #f6f7f9 0% 50%) 50% / 16px 16px;
+  }
+  .merged-preview img { display: block; width: 100%; height: auto; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>이미지 1:1 보정 · 3×3 분할 &amp; 복원 도구</h1>
+  <p class="subtitle">이미지가 1:1 비율이 아니면 원본을 자르지 않고 좌우 또는 상하에 투명 여백을 추가해 정사각형으로 만든 뒤, 정확히 3×3 격자의 9개 이미지로 나눕니다. 모든 처리는 브라우저 안에서만 이루어지고 서버로 업로드되지 않습니다.</p>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="split">① 쪼개기</button>
+    <button class="tab" data-tab="merge">② 합치기 (복원)</button>
+  </div>
+
+  <!-- ===================== SPLIT PANEL ===================== -->
+  <div class="panel" id="splitPanel">
+    <div class="card" id="uploadCard">
+      <div class="warn-banner" style="margin-bottom:16px;">
+        원본 비율은 유지됩니다. 부족한 좌우 또는 상하 공간은 투명 여백으로 채우고, 정사각형 전체를 3×3 격자로 분할합니다.
+      </div>
+      <div class="dropzone" id="dropzone">
+        <p class="big">이미지를 여기로 드래그하거나 클릭해서 선택하세요</p>
+        <p>PNG, JPG, WEBP 등 지원</p>
+        <input type="file" id="fileInput" accept="image/*">
+      </div>
+    </div>
+
+    <div id="resultCard" class="card hidden">
+      <div class="toolbar">
+        <div class="meta" id="metaInfo"></div>
+        <div style="display:flex; align-items:center; gap:16px;">
+          <label class="toggle">
+            <input type="checkbox" id="lineToggle">
+            분할선 표시
+          </label>
+          <button class="btn secondary" id="changeBtn">다른 이미지 선택</button>
+        </div>
+      </div>
+
+      <p class="section-title">1:1 보정 후 3×3 미리보기</p>
+      <div class="stitch-frame"><div class="stitch-grid" id="stitchGrid"></div></div>
+
+      <p class="section-title" style="margin-top:28px;">9개 조각 (왼쪽 위부터 좌→우 · 위→아래)</p>
+      <div class="pieces" id="pieces"></div>
+
+      <div class="footer-actions">
+        <button class="btn" id="downloadAllBtn">전체 ZIP으로 다운로드</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== MERGE PANEL ===================== -->
+  <div class="panel hidden" id="mergePanel">
+    <div class="card" id="mergeUploadCard">
+      <div class="dropzone" id="mergeDropzone">
+        <p class="big">조각난 이미지 파일들을 전부 선택하거나 드래그하세요</p>
+        <p>이 도구로 만든 9개 조각(파일명에 번호 포함)이면 자동으로 3×3 순서를 맞춰줍니다. 다른 형태의 조각을 합칠 때는 아래 행×열 값을 직접 바꿀 수도 있습니다.</p>
+        <input type="file" id="mergeFileInput" accept="image/*" multiple>
+      </div>
+    </div>
+
+    <div id="mergeResultCard" class="card hidden">
+      <div id="mergeWarnBanner" class="warn-banner hidden"></div>
+
+      <div class="toolbar">
+        <div class="grid-config">
+          <span id="mergeMeta"></span>
+          <label class="num-field">행(rows)
+            <input type="number" id="rowsInput" min="1" value="1">
+          </label>
+          <label class="num-field">열(cols)
+            <input type="number" id="colsInput" min="1" value="1">
+          </label>
+          <button class="btn secondary" id="applyGridBtn" style="padding:6px 10px; font-size:12px;">격자 적용</button>
+          <button class="btn secondary" id="autoSortBtn" style="padding:6px 10px; font-size:12px;">파일명으로 자동 정렬</button>
+        </div>
+        <button class="btn secondary" id="mergeChangeBtn">다른 파일 선택</button>
+      </div>
+      <p class="note">행 또는 열 값을 바꾸면 나머지 값이 조각 수에 맞춰 자동으로 계산되고 바로 반영돼요 ("격자 적용" 버튼은 수동으로 다시 적용하고 싶을 때만 누르면 됩니다). 칸을 드래그해서 다른 칸에 놓으면 두 조각의 위치가 서로 바뀝니다. 순서가 맞으면 아래에서 이미지를 합쳐주세요.</p>
+
+      <p class="section-title" style="margin-top:20px;">조각 배치</p>
+      <div class="arrange-grid" id="arrangeGrid"></div>
+
+      <div class="footer-actions">
+        <button class="btn" id="mergeBtn">이미지로 합치기</button>
+      </div>
+
+      <div id="mergedPreviewWrap" class="hidden" style="margin-top:24px;">
+        <p class="section-title">복원된 이미지</p>
+        <div class="merged-preview"><img id="mergedImg" alt="복원된 이미지"></div>
+        <p class="meta" id="mergedMeta" style="text-align:center; margin-top:8px;"></p>
+        <div class="footer-actions">
+          <button class="btn" id="downloadMergedBtn">복원된 이미지 다운로드</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  // 이 페이지의 기본 분할 방식(3×3)을 복원 탭의 초기 추측값으로 사용
+  window.__lastSplitGrid = { cols: 3, rows: 3 };
+
+  /* ---------------------------------------------------------------- */
+  /* Tabs                                                              */
+  /* ---------------------------------------------------------------- */
+  const tabs = document.querySelectorAll('.tab');
+  const panels = { split: document.getElementById('splitPanel'), merge: document.getElementById('mergePanel') };
+  tabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      tabs.forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      Object.keys(panels).forEach(key => panels[key].classList.toggle('hidden', key !== tab.dataset.tab));
+    });
+  });
+
+  /* ---------------------------------------------------------------- */
+  /* SPLIT                                                             */
+  /* ---------------------------------------------------------------- */
+  (function splitModule() {
+    const dropzone = document.getElementById('dropzone');
+    const fileInput = document.getElementById('fileInput');
+    const uploadCard = document.getElementById('uploadCard');
+    const resultCard = document.getElementById('resultCard');
+    const stitchGrid = document.getElementById('stitchGrid');
+    const piecesEl = document.getElementById('pieces');
+    const metaInfo = document.getElementById('metaInfo');
+    const lineToggle = document.getElementById('lineToggle');
+    const changeBtn = document.getElementById('changeBtn');
+    const downloadAllBtn = document.getElementById('downloadAllBtn');
+
+    let pieceBlobs = [];
+    let baseName = 'image';
+    let currentImg = null;
+
+    dropzone.addEventListener('click', () => fileInput.click());
+    dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('drag'); });
+    dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
+    dropzone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropzone.classList.remove('drag');
+      if (e.dataTransfer.files && e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+    });
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files && e.target.files[0]) handleFile(e.target.files[0]);
+    });
+    changeBtn.addEventListener('click', () => {
+      fileInput.value = '';
+      currentImg = null;
+      resultCard.classList.add('hidden');
+      uploadCard.classList.remove('hidden');
+    });
+    lineToggle.addEventListener('change', () => {
+      stitchGrid.classList.toggle('lines', lineToggle.checked);
+    });
+
+    function handleFile(file) {
+      if (!file.type.startsWith('image/')) { alert('이미지 파일을 선택해주세요.'); return; }
+      baseName = (file.name || 'image').replace(/\.[^/.]+$/, '');
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => { currentImg = img; sliceImage(img); };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function boundaries(total, n) {
+      const b = [];
+      for (let i = 0; i <= n; i++) b.push(Math.round((total * i) / n));
+      return b;
+    }
+
+    function sliceImage(img) {
+      const COLS = 3;
+      const ROWS = 3;
+      const w = img.naturalWidth;
+      const h = img.naturalHeight;
+
+      // 원본을 자르지 않고, 더 긴 변을 기준으로 정사각형 캔버스 중앙에 배치한다.
+      // 정사각형 원본은 크기를 그대로 유지한다.
+      const squareSize = Math.max(w, h);
+      const offsetX = Math.floor((squareSize - w) / 2);
+      const offsetY = Math.floor((squareSize - h) / 2);
+
+      const squareCanvas = document.createElement('canvas');
+      squareCanvas.width = squareSize;
+      squareCanvas.height = squareSize;
+      const squareCtx = squareCanvas.getContext('2d');
+      squareCtx.clearRect(0, 0, squareSize, squareSize); // 투명 여백
+      squareCtx.drawImage(img, offsetX, offsetY, w, h);
+
+      // 3으로 딱 나누어지지 않는 픽셀 크기에서도 전체 픽셀을 빠짐없이 3×3으로 나눈다.
+      const colB = boundaries(squareSize, COLS);
+      const rowB = boundaries(squareSize, ROWS);
+      const colSizes = [];
+      const rowSizes = [];
+      for (let c = 0; c < COLS; c++) colSizes.push(colB[c + 1] - colB[c]);
+      for (let r = 0; r < ROWS; r++) rowSizes.push(rowB[r + 1] - rowB[r]);
+
+      pieceBlobs.forEach(p => p.url && URL.revokeObjectURL(p.url));
+      pieceBlobs = [];
+      stitchGrid.innerHTML = '';
+      piecesEl.innerHTML = '';
+
+      stitchGrid.style.gridTemplateColumns = colSizes.map(s => `${s}fr`).join(' ');
+      stitchGrid.style.gridTemplateRows = rowSizes.map(s => `${s}fr`).join(' ');
+      stitchGrid.parentElement.style.aspectRatio = '1 / 1';
+      stitchGrid.classList.toggle('lines', lineToggle.checked);
+
+      const padLeft = offsetX;
+      const padRight = squareSize - w - offsetX;
+      const padTop = offsetY;
+      const padBottom = squareSize - h - offsetY;
+      const paddingText = (padLeft || padRight || padTop || padBottom)
+        ? ` · 여백 L${padLeft}/R${padRight}/T${padTop}/B${padBottom}px`
+        : ' · 추가 여백 없음';
+
+      const pieceSizeText = (colSizes.every(v => v === colSizes[0]) && rowSizes.every(v => v === rowSizes[0]))
+        ? `${colSizes[0]} × ${rowSizes[0]}px`
+        : `약 ${Math.floor(squareSize / 3)}~${Math.ceil(squareSize / 3)}px`;
+      metaInfo.textContent = `원본: ${w} × ${h}px · 1:1 보정: ${squareSize} × ${squareSize}px${paddingText} · 조각: ${pieceSizeText} × 9개`;
+      window.__lastSplitGrid = { cols: COLS, rows: ROWS };
+
+      const regions = [];
+      let index = 0;
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          index++;
+          regions.push({
+            sx: colB[c],
+            sy: rowB[r],
+            sw: colSizes[c],
+            sh: rowSizes[r],
+            row: r + 1,
+            col: c + 1,
+            label: `${index}번 (${r + 1}행 ${c + 1}열)`,
+          });
+        }
+      }
+
+      let done = 0;
+      regions.forEach((reg, idx) => {
+        const canvas = document.createElement('canvas');
+        canvas.width = reg.sw;
+        canvas.height = reg.sh;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(squareCanvas, reg.sx, reg.sy, reg.sw, reg.sh, 0, 0, reg.sw, reg.sh);
+        canvas.toBlob((blob) => {
+          const url = URL.createObjectURL(blob);
+          pieceBlobs[idx] = {
+            blob,
+            url,
+            label: reg.label,
+            filename: `${baseName}_${String(idx + 1).padStart(2, '0')}.png`,
+            w: reg.sw,
+            h: reg.sh,
+          };
+          done++;
+          if (done === regions.length) renderUI();
+        }, 'image/png');
+      });
+    }
+
+    function renderUI() {
+      pieceBlobs.forEach((p) => {
+        const cell = document.createElement('div');
+        const img = document.createElement('img');
+        img.src = p.url; img.alt = p.label;
+        cell.appendChild(img);
+        stitchGrid.appendChild(cell);
+      });
+
+      pieceBlobs.forEach((p) => {
+        const card = document.createElement('div');
+        card.className = 'piece';
+        const thumb = document.createElement('div');
+        thumb.className = 'thumb';
+        const img = document.createElement('img');
+        img.src = p.url; img.alt = p.label;
+        thumb.appendChild(img);
+
+        const info = document.createElement('div');
+        info.className = 'info';
+        info.innerHTML = `<span><span class="label">${p.label}</span><span class="dims">${p.w} × ${p.h}px</span></span>`;
+        const dlBtn = document.createElement('button');
+        dlBtn.className = 'btn secondary dl';
+        dlBtn.textContent = '다운로드';
+        dlBtn.addEventListener('click', () => downloadSingle(p));
+        info.appendChild(dlBtn);
+
+        card.appendChild(thumb); card.appendChild(info);
+        piecesEl.appendChild(card);
+      });
+
+      uploadCard.classList.add('hidden');
+      resultCard.classList.remove('hidden');
+    }
+
+    function downloadSingle(p) {
+      const a = document.createElement('a');
+      a.href = p.url; a.download = p.filename;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    }
+
+    downloadAllBtn.addEventListener('click', async () => {
+      if (!pieceBlobs.length) return;
+      downloadAllBtn.disabled = true;
+      downloadAllBtn.textContent = 'ZIP 생성 중...';
+      try {
+        const zip = new JSZip();
+        pieceBlobs.forEach((p) => zip.file(p.filename, p.blob));
+        const content = await zip.generateAsync({ type: 'blob' });
+        const url = URL.createObjectURL(content);
+        const a = document.createElement('a');
+        a.href = url; a.download = `${baseName}_3x3_조각.zip`;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 4000);
+      } catch (err) {
+        alert('ZIP 생성에 실패했습니다: ' + err.message);
+      } finally {
+        downloadAllBtn.disabled = false;
+        downloadAllBtn.textContent = '전체 ZIP으로 다운로드';
+      }
+    });
+  })();
+
+  /* ---------------------------------------------------------------- */
+  /* MERGE (restore)                                                    */
+  /* ---------------------------------------------------------------- */
+  (function mergeModule() {
+    const dropzone = document.getElementById('mergeDropzone');
+    const fileInput = document.getElementById('mergeFileInput');
+    const uploadCard = document.getElementById('mergeUploadCard');
+    const resultCard = document.getElementById('mergeResultCard');
+    const warnBanner = document.getElementById('mergeWarnBanner');
+    const mergeMeta = document.getElementById('mergeMeta');
+    const rowsInput = document.getElementById('rowsInput');
+    const colsInput = document.getElementById('colsInput');
+    const applyGridBtn = document.getElementById('applyGridBtn');
+    const autoSortBtn = document.getElementById('autoSortBtn');
+    const changeBtn = document.getElementById('mergeChangeBtn');
+    const arrangeGrid = document.getElementById('arrangeGrid');
+    const mergeBtn = document.getElementById('mergeBtn');
+    const mergedPreviewWrap = document.getElementById('mergedPreviewWrap');
+    const mergedImg = document.getElementById('mergedImg');
+    const mergedMeta = document.getElementById('mergedMeta');
+    const downloadMergedBtn = document.getElementById('downloadMergedBtn');
+
+    let items = [];      // {img, name, url}
+    let order = [];      // array of indices into items, length rows*cols (arranged order)
+    let rows = 1, cols = 1;
+    let mergedBlobUrl = null;
+    let dragSrcCellIndex = null;
+    let outBaseName = 'merged';
+
+    dropzone.addEventListener('click', () => fileInput.click());
+    dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('drag'); });
+    dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
+    dropzone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropzone.classList.remove('drag');
+      if (e.dataTransfer.files && e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
+    });
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files && e.target.files.length) handleFiles(e.target.files);
+    });
+    changeBtn.addEventListener('click', () => {
+      fileInput.value = '';
+      items = []; order = [];
+      resultCard.classList.add('hidden');
+      mergedPreviewWrap.classList.add('hidden');
+      uploadCard.classList.remove('hidden');
+      if (mergedBlobUrl) { URL.revokeObjectURL(mergedBlobUrl); mergedBlobUrl = null; }
+    });
+
+    function handleFiles(fileList) {
+      const files = Array.from(fileList).filter(f => f.type.startsWith('image/'));
+      if (!files.length) { alert('이미지 파일을 선택해주세요.'); return; }
+
+      // infer output base name: strip trailing _NN / -NN / (NN) / NN before extension
+      const firstName = files[0].name.replace(/\.[^/.]+$/, '');
+      outBaseName = firstName.replace(/[_\-\s]?\(?\d+\)?$/, '') || 'merged';
+
+      let loaded = 0;
+      items = new Array(files.length);
+      files.forEach((file, i) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const img = new Image();
+          img.onload = () => {
+            items[i] = { img, name: file.name, url: e.target.result };
+            loaded++;
+            if (loaded === files.length) onAllLoaded();
+          };
+          img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+
+    function extractNumber(name) {
+      const m = name.match(/(\d+)(?!.*\d)/);
+      return m ? parseInt(m[1], 10) : null;
+    }
+
+    function guessGrid(n) {
+      let best = null;
+      for (let r = 1; r <= n; r++) {
+        if (n % r === 0) {
+          const c = n / r;
+          const diff = Math.abs(r - c);
+          if (!best || diff < best.diff) best = { r, c, diff };
+        }
+      }
+      return best ? { rows: best.r, cols: best.c } : { rows: 1, cols: n };
+    }
+
+    function onAllLoaded() {
+      const n = items.length;
+      const hint = window.__lastSplitGrid;
+      const guess = (hint && hint.cols * hint.rows === n) ? hint : guessGrid(n);
+      rows = guess.rows; cols = guess.cols;
+      rowsInput.value = rows; colsInput.value = cols;
+
+      autoSortOrder(true);
+      buildArrangeGrid();
+
+      uploadCard.classList.add('hidden');
+      resultCard.classList.remove('hidden');
+      mergedPreviewWrap.classList.add('hidden');
+      updateMeta();
+    }
+
+    function autoSortOrder(silent) {
+      const withNum = items.map((it, i) => ({ i, num: extractNumber(it.name) }));
+      const allHaveNum = withNum.every(x => x.num !== null);
+      if (allHaveNum) {
+        withNum.sort((a, b) => a.num - b.num);
+        order = withNum.map(x => x.i);
+        if (!silent) buildArrangeGrid();
+        setWarn(false);
+      } else {
+        order = items.map((_, i) => i).sort((a, b) => items[a].name.localeCompare(items[b].name));
+        if (!silent) buildArrangeGrid();
+        setWarn(true, '일부 파일명에서 순서 번호를 찾지 못했어요. 파일명 순서로 임시 정렬했으니, 아래에서 드래그로 순서를 맞춰주세요.');
+      }
+    }
+
+    function setWarn(show, text) {
+      if (show) {
+        warnBanner.textContent = text;
+        warnBanner.classList.remove('hidden');
+      } else {
+        warnBanner.classList.add('hidden');
+      }
+    }
+
+    function updateMeta() {
+      mergeMeta.textContent = `업로드된 조각: ${items.length}개`;
+    }
+
+    // rows/cols 입력을 실제 배치에 반영. changedField를 주면 나머지 값을 조각 수에 맞춰 자동으로 계산한다.
+    function applyGrid(changedField) {
+      let r = parseInt(rowsInput.value, 10);
+      let c = parseInt(colsInput.value, 10);
+      const n = items.length;
+
+      if (changedField === 'rows' && r >= 1 && n % r === 0) {
+        c = n / r;
+        colsInput.value = c;
+      } else if (changedField === 'cols' && c >= 1 && n % c === 0) {
+        r = n / c;
+        rowsInput.value = r;
+      }
+
+      if (!r || !c || r < 1 || c < 1) { setWarn(true, '행/열 값을 확인해주세요.'); return; }
+      if (r * c !== n) {
+        setWarn(true, `행 × 열(${r}×${c}=${r * c})이 업로드한 조각 수(${n}개)와 일치하지 않아요. ${n}의 약수로 입력해주세요.`);
+        return;
+      }
+
+      rows = r; cols = c;
+      setWarn(false);
+      // order 배열의 개수는 항상 n으로 유지되고, 격자 모양만 다시 그려진다.
+      if (order.length !== n) {
+        order = items.map((_, i) => i);
+      }
+      buildArrangeGrid();
+    }
+
+    applyGridBtn.addEventListener('click', () => applyGrid(null));
+    rowsInput.addEventListener('change', () => applyGrid('rows'));
+    colsInput.addEventListener('change', () => applyGrid('cols'));
+
+    autoSortBtn.addEventListener('click', () => {
+      autoSortOrder(false);
+    });
+
+    function buildArrangeGrid() {
+      arrangeGrid.innerHTML = '';
+      arrangeGrid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+      order.forEach((itemIdx, cellIdx) => {
+        const it = items[itemIdx];
+        const cell = document.createElement('div');
+        cell.className = 'arrange-cell';
+        cell.draggable = true;
+        cell.dataset.cellIndex = cellIdx;
+
+        const img = document.createElement('img');
+        img.src = it.url; img.alt = it.name;
+        cell.appendChild(img);
+
+        const badge = document.createElement('div');
+        badge.className = 'badge';
+        badge.textContent = cellIdx + 1;
+        cell.appendChild(badge);
+
+        const fname = document.createElement('div');
+        fname.className = 'fname';
+        fname.textContent = it.name;
+        cell.appendChild(fname);
+
+        cell.addEventListener('dragstart', (e) => {
+          dragSrcCellIndex = cellIdx;
+          e.dataTransfer.effectAllowed = 'move';
+        });
+        cell.addEventListener('dragover', (e) => { e.preventDefault(); cell.classList.add('dragover'); });
+        cell.addEventListener('dragleave', () => cell.classList.remove('dragover'));
+        cell.addEventListener('drop', (e) => {
+          e.preventDefault();
+          cell.classList.remove('dragover');
+          const targetCellIndex = parseInt(cell.dataset.cellIndex, 10);
+          if (dragSrcCellIndex === null || dragSrcCellIndex === targetCellIndex) return;
+          const tmp = order[dragSrcCellIndex];
+          order[dragSrcCellIndex] = order[targetCellIndex];
+          order[targetCellIndex] = tmp;
+          dragSrcCellIndex = null;
+          buildArrangeGrid();
+        });
+
+        arrangeGrid.appendChild(cell);
+      });
+    }
+
+    mergeBtn.addEventListener('click', () => {
+      if (order.length !== rows * cols || rows * cols !== items.length) {
+        alert('행 × 열이 조각 수와 일치하지 않습니다. "격자 적용" 버튼으로 값을 먼저 맞춰주세요.');
+        return;
+      }
+
+      // column widths from row 0, row heights from column 0
+      const colWidths = [];
+      const rowHeights = [];
+      for (let c = 0; c < cols; c++) {
+        colWidths.push(items[order[0 * cols + c]].img.naturalWidth);
+      }
+      for (let r = 0; r < rows; r++) {
+        rowHeights.push(items[order[r * cols + 0]].img.naturalHeight);
+      }
+      const totalW = colWidths.reduce((a, b) => a + b, 0);
+      const totalH = rowHeights.reduce((a, b) => a + b, 0);
+
+      const canvas = document.createElement('canvas');
+      canvas.width = totalW; canvas.height = totalH;
+      const ctx = canvas.getContext('2d');
+
+      let y = 0;
+      for (let r = 0; r < rows; r++) {
+        let x = 0;
+        for (let c = 0; c < cols; c++) {
+          const it = items[order[r * cols + c]];
+          ctx.drawImage(it.img, 0, 0, it.img.naturalWidth, it.img.naturalHeight, x, y, colWidths[c], rowHeights[r]);
+          x += colWidths[c];
+        }
+        y += rowHeights[r];
+      }
+
+      canvas.toBlob((blob) => {
+        if (mergedBlobUrl) URL.revokeObjectURL(mergedBlobUrl);
+        mergedBlobUrl = URL.createObjectURL(blob);
+        mergedImg.src = mergedBlobUrl;
+        mergedMeta.textContent = `복원된 크기: ${totalW} × ${totalH}px`;
+        mergedPreviewWrap.classList.remove('hidden');
+        mergedPreviewWrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }, 'image/png');
+    });
+
+    downloadMergedBtn.addEventListener('click', () => {
+      if (!mergedBlobUrl) return;
+      const a = document.createElement('a');
+      a.href = mergedBlobUrl;
+      a.download = `${outBaseName}_복원.png`;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    });
+  })();
+})();
+</script>
+</body>
+</html>
