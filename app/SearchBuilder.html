@@ -18,8 +18,12 @@
   .item{display:grid;grid-template-columns:28px 1fr 1.3fr auto;gap:8px;align-items:center;background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px;margin:8px 0}
   .item.selected{border-color:var(--pri);box-shadow:0 0 0 2px rgba(45,108,223,.18)}
   .item.engine{grid-template-columns:28px 1fr 1.8fr auto}
-  .item.category{grid-template-columns:28px 1fr auto}
+  .item.category{grid-template-columns:28px 32px minmax(0,1fr) auto auto}
   .handle{user-select:none;text-align:center;color:#999;cursor:grab}
+  .toggle{width:32px;height:32px;padding:0;font-size:17px;line-height:1}
+  .category-count{color:var(--muted);font-size:12px;white-space:nowrap}
+  .item.drop-before{border-top:3px solid var(--pri)}
+  .item.drop-after{border-bottom:3px solid var(--pri)}
   .pill{font-size:12px;border:1px solid var(--line);color:#555;padding:2px 8px;border-radius:999px;background:#fff}
   input[type="text"]{height:36px;border:1px solid var(--line);border-radius:8px;padding:0 10px;width:100%;box-sizing:border-box}
   .del{border-color:#f1c0c0;color:#a33;background:#ffecec}
@@ -32,6 +36,16 @@
   .file{display:none}
   .legend{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 8px}
   .legend span{font-size:12px;color:#555}
+  @media (max-width:600px){
+    .item.category{grid-template-columns:28px 32px minmax(0,1fr) auto}
+    .item.category input{grid-column:3;grid-row:1}
+    .item.category .category-count{grid-column:2 / 4;grid-row:2}
+    .item.category .del{grid-column:4;grid-row:1}
+    .item.engine{grid-template-columns:28px minmax(0,1fr) auto}
+    .item.engine input:first-of-type{grid-column:2;grid-row:1}
+    .item.engine input:nth-of-type(2){grid-column:2 / 4;grid-row:2}
+    .item.engine .del{grid-column:3;grid-row:1}
+  }
 </style>
 <script type="text/javascript" nonce="9cd49e0e84ae432da22f482ff05" src="//local.adguard.org?ts=1755769340060&amp;type=content-script&amp;dmn=cdn.discordapp.com&amp;url=https%3A%2F%2Fcdn.discordapp.com%2Fattachments%2F805539848160542752%2F1408006997068087347%2Fbuilder.html%3Fex%3D68a82c33%26is%3D68a6dab3%26hm%3D5069f312e457111fa7c7335261642fc54623da621a778f00f54e2884591ef19e%26&amp;app=msedge.exe&amp;css=3&amp;js=1&amp;rel=1&amp;rji=1&amp;sbe=1"></script><script type="text/javascript" nonce="9cd49e0e84ae432da22f482ff05" src="//local.adguard.org?ts=1755769340060&amp;name=AdsBypasser&amp;name=Anti-Adblock%20Killer%20%7C%20Reek&amp;name=AdGuard%20Extra&amp;name=AdGuard%20Popup%20Blocker&amp;name=Web%20of%20Trust&amp;type=user-script"></script></head>
 <body>
@@ -46,7 +60,7 @@
     <input type="file" id="file" class="file" accept=".json,application/json" />
   </div>
 
-  <div class="hint">정렬 순서가 “소속”을 결정해. <b>카테고리</b>가 먼저 나오고, 그 아래로 이어지는 <b>검색엔진</b>들이 그 카테고리에 속해. 드래그해서 위치를 바꿀 수 있고, 항목을 선택한 뒤 방향키로도 이동할 수 있어.</div>
+  <div class="hint">카테고리를 접거나 펼칠 수 있어. 카테고리를 드래그하면 소속 검색엔진도 함께 이동해. 검색엔진은 개별 이동할 수 있고, 항목을 선택한 뒤 방향키로도 순서를 바꿀 수 있어.</div>
 
   <div class="legend">
     <span class="pill">카테고리</span>
@@ -98,16 +112,39 @@
   const outEl = $('#out');
 
   let selectedIndex = null;
+  let collapsedCategories = new WeakSet();
 
   function setSelected(idx){
     selectedIndex = typeof idx === 'number' ? idx : null;
+    listEl.querySelectorAll('.item.selected').forEach(el => el.classList.remove('selected'));
+    if(selectedIndex !== null){
+      const row = listEl.querySelector(`.item[data-index="${selectedIndex}"]`);
+      if(row) row.classList.add('selected');
+    }
+  }
+
+  function categoryEnd(start){
+    let end = start + 1;
+    while(end < items.length && items[end].type !== 'category') end++;
+    return end;
+  }
+
+  function categoryStartFor(index){
+    for(let i = index; i >= 0; i--){
+      if(items[i].type === 'category') return i;
+    }
+    return -1;
   }
 
   // 렌더링
   function render(){
     if(selectedIndex !== null && selectedIndex >= items.length) selectedIndex = null;
     listEl.innerHTML = '';
+    let hiddenByCategory = false;
     items.forEach((it, idx) => {
+      if(it.type === 'category') hiddenByCategory = collapsedCategories.has(it);
+      else if(hiddenByCategory) return;
+
       const li = document.createElement('div');
       li.className = 'item ' + it.type;
       if(idx === selectedIndex) li.classList.add('selected');
@@ -121,12 +158,36 @@
       li.appendChild(handle);
 
       if(it.type === 'category'){
+        const count = categoryEnd(idx) - idx - 1;
+        const collapsed = collapsedCategories.has(it);
+        const toggle = document.createElement('button');
+        toggle.className = 'toggle';
+        toggle.type = 'button';
+        toggle.textContent = collapsed ? '▸' : '▾';
+        toggle.title = collapsed ? '카테고리 펼치기' : '카테고리 접기';
+        toggle.setAttribute('aria-label', toggle.title);
+        toggle.setAttribute('aria-expanded', String(!collapsed));
+        toggle.addEventListener('click', () => {
+          if(collapsed) collapsedCategories.delete(it);
+          else {
+            collapsedCategories.add(it);
+            if(selectedIndex > idx && selectedIndex < categoryEnd(idx)) selectedIndex = idx;
+          }
+          render();
+        });
+        li.appendChild(toggle);
+
         const name = document.createElement('input');
         name.type = 'text';
         name.placeholder = '카테고리명';
         name.value = it.name || '';
         name.addEventListener('input', e => { items[idx].name = e.target.value; });
         li.appendChild(name);
+
+        const countEl = document.createElement('span');
+        countEl.className = 'category-count';
+        countEl.textContent = `검색엔진 ${count}개`;
+        li.appendChild(countEl);
 
         const del = document.createElement('button');
         del.className = 'del';
@@ -162,15 +223,31 @@
       li.addEventListener('dragstart', onDragStart);
       li.addEventListener('dragover', onDragOver);
       li.addEventListener('drop', onDrop);
+      li.addEventListener('dragleave', () => li.classList.remove('drop-before', 'drop-after'));
+      li.addEventListener('dragend', () => {
+        dragIndex = null;
+        listEl.querySelectorAll('.drop-before,.drop-after').forEach(el => el.classList.remove('drop-before', 'drop-after'));
+      });
 
       listEl.appendChild(li);
     });
   }
 
   function removeAt(i){
-    items.splice(i,1);
-    if(selectedIndex === i) selectedIndex = null;
-    else if(selectedIndex > i) selectedIndex -= 1;
+    const item = items[i];
+    const end = item.type === 'category' ? categoryEnd(i) : i + 1;
+    const count = end - i - 1;
+    if(item.type === 'category'){
+      if(!window.confirm(`카테고리 "${item.name || '이름 없음'}"을(를) 삭제할까요?`)) return;
+      if(count > 0 && !window.confirm(`이 카테고리에 검색엔진 ${count}개가 있습니다. 하위 검색엔진도 모두 삭제할까요?`)) return;
+      collapsedCategories.delete(item);
+    }else if(!window.confirm(`검색엔진 "${item.name || '이름 없음'}"을(를) 삭제할까요?`)) return;
+
+    items.splice(i, end - i);
+    if(selectedIndex !== null){
+      if(selectedIndex >= i && selectedIndex < end) selectedIndex = null;
+      else if(selectedIndex >= end) selectedIndex -= end - i;
+    }
     render();
   }
 
@@ -179,40 +256,100 @@
     dragIndex = +e.currentTarget.dataset.index;
     setSelected(dragIndex);
     e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', String(dragIndex));
   }
   function onDragOver(e){
+    if(dragIndex === null) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
+    const target = e.currentTarget;
+    const after = e.clientY > target.getBoundingClientRect().top + target.offsetHeight / 2;
+    const action = getDropAction(target, after);
+    listEl.querySelectorAll('.drop-before,.drop-after').forEach(el => el.classList.remove('drop-before', 'drop-after'));
+    if(action){
+      const marker = listEl.querySelector(`.item[data-index="${action.markerIndex}"]`);
+      if(marker) marker.classList.add('drop-' + action.edge);
+    }
   }
   function onDrop(e){
     e.preventDefault();
     const target = e.currentTarget;
     const to = +target.dataset.index;
-    if(dragIndex === null || to === dragIndex) return;
-    const moved = items.splice(dragIndex,1)[0];
-    items.splice(to,0,moved);
-    selectedIndex = to;
+    const after = e.clientY > target.getBoundingClientRect().top + target.offsetHeight / 2;
+    if(dragIndex === null) return;
+    const action = getDropAction(target, after);
+    if(action){
+      if(items[dragIndex].type === 'engine' && items[to].type === 'category'){
+        collapsedCategories.delete(items[to]);
+      }
+      moveRange(action.start, action.end, action.insertion);
+    }
     dragIndex = null;
     render();
+  }
+
+  function getDropAction(target, after){
+    const to = +target.dataset.index;
+    if(items[dragIndex].type === 'category'){
+      const targetCategory = categoryStartFor(to);
+      if(targetCategory < 0 || targetCategory === dragIndex) return null;
+      const before = items[to].type === 'category' && !after;
+      const lastVisible = collapsedCategories.has(items[targetCategory])
+        ? targetCategory : categoryEnd(targetCategory) - 1;
+      return {
+        start: dragIndex,
+        end: categoryEnd(dragIndex),
+        insertion: before ? targetCategory : categoryEnd(targetCategory),
+        markerIndex: before ? targetCategory : lastVisible,
+        edge: before ? 'before' : 'after'
+      };
+    }
+    return {
+      start: dragIndex,
+      end: dragIndex + 1,
+      insertion: items[to].type === 'category' ? to + 1 : to + (after ? 1 : 0),
+      markerIndex: to,
+      edge: items[to].type === 'category' || after ? 'after' : 'before'
+    };
+  }
+
+  function moveRange(start, end, insertion){
+    if(insertion >= start && insertion <= end) return;
+    const moved = items.splice(start, end - start);
+    const destination = insertion > start ? insertion - moved.length : insertion;
+    items.splice(destination, 0, ...moved);
+    selectedIndex = destination;
   }
 
   document.addEventListener('keydown', (e) => {
     if(selectedIndex === null) return;
     const active = document.activeElement;
     if(active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) return;
-    if(e.key === 'ArrowUp' && selectedIndex > 0){
-      const moved = items.splice(selectedIndex,1)[0];
-      items.splice(selectedIndex - 1,0,moved);
-      selectedIndex -= 1;
-      render();
-      e.preventDefault();
-    }else if(e.key === 'ArrowDown' && selectedIndex < items.length - 1){
-      const moved = items.splice(selectedIndex,1)[0];
-      items.splice(selectedIndex + 1,0,moved);
-      selectedIndex += 1;
-      render();
-      e.preventDefault();
-    }
+    const from = selectedIndex;
+    if(e.key === 'ArrowUp'){
+      if(items[from].type === 'category'){
+        const previous = categoryStartFor(from - 1);
+        if(previous >= 0) moveRange(from, categoryEnd(from), previous);
+      }else if(from > 0){
+        const previous = items[from - 1].type === 'category'
+          ? categoryStartFor(from - 2) : from - 1;
+        if(previous >= 0){
+          const insertion = items[previous].type === 'category' ? categoryEnd(previous) : previous;
+          if(items[previous].type === 'category') collapsedCategories.delete(items[previous]);
+          moveRange(from, from + 1, insertion);
+        }
+      }
+    }else if(e.key === 'ArrowDown'){
+      if(items[from].type === 'category'){
+        const next = categoryEnd(from);
+        if(next < items.length) moveRange(from, next, categoryEnd(next));
+      }else if(from < items.length - 1){
+        if(items[from + 1].type === 'category') collapsedCategories.delete(items[from + 1]);
+        moveRange(from, from + 1, from + 2);
+      }
+    }else return;
+    render();
+    e.preventDefault();
   });
 
   // 카테고리/엔진 추가
@@ -222,6 +359,8 @@
   });
   $('#addEng').addEventListener('click', () => {
     items.push({ type:'engine', name:'', url:'' });
+    const owner = categoryStartFor(items.length - 1);
+    if(owner >= 0) collapsedCategories.delete(items[owner]);
     render();
   });
 
@@ -246,6 +385,8 @@
       const ok = data.every(it => it && (it.type==='category' || (it.type==='engine' && typeof it.url==='string')));
       if(!ok) throw new Error('항목 형식 오류');
       items = data;
+      selectedIndex = null;
+      collapsedCategories = new WeakSet();
       render();
       setStatus('불러오기 완료', true);
     }catch(err){
@@ -296,9 +437,10 @@
 function generateSnippet(){
   const cfg = buildConfig();
   const cfgJson = JSON.stringify(cfg);
+  const cfgLiteral = JSON.stringify(cfgJson).replace(/</g, '\\u003c');
   const code =
 `(function(){
-  var CFG = ${JSON.stringify(cfgJson)}; 
+  var CFG = ${cfgLiteral}; 
   CFG = JSON.parse(CFG); // Carrd 필터 회피용 이중 직렬화 복원
 
   function css(el, obj){ for(var k in obj){ el.style[k] = obj[k]; } }
@@ -321,6 +463,7 @@ function generateSnippet(){
     transform:'translateX(-50%)',
     zIndex:'2147483647',
     width:'min(960px, calc(100vw - 24px))',
+    boxSizing:'border-box',
     margin:'0',
     padding:'16px',
     background:'#fff',
@@ -422,10 +565,27 @@ function generateSnippet(){
   function setCollapsed(c){
     collapsed = c;
     content.style.display = c ? 'none' : 'block';
-    toggle.textContent = c ? '△' : '▽';
+    title.style.display = c ? 'none' : 'block';
+    header.style.marginBottom = c ? '0' : '8px';
+    toggle.textContent = c ? '🔎 검색' : '▽';
+    toggle.setAttribute('aria-label', c ? '검색 열기' : '검색 접기');
+    toggle.setAttribute('aria-expanded', String(!c));
+    css(toggle, {
+      width: c ? 'auto' : '32px',
+      height: c ? '44px' : '32px',
+      padding: c ? '0 16px' : '0',
+      border: c ? '1px solid #2d6cdf' : '1px solid #ccc',
+      borderRadius: c ? '999px' : '8px',
+      background: c ? '#2d6cdf' : '#fff',
+      color: c ? '#fff' : '#111',
+      fontSize: c ? '15px' : '16px'
+    });
     css(wrap, {
-      padding: c ? '8px 12px' : '16px',
-      width:   c ? 'min(480px, calc(100vw - 24px))' : 'min(960px, calc(100vw - 24px))'
+      padding: c ? '0' : '16px',
+      width: c ? 'auto' : 'min(960px, calc(100vw - 24px))',
+      background: c ? 'transparent' : '#fff',
+      border: c ? '0' : '1px solid #ddd',
+      boxShadow: c ? 'none' : '0 8px 24px rgba(0,0,0,.18)'
     });
     try{ localStorage.setItem(storageKey, c ? '1' : '0'); }catch(e){}
   }
@@ -441,7 +601,7 @@ function generateSnippet(){
 
   document.body.appendChild(wrap);
 })();`;
-  return code;
+  return '<script>' + code + '</scr' + 'ipt>';
 }
 
   // 생성 & 복사
